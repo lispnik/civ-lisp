@@ -23,8 +23,26 @@ ocicl install            # fetch sdl2 / sdl2-image (first time)
 sbcl --dynamic-space-size 4096 --non-interactive --load run.lisp
 ```
 
-A 640×480 window opens with the torch image as the cursor. Close the window or
-press **Escape** to quit.
+A 640×480 window opens with the torch image as the cursor (drawn centred so you
+can see it). Close the window or press **Escape** to quit.
+
+## Global 2× scaling
+
+The original Civilization assets are tiny on a modern display, so the whole app
+is scaled by `*scale*` (default `2`). Two separate things are scaled:
+
+* **Renderer drawing** — `SDL_RenderSetScale` multiplies every render coordinate,
+  so the app draws in logical (320×240) space and SDL doubles it.
+* **The mouse cursor** — OS cursors are *not* touched by the renderer, so the
+  cursor surface is upscaled (nearest-neighbour via `SDL_UpperBlitScaled`)
+  before the colour cursor is created. The 13×14 torch becomes a 26×28 cursor.
+
+Change the factor at runtime:
+
+```lisp
+(setf civ-lisp:*scale* 3)
+(civ-lisp:run)              ; or (civ-lisp:run :scale 3)
+```
 
 ## Standalone executable
 
