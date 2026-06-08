@@ -1,0 +1,9 @@
+# ocicl-fetched dependency sources
+ocicl/
+
+# build artifacts
+*.fasl
+.DS_Store
+
+# dumped standalone executable
+/civ-lisp
