@@ -1,0 +1,60 @@
+;;;; map.lisp -- the world grid.
+
+(in-package #:civ-model)
+
+(defstruct (tile (:constructor make-tile (&key (terrain :grassland))))
+  (terrain :grassland :type keyword)
+  (feature nil)                ; :forest-overlay, :river, ... (optional)
+  (resource nil)              ; :wheat :iron ... (optional special yield)
+  ;; improvements
+  (road nil)
+  (irrigation nil)
+  (mine nil)
+  ;; occupancy
+  (owner nil)                 ; player id or NIL
+  (city nil)                  ; city id or NIL (a city sits on this tile)
+  (units '()))                ; list of unit ids currently on the tile
+
+(defstruct (game-map (:constructor %make-game-map))
+  (width 0 :type fixnum)
+  (height 0 :type fixnum)
+  (tiles nil :type (or null simple-vector)))   ; row-major width*height
+
+(defun make-game-map (width height &key (terrain :grassland))
+  "An all-TERRAIN map of WIDTH x HEIGHT fresh tiles."
+  (let ((tiles (make-array (* width height))))
+    (dotimes (i (* width height))
+      (setf (svref tiles i) (make-tile :terrain terrain)))
+    (%make-game-map :width width :height height :tiles tiles)))
+
+(declaim (inline in-bounds-p))
+(defun in-bounds-p (map x y)
+  (and (>= x 0) (< x (game-map-width map))
+       (>= y 0) (< y (game-map-height map))))
+
+(defun tile-at (map x y)
+  "The tile at (X,Y), or NIL if out of bounds."
+  (when (in-bounds-p map x y)
+    (svref (game-map-tiles map) (+ x (* y (game-map-width map))))))
+
+(defparameter +neighbor-offsets+
+  '((-1 . -1) (0 . -1) (1 . -1)
+    (-1 .  0)          (1 .  0)
+    (-1 .  1) (0 .  1) (1 .  1))
+  "The 8 surrounding directions (square grid, king moves).")
+
+(defun neighbors (map x y)
+  "List of (x y tile) for the in-bounds 8-neighbours of (X,Y)."
+  (loop for (dx . dy) in +neighbor-offsets+
+        for nx = (+ x dx) for ny = (+ y dy)
+        for tile = (tile-at map nx ny)
+        when tile collect (list nx ny tile)))
+
+(defmacro do-tiles ((x y tile map) &body body)
+  "Iterate X Y TILE over every tile of MAP."
+  (let ((m (gensym)))
+    `(let ((,m ,map))
+       (dotimes (,y (game-map-height ,m))
+         (dotimes (,x (game-map-width ,m))
+           (let ((,tile (tile-at ,m ,x ,y)))
+             ,@body))))))

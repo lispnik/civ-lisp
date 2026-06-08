@@ -7,6 +7,22 @@ graphic extracted from the DOS game *Sid Meier's Civilization* (see the sibling
 
 ![torch cursor](assets/torch.png)
 
+## Two systems
+
+| system | what it is | depends on |
+|--------|-----------|------------|
+| **`civ-model`** | the pure game model — state + rules, **no SDL, no I/O** | (nothing) |
+| **`civ-lisp`** | the SDL2 front-end (window, cursor, scaling) | `civ-model`, `sdl2`, `sdl2-image` |
+
+The model is deliberately independent of rendering so it can be tested headless
+and reused by tools / AI / a future networked client. See
+[`docs/MODEL.md`](docs/MODEL.md) for the design and
+[`examples/model-demo.lisp`](examples/model-demo.lisp) for a runnable tour:
+
+```sh
+sbcl --non-interactive --load examples/model-demo.lisp
+```
+
 ## Requirements
 
 * SBCL
