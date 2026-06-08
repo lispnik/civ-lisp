@@ -15,4 +15,5 @@
   :serial t
   :pathname "src"
   :components ((:file "package")
+               (:file "view")
                (:file "main")))

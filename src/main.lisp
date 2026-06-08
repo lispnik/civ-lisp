@@ -1,10 +1,13 @@
-;;;; main.lisp -- open an SDL2 window and use the torch image as the cursor.
+;;;; main.lisp -- SDL2 front-end: drive and render a civ-model game.
 ;;;;
-;;;; The whole app is scaled by *SCALE* (default 2x) so the small original
-;;;; Civilization assets are legible on a modern display.  Two things scale:
-;;;;   1. everything drawn through the renderer -- via SDL_RenderSetScale, and
-;;;;   2. the OS mouse cursor -- which the renderer never touches, so its
-;;;;      surface is upscaled (nearest-neighbour) before the cursor is built.
+;;;; Opens a window showing the map, units and cities from a GAME-STATE, scaled
+;;;; globally by *SCALE*, with the torch image as the mouse cursor.  Keyboard
+;;;; input is turned into civ-model COMMANDS -- the view never mutates the model
+;;;; directly.
+;;;;
+;;;;   arrows / WASD : move selected unit      Tab : cycle selected unit
+;;;;   B            : found city (settlers)    Enter : end turn
+;;;;   Esc / close  : quit
 
 (in-package #:civ-lisp)
 
@@ -16,6 +19,9 @@
 (defparameter *scale* 2
   "Global integer scale factor applied to the whole app.")
 
+;;; --- cursor (the OS cursor is not affected by the render scale, so its
+;;;     surface is upscaled separately) ----------------------------------------
+
 (defun scale-surface (src factor)
   "Return a new SDL surface FACTOR times larger than SRC (nearest-neighbour,
 alpha preserved).  Caller must free the result with SDL_FreeSurface."
@@ -23,14 +29,12 @@ alpha preserved).  Caller must free the result with SDL_FreeSurface."
       src
       (let* ((w (sdl2:surface-width src))
              (h (sdl2:surface-height src))
-             ;; integer pixel-format enum (surface-format-format returns a keyword)
              (fmt (plus-c:c-ref src sdl2-ffi:sdl-surface :format :format))
              (dst (sdl2-ffi.functions:sdl-create-rgb-surface-with-format
                    0 (* w factor) (* h factor) 32 fmt)))
         (when (cffi:null-pointer-p (autowrap:ptr dst))
           (error "SDL_CreateRGBSurfaceWithFormat failed: ~A"
                  (sdl2-ffi.functions:sdl-get-error)))
-        ;; copy source pixels (incl. alpha) verbatim, just stretched
         (sdl2-ffi.functions:sdl-set-surface-blend-mode src 0) ; SDL_BLENDMODE_NONE
         (sdl2-ffi.functions:sdl-upper-blit-scaled
          src (cffi:null-pointer) dst (cffi:null-pointer))
@@ -49,48 +53,101 @@ Returns the scaled cursor surface so the caller can free it on exit."
     (sdl2:show-cursor)
     (values cursor cur-surf)))
 
-(defun run (&key (width 640) (height 480) (scale *scale*)
-                 (cursor-image *cursor-image*))
-  "Open a WIDTH x HEIGHT SDL2 window scaled globally by SCALE, with the torch
-image as the cursor (and drawn centred to show the scaling).  Quits on window
-close or Escape."
+;;; --- selection helpers -----------------------------------------------------
+
+(defun human-player-ids (state)
+  (loop for p across (civm:gs-players state)
+        when (eq (civm:player-kind p) :human) collect (civm:player-id p)))
+
+(defun human-unit-ids (state)
+  (let ((humans (human-player-ids state)))
+    (sort (loop for id being the hash-keys of (civm:gs-units state)
+                  using (hash-value u)
+                when (member (civm:unit-owner u) humans) collect id)
+          #'<)))
+
+(defun first-human-unit (state) (first (human-unit-ids state)))
+
+(defun next-human-unit (state current)
+  (let ((ids (human-unit-ids state)))
+    (cond ((null ids) nil)
+          ((null current) (first ids))
+          (t (or (cadr (member current ids)) (first ids))))))
+
+(defun year-string (year)
+  (if (minusp year) (format nil "~D BC" (- year)) (format nil "AD ~D" year)))
+
+;;; --- main loop -------------------------------------------------------------
+
+(defun run (&key (scale *scale*) (seed 0) (cursor-image *cursor-image*))
+  "Open a window, start a new game, and render/drive it until quit."
   (sdl2:with-init (:video)
     (sdl2-image:init '(:png))
-    (sdl2:with-window (win :title "civ-lisp" :w width :h height :flags '(:shown))
-      (sdl2:with-renderer (ren win :flags '(:accelerated :presentvsync))
-        ;; global scale: all renderer drawing is multiplied by SCALE
-        (sdl2-ffi.functions:sdl-render-set-scale ren (float scale 1.0) (float scale 1.0))
-        (let* ((surface (sdl2-image:load-image (namestring cursor-image)))
-               (tw (sdl2:surface-width surface))
-               (th (sdl2:surface-height surface))
-               ;; logical (pre-scale) drawing area
-               (lw (floor width scale))
-               (lh (floor height scale)))
-          (multiple-value-bind (cursor cursor-surface)
-              (set-image-cursor surface :scale scale)
-            (let ((tex (sdl2:create-texture-from-surface ren surface)))
-              (unwind-protect
-                   (sdl2:with-event-loop (:method :poll)
-                     (:quit () t)
-                     (:keydown (:keysym k)
-                               (when (sdl2:scancode= (sdl2:scancode-value k)
-                                                     :scancode-escape)
-                                 (sdl2:push-quit-event)))
-                     (:idle ()
-                            (sdl2:set-render-draw-color ren 24 28 64 255)
-                            (sdl2:render-clear ren)
-                            ;; drawn in logical coords; SDL scales it up by SCALE
-                            (sdl2:render-copy
-                             ren tex
-                             :dest-rect (sdl2:make-rect (- (floor lw 2) (floor tw 2))
-                                                        (- (floor lh 2) (floor th 2))
-                                                        tw th))
-                            (sdl2:render-present ren)))
-                (sdl2:destroy-texture tex)
-                (sdl2-ffi.functions:sdl-free-cursor cursor)
-                (sdl2-ffi.functions:sdl-free-surface cursor-surface)
-                (sdl2-ffi.functions:sdl-free-surface surface)
-                (sdl2-image:quit)))))))))
+    (let* ((state (civm:make-new-game :seed seed))
+           (map (civm:gs-map state))
+           (lw (* (civm:map-width map) *tile*))
+           (lh (* (civm:map-height map) *tile*))
+           (selected (first-human-unit state)))
+      (sdl2:with-window (win :title "civ-lisp" :w (* lw scale) :h (* lh scale)
+                             :flags '(:shown))
+        (sdl2:with-renderer (ren win :flags '(:accelerated :presentvsync))
+          (sdl2-ffi.functions:sdl-render-set-scale ren (float scale 1.0)
+                                                   (float scale 1.0))
+          (let ((painter (make-renderer-painter ren (load-atlas ren *sprites-image*)))
+                (torch (sdl2-image:load-image (namestring cursor-image))))
+            (multiple-value-bind (cursor cursor-surface)
+                (set-image-cursor torch :scale scale)
+              (sdl2-ffi.functions:sdl-free-surface torch)
+              (flet ((retitle ()
+                       (sdl2:set-window-title
+                        win (format nil "civ-lisp — turn ~D, ~A"
+                                    (civm:gs-turn state)
+                                    (year-string (civm:gs-year state)))))
+                     (try (cmd)
+                       (handler-case (civm:apply-command state cmd)
+                         (civm:command-error () nil))))
+                (retitle)
+                (unwind-protect
+                     (sdl2:with-event-loop (:method :poll)
+                       (:quit () t)
+                       (:keydown (:keysym k)
+                         (let ((sc (sdl2:scancode-value k)))
+                           (cond
+                             ((sdl2:scancode= sc :scancode-escape)
+                              (sdl2:push-quit-event))
+                             ((sdl2:scancode= sc :scancode-return)
+                              (try '(:end-turn))
+                              (setf selected (first-human-unit state))
+                              (retitle))
+                             ((sdl2:scancode= sc :scancode-tab)
+                              (setf selected (next-human-unit state selected)))
+                             ((sdl2:scancode= sc :scancode-b)
+                              (when selected
+                                (try (list :found-city :unit selected :name "City"))
+                                (setf selected (first-human-unit state))))
+                             ((or (sdl2:scancode= sc :scancode-up)
+                                  (sdl2:scancode= sc :scancode-w))
+                              (when selected
+                                (try (list :move-unit :unit selected :dx 0 :dy -1))))
+                             ((or (sdl2:scancode= sc :scancode-down)
+                                  (sdl2:scancode= sc :scancode-s))
+                              (when selected
+                                (try (list :move-unit :unit selected :dx 0 :dy 1))))
+                             ((or (sdl2:scancode= sc :scancode-left)
+                                  (sdl2:scancode= sc :scancode-a))
+                              (when selected
+                                (try (list :move-unit :unit selected :dx -1 :dy 0))))
+                             ((or (sdl2:scancode= sc :scancode-right)
+                                  (sdl2:scancode= sc :scancode-d))
+                              (when selected
+                                (try (list :move-unit :unit selected :dx 1 :dy 0)))))))
+                       (:idle ()
+                         (render-game painter state selected)))
+                  ;; cleanup
+                  (sdl2:destroy-texture (painter-tex painter))
+                  (sdl2-ffi.functions:sdl-free-cursor cursor)
+                  (sdl2-ffi.functions:sdl-free-surface cursor-surface)
+                  (sdl2-image:quit))))))))))
 
 (defun main ()
   "Entry point.  On macOS the SDL event loop must run on the main thread."

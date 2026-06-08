@@ -1,11 +1,28 @@
 # civ-lisp
 
-A minimal **SDL2** application in Common Lisp (SBCL, [ocicl](https://github.com/ocicl/ocicl)
-for dependencies). It opens a window and sets the mouse cursor to the **torch**
-graphic extracted from the DOS game *Sid Meier's Civilization* (see the sibling
-[civ-extract](https://github.com/lispnik/civ-extract) project).
+An **SDL2** front-end in Common Lisp (SBCL, [ocicl](https://github.com/ocicl/ocicl)
+for dependencies) for a Civilization-like 4X game. It renders a live
+[`civ-model`](docs/MODEL.md) game — map, units and cities — using sprites
+extracted from the DOS game *Sid Meier's Civilization* (the sibling
+[civ-extract](https://github.com/lispnik/civ-extract) project), with the
+**torch** graphic as the mouse cursor.
 
 ![torch cursor](assets/torch.png)
+
+## Controls
+
+| key | action |
+|-----|--------|
+| arrows / WASD | move the selected unit |
+| Tab | cycle the selected unit |
+| B | found a city (with a settlers unit) |
+| Enter | end turn |
+| Esc / close | quit |
+
+Terrain is drawn as solid colours; units and cities use SP257 sprites. The map
+fills the window exactly (20×15 tiles of 16 px, scaled 2× → 640×480). Keyboard
+input is turned into `civ-model` commands — the view never mutates the model
+directly.
 
 ## Two systems
 

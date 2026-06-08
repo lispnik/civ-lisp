@@ -15,7 +15,7 @@
   (city nil)                  ; city id or NIL (a city sits on this tile)
   (units '()))                ; list of unit ids currently on the tile
 
-(defstruct (game-map (:constructor %make-game-map))
+(defstruct (game-map (:constructor %make-game-map) (:conc-name map-))
   (width 0 :type fixnum)
   (height 0 :type fixnum)
   (tiles nil :type (or null simple-vector)))   ; row-major width*height
@@ -29,13 +29,13 @@
 
 (declaim (inline in-bounds-p))
 (defun in-bounds-p (map x y)
-  (and (>= x 0) (< x (game-map-width map))
-       (>= y 0) (< y (game-map-height map))))
+  (and (>= x 0) (< x (map-width map))
+       (>= y 0) (< y (map-height map))))
 
 (defun tile-at (map x y)
   "The tile at (X,Y), or NIL if out of bounds."
   (when (in-bounds-p map x y)
-    (svref (game-map-tiles map) (+ x (* y (game-map-width map))))))
+    (svref (map-tiles map) (+ x (* y (map-width map))))))
 
 (defparameter +neighbor-offsets+
   '((-1 . -1) (0 . -1) (1 . -1)
@@ -54,7 +54,7 @@
   "Iterate X Y TILE over every tile of MAP."
   (let ((m (gensym)))
     `(let ((,m ,map))
-       (dotimes (,y (game-map-height ,m))
-         (dotimes (,x (game-map-width ,m))
+       (dotimes (,y (map-height ,m))
+         (dotimes (,x (map-width ,m))
            (let ((,tile (tile-at ,m ,x ,y)))
              ,@body))))))

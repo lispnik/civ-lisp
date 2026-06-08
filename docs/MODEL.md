@@ -70,5 +70,9 @@ This is a scaffold — the seams are in place, the depth is not:
 * **Diplomacy** and a real **AI** (it would emit commands like any controller).
 * **Happiness / health**, **government** effects, **wonders**, **victory checks**.
 * Richer **map generation** (continents, resources, rivers).
-* Hooking the model up to the SDL view (draw terrain/units/cities from
-  `game-state`, using the sprites from civ-extract).
+* Terrain **sprites** (the SDL view currently draws terrain as solid colours;
+  TER257 uses edge-blend variants that need a neighbour-bitmask lookup).
+
+The SDL view (`civ-lisp`, `src/view.lisp` + `src/main.lisp`) already reads a
+live `game-state` and renders map/units/cities, turning keyboard input into
+commands — see the project README for controls.

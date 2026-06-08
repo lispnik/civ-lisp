@@ -16,6 +16,7 @@
    ;; entities
    #:player #:make-player #:player-id #:player-name #:player-kind
    #:player-gold #:player-government #:player-techs #:player-researching #:player-beakers
+   #:player-color #:player-tax-rate #:player-science-rate #:player-luxury-rate
    #:unit #:unit-id #:unit-type #:unit-owner #:unit-x #:unit-y
    #:unit-hp #:unit-moves-left #:unit-orders #:unit-veteran
    #:city #:city-id #:city-name #:city-owner #:city-x #:city-y #:city-size
