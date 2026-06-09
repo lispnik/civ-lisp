@@ -30,6 +30,7 @@ networking and AI tractable.
 | `commands.lisp` | `apply-command` — the only sanctioned way to mutate state |
 | `ai.lisp`       | a simple AI opponent that issues commands (`run-ai-players`, called from `end-turn`) |
 | `pathfind.lisp` | A* pathfinding and the `:goto` order (`process-goto`, called from `end-turn`) |
+| `fog.lisp`      | fog of war: per-player `seen` set + `visible-set` (`update-visibility`, called from `end-turn`) |
 
 ## Core state
 
@@ -73,7 +74,9 @@ This is a scaffold — the seams are in place, the depth is not:
   slipping between enemy-adjacent tiles.  A `:goto` order runs A* pathfinding
   (terrain-cost-weighted, routing around ocean and enemy units) and walks the
   unit toward its target each turn (`pathfind.lisp`).
-* **Fog of war** / per-player visibility.
+* **Fog of war** exists (`fog.lisp`): each player accumulates a `seen` set and
+  a transient `visible-set` from unit/city sight; the SDL view renders the human
+  player's perspective.  Could grow line-of-sight blocking and shared vision.
 * **Diplomacy**, and a smarter **AI** (a basic one exists in `ai.lisp` — it
   expands, produces, researches, garrisons/fortifies cities and attacks
   adjacent enemies; it has no strategy or negotiation).

@@ -326,6 +326,51 @@
     (is (= 7 (unit-x u))) (is (= 1 (unit-y u)))      ; detoured around and arrived
     (is (not (eq :ocean (tile-terrain (tile-at (gs-map s) (unit-x u) (unit-y u))))))))
 
+;;; --- fog of war -------------------------------------------------------------
+
+(test fog-initial-sight
+  (let ((s (bare-state 12 12)))
+    (add-unit s :warriors 1 5 5)
+    (update-visibility s)
+    (let ((p (player-by-id s 1)))
+      (is-true (seen-p s p 5 5))               ; on the unit
+      (is-true (seen-p s p 6 6))               ; within sight (diagonal)
+      (is-true (seen-p s p 4 5))
+      (is-false (seen-p s p 8 8)))))           ; out of range, unexplored
+
+(test fog-reveals-on-move
+  (let ((s (bare-state 12 12)))
+    (let ((u (add-unit s :warriors 1 2 2)))
+      (update-visibility s)
+      (let ((p (player-by-id s 1)))
+        (is-false (seen-p s p 5 2))            ; not yet seen
+        ;; walk east toward it (warriors move 1/turn)
+        (dotimes (i 3) (end-turn s)
+          (apply-command s (list :move-unit :unit (unit-id u) :dx 1 :dy 0)))
+        (update-visibility s)
+        (is-true (seen-p s p 5 2))))))         ; now explored
+
+(test fog-visible-set
+  (let ((s (bare-state 12 12)))
+    (add-unit s :warriors 1 5 5)
+    (let* ((p (player-by-id s 1)) (vis (visible-set s p)) (w (map-width (gs-map s))))
+      (is-true (gethash (+ 5 (* 5 w)) vis))    ; currently visible
+      (is-true (gethash (+ 6 (* 5 w)) vis))
+      (is-false (gethash (+ 9 (* 9 w)) vis))))) ; far away, not visible
+
+(test fog-seen-persists-but-not-visible
+  ;; a tile explored then left behind stays seen but is no longer visible
+  (let ((s (bare-state 12 12)))
+    (let ((u (add-unit s :warriors 1 2 5)))
+      (update-visibility s)
+      (let ((p (player-by-id s 1)))
+        (dotimes (i 6) (end-turn s)
+          (apply-command s (list :move-unit :unit (unit-id u) :dx 1 :dy 0)))
+        (update-visibility s)
+        (is-true (seen-p s p 2 5))                          ; still remembered
+        (is-false (gethash (+ 2 (* 5 (map-width (gs-map s))))
+                           (visible-set s p)))))))          ; but not in current sight
+
 (test ai-expands
   ;; the AI should found and expand to several cities on its own
   (let ((s (make-new-game :seed 7)))

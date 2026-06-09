@@ -16,6 +16,10 @@
                    (asdf:system-source-directory :civ-lisp))
   "The torch graphic extracted from Civilization, used as the mouse cursor.")
 
+(defparameter *go-cursor-image*
+  (merge-pathnames "assets/go.png" (asdf:system-source-directory :civ-lisp))
+  "The Civilization \"Go\" arrow, used as the cursor while choosing a goto tile.")
+
 (defparameter *scale* 2
   "Global integer scale factor applied to the whole app.")
 
@@ -40,18 +44,16 @@ alpha preserved).  Caller must free the result with SDL_FreeSurface."
          src (cffi:null-pointer) dst (cffi:null-pointer))
         dst)))
 
-(defun set-image-cursor (surface &key (scale 1) (hot-x 0) (hot-y 0))
-  "Build a colour cursor from SURFACE (scaled by SCALE) and make it active.
-Returns the scaled cursor surface so the caller can free it on exit."
-  (let* ((cur-surf (scale-surface surface scale))
+(defun make-cursor (path scale &key (hot-x 0) (hot-y 0))
+  "Load image PATH, scale it, and build a colour cursor (without activating it).
+Returns the cursor (the loaded surfaces leak until process exit, which is fine)."
+  (let* ((base (sdl2-image:load-image (namestring path)))
+         (scaled (scale-surface base scale))
          (cursor (sdl2-ffi.functions:sdl-create-color-cursor
-                  cur-surf (* hot-x scale) (* hot-y scale))))
+                  scaled (* hot-x scale) (* hot-y scale))))
     (when (cffi:null-pointer-p (autowrap:ptr cursor))
-      (error "SDL_CreateColorCursor failed: ~A"
-             (sdl2-ffi.functions:sdl-get-error)))
-    (sdl2-ffi.functions:sdl-set-cursor cursor)
-    (sdl2:show-cursor)
-    (values cursor cur-surf)))
+      (error "SDL_CreateColorCursor failed: ~A" (sdl2-ffi.functions:sdl-get-error)))
+    cursor))
 
 ;;; --- selection helpers -----------------------------------------------------
 
@@ -93,14 +95,19 @@ Returns the scaled cursor surface so the caller can free it on exit."
         (sdl2:with-renderer (ren win :flags '(:accelerated :presentvsync))
           (sdl2-ffi.functions:sdl-render-set-scale ren (float scale 1.0)
                                                    (float scale 1.0))
+          (sdl2-ffi.functions:sdl-set-render-draw-blend-mode ren 1) ; for fog dimming
           (let ((painter (make-renderer-painter ren
                                                 (load-atlas ren *sprites-image*)
                                                 (load-atlas ren *terrain-image*)))
-                (torch (sdl2-image:load-image (namestring cursor-image))))
-            (multiple-value-bind (cursor cursor-surface)
-                (set-image-cursor torch :scale scale)
-              (sdl2-ffi.functions:sdl-free-surface torch)
-              (flet ((retitle ()
+                (torch-cursor (make-cursor cursor-image scale))
+                (go-cursor (make-cursor *go-cursor-image* scale))
+                (goto-mode nil))
+            (sdl2-ffi.functions:sdl-set-cursor torch-cursor)
+            (sdl2:show-cursor)
+            (progn
+              (flet ((torch! () (setf goto-mode nil)
+                       (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
+                     (retitle ()
                        (sdl2:set-window-title
                         win (format nil "civ-lisp — turn ~D, ~A"
                                     (civm:gs-turn state)
@@ -116,8 +123,15 @@ Returns the scaled cursor surface so the caller can free it on exit."
                          (let ((sc (sdl2:scancode-value k)))
                            (cond
                              ((sdl2:scancode= sc :scancode-escape)
-                              (sdl2:push-quit-event))
+                              ;; cancel a pending goto, otherwise quit
+                              (if goto-mode (torch!) (sdl2:push-quit-event)))
+                             ((sdl2:scancode= sc :scancode-g)
+                              ;; enter goto mode: pick a destination by clicking
+                              (when selected
+                                (setf goto-mode t)
+                                (sdl2-ffi.functions:sdl-set-cursor go-cursor)))
                              ((sdl2:scancode= sc :scancode-return)
+                              (when goto-mode (torch!))
                               (try '(:end-turn))
                               (setf selected (first-human-unit state))
                               (retitle))
@@ -147,18 +161,19 @@ Returns the scaled cursor surface so the caller can free it on exit."
                               (when selected
                                 (try (list :move-unit :unit selected :dx 1 :dy 0)))))))
                        (:mousebuttondown (:x mx :y my)
-                         ;; left-click sets a goto target for the selected unit
-                         (when selected
+                         ;; in goto mode, click sets the destination then reverts
+                         (when (and goto-mode selected)
                            (try (list :goto :unit selected
                                       :x (floor mx (* *tile* scale))
-                                      :y (floor my (* *tile* scale))))))
+                                      :y (floor my (* *tile* scale))))
+                           (torch!)))
                        (:idle ()
                          (render-game painter state selected)))
                   ;; cleanup
                   (sdl2:destroy-texture (painter-sprites painter))
                   (sdl2:destroy-texture (painter-terrain painter))
-                  (sdl2-ffi.functions:sdl-free-cursor cursor)
-                  (sdl2-ffi.functions:sdl-free-surface cursor-surface)
+                  (sdl2-ffi.functions:sdl-free-cursor torch-cursor)
+                  (sdl2-ffi.functions:sdl-free-cursor go-cursor)
                   (sdl2-image:quit))))))))))
 
 (defun main ()

@@ -21,6 +21,11 @@ has expanded into several cities and units (red borders).*
 human's Rome (blue, with a warrior garrison) and the AI's cities (red, one on a
 river) — amid blended terrain, rivers and resource specials.*
 
+![fog of war](docs/fog.png)
+
+*Fog of war from the human's view: black = unexplored, dim = explored but out of
+sight, bright = currently visible. A scout's trail is dimmed behind it.*
+
 ## Controls
 
 | key | action |
@@ -29,9 +34,13 @@ river) — amid blended terrain, rivers and resource specials.*
 | Tab | cycle the selected unit |
 | B | found a city (with a settlers unit) |
 | F | fortify the selected unit (defense + faster healing) |
-| left-click | send the selected unit to that tile (auto-path each turn) |
+| G, then left-click | send the selected unit to a tile (auto-paths each turn); the cursor becomes the **Go** arrow |
 | Enter | end turn |
-| Esc / close | quit |
+| Esc | cancel a pending Go (restores the torch cursor); otherwise quit |
+
+The map is covered by **fog of war**: unexplored tiles are black, tiles you've
+seen but can't currently see are dimmed, and enemy units/cities show only while
+in sight of one of your units or cities.
 
 Terrain uses the original **edge-blending** scheme (CivOne's algorithm): a land
 tile is a generic base plus a TER257 overlay chosen by a bitmask of which

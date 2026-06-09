@@ -17,6 +17,7 @@
   (techs (make-hash-table :test 'eq))   ; researched advances (set: key -> t)
   (researching nil)                     ; tech currently being researched
   (beakers 0 :type fixnum)              ; science accumulated toward it
+  (seen (make-hash-table :test 'eql))   ; explored tiles (fog of war): key x+y*w -> t
   (score 0 :type fixnum))
 
 (defun player-has-tech-p (player tech)

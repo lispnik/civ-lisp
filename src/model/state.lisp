@@ -22,6 +22,9 @@
   "Allocate a fresh monotonic entity id."
   (prog1 (gs-id-counter state) (incf (gs-id-counter state))))
 
+;; defined in fog.lisp (loaded after this file); declared so MAKE-NEW-GAME compiles
+(declaim (ftype (function (t) t) update-visibility))
+
 (defun gs-rand (state n)
   "A deterministic random integer in [0,N) drawn from STATE's RNG."
   (random n (gs-random state)))
@@ -98,4 +101,5 @@ starting settlers + warriors unit.  SEED makes the game reproducible."
              (setf (tile-river (tile-at map px py)) t)
              (register-unit state :type :settlers :owner (player-id p) :x px :y py)
              (register-unit state :type :warriors :owner (player-id p) :x px :y py))
+    (update-visibility state)        ; reveal each player's starting surroundings
     state))

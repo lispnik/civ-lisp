@@ -17,6 +17,7 @@
                (:file "map")
                (:file "entities")
                (:file "state")
+               (:file "fog")
                (:file "rules")
                (:file "commands")
                (:file "ai")

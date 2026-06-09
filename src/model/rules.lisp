@@ -244,6 +244,7 @@ combat phases here.)"
   (heal-units state)            ; rested/garrisoned units recover HP
   (refresh-units state)
   (process-goto state)          ; units on :goto walk toward their target
+  (update-visibility state)     ; reveal newly-scouted tiles (fog of war)
 
   (incf (gs-turn state))
   (setf (gs-year state) (turn->year (gs-turn state)))
