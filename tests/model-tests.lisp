@@ -307,6 +307,14 @@
     (dotimes (y 6) (terrain! s 3 y :ocean))
     (is (null (find-path s 1 1 6 1 1)))))
 
+(test goto-moves-immediately
+  ;; issuing :goto advances the unit the same turn (responsive UI), not only on end-turn
+  (let* ((s (bare-state 12 6))
+         (u (add-unit s :legion 1 1 3)))
+    (apply-command s (list :goto :unit (unit-id u) :x 8 :y 3))
+    (is (> (unit-x u) 1))                    ; already stepped toward the target
+    (is (eq :goto (unit-orders u)))))         ; and still en route
+
 (test goto-moves-and-arrives
   (let* ((s (bare-state 12 6))
          (u (add-unit s :legion 1 1 3)))            ; legion: 1 move/turn

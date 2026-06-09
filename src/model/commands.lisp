@@ -30,13 +30,18 @@ on an illegal move."
     (:end-turn       (end-turn state)))
   state)
 
+;; defined in pathfind.lisp (loaded later)
+(declaim (ftype (function (t t) t) advance-goto))
+
 (defun cmd-goto (state command)
-  "Set a unit's destination; it then auto-moves there each turn (PROCESS-GOTO)."
+  "Set a unit's destination and start moving it there immediately (and on each
+following turn via PROCESS-GOTO)."
   (let* ((args (rest command))
          (u (or (unit-by-id state (getf args :unit)) (fail "no such unit")))
          (tx (getf args :x)) (ty (getf args :y)))
     (unless (in-bounds-p (gs-map state) tx ty) (fail "goto target out of bounds"))
     (setf (unit-goto-x u) tx (unit-goto-y u) ty (unit-orders u) :goto)
+    (advance-goto state u)          ; move now, don't wait for end-of-turn
     u))
 
 (defun cmd-fortify (state command)

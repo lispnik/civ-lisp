@@ -109,9 +109,10 @@ Returns the cursor (the loaded surfaces leak until process exit, which is fine).
                        (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
                      (retitle ()
                        (sdl2:set-window-title
-                        win (format nil "civ-lisp — turn ~D, ~A"
+                        win (format nil "civ-lisp — turn ~D, ~A~@[   ~A~]"
                                     (civm:gs-turn state)
-                                    (year-string (civm:gs-year state)))))
+                                    (year-string (civm:gs-year state))
+                                    (and goto-mode "[GO: click a destination]"))))
                      (try (cmd)
                        (handler-case (civm:apply-command state cmd)
                          (civm:command-error () nil))))
@@ -124,12 +125,14 @@ Returns the cursor (the loaded surfaces leak until process exit, which is fine).
                            (cond
                              ((sdl2:scancode= sc :scancode-escape)
                               ;; cancel a pending goto, otherwise quit
-                              (if goto-mode (torch!) (sdl2:push-quit-event)))
+                              (if goto-mode (progn (torch!) (retitle))
+                                  (sdl2:push-quit-event)))
                              ((sdl2:scancode= sc :scancode-g)
                               ;; enter goto mode: pick a destination by clicking
                               (when selected
                                 (setf goto-mode t)
-                                (sdl2-ffi.functions:sdl-set-cursor go-cursor)))
+                                (sdl2-ffi.functions:sdl-set-cursor go-cursor)
+                                (retitle)))
                              ((sdl2:scancode= sc :scancode-return)
                               (when goto-mode (torch!))
                               (try '(:end-turn))
@@ -166,7 +169,8 @@ Returns the cursor (the loaded surfaces leak until process exit, which is fine).
                            (try (list :goto :unit selected
                                       :x (floor mx (* *tile* scale))
                                       :y (floor my (* *tile* scale))))
-                           (torch!)))
+                           (torch!)
+                           (retitle)))
                        (:idle ()
                          (render-game painter state selected)))
                   ;; cleanup
