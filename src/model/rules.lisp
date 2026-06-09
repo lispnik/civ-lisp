@@ -26,16 +26,35 @@ river (+1 trade) and its special resource."
       (values f s tr))))
 
 (defun city-auto-work (state city)
-  "Assign the city's SIZE citizens to its best surrounding tiles (by a
-food-weighted score).  The city centre is always worked for free."
+  "Assign the city's SIZE citizens to surrounding tiles.  First secure
+subsistence (each citizen eats 2 food) by working the highest-food tiles, then
+fill the remaining slots preferring trade (so research progresses), then
+shields, then food.  The city centre is always worked for free."
   (let* ((map (gs-map state))
-         (scored (loop for (x y tile) in (neighbors map (city-x city) (city-y city))
-                       collect (multiple-value-bind (f s tr) (tile-yield tile)
-                                 (list (+ (* 2 f) s tr) x y)))))
-    (setf (city-worked city)
-          (loop for entry in (sort scored #'> :key #'first)
-                repeat (city-size city)
-                collect (list (second entry) (third entry))))))
+         (size (city-size city))
+         ;; candidate tiles as (x y food shields trade)
+         (cands (loop for (x y tile) in (neighbors map (city-x city) (city-y city))
+                      collect (multiple-value-bind (f s tr) (tile-yield tile)
+                                (list x y f s tr))))
+         (chosen '()))
+    (multiple-value-bind (cf cs ctr) (tile-yield (tile-at map (city-x city)
+                                                          (city-y city)))
+      (declare (ignore cs ctr))
+      (let ((food cf) (need (* 2 size)))
+        (flet ((take (key)
+                 (let ((best (first (sort (copy-list cands) #'> :key key))))
+                   (when best
+                     (push best chosen)
+                     (setf cands (remove best cands))
+                     (incf food (third best))))))
+          ;; phase 1: secure food
+          (loop while (and (< food need) (< (length chosen) size) cands)
+                do (take #'third))
+          ;; phase 2: maximize trade, then shields, then food
+          (loop while (and (< (length chosen) size) cands)
+                do (take (lambda (e) (+ (* 3 (fifth e)) (* 2 (fourth e)) (third e))))))
+        (setf (city-worked city)
+              (mapcar (lambda (e) (list (first e) (second e))) chosen))))))
 
 (defun city-yields (state city)
   "Return (values food shields trade) produced by CITY this turn."
@@ -87,11 +106,14 @@ food-weighted score).  The city centre is always worked for free."
     ;; production
     (incf (city-shield-box city) shields)
     (city-try-complete state city)
-    ;; economy: trade splits into the owner's gold and science
+    ;; economy: trade splits into the owner's gold and science.  Science is
+    ;; accrued in fine (percent-trade) units so a city with only 1 trade still
+    ;; makes progress instead of flooring to zero (research-cost is scaled to
+    ;; match); gold keeps whole units.
     (let ((p (player-by-id state (city-owner city))))
       (when p
         (incf (player-gold p)    (floor (* trade (player-tax-rate p)) 100))
-        (incf (player-beakers p) (floor (* trade (player-science-rate p)) 100))))))
+        (incf (player-beakers p) (* trade (player-science-rate p)))))))
 
 (defun process-cities (state)
   (maphash (lambda (id c) (declare (ignore id)) (process-city state c))
@@ -108,8 +130,9 @@ food-weighted score).  The city centre is always worked for free."
             collect tech))
 
 (defun research-cost (player)
-  "Beakers needed for the next advance (grows with civ size)."
-  (* 10 (1+ (hash-table-count (player-techs player)))))
+  "Beakers needed for the next advance (grows with the number known).  In the
+same fine units as accrued science: 1000 = 10 'trade-turns' at 100% science."
+  (* 1000 (1+ (hash-table-count (player-techs player)))))
 
 (defun process-research (state)
   (loop for p across (gs-players state) do

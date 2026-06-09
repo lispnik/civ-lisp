@@ -93,7 +93,9 @@ starting settlers + warriors unit.  SEED makes the game reproducible."
                                :kind (if (zerop i) :human :ai)
                                :color (1+ i))
           do (setf (svref pvec i) p)
-             (setf (tile-terrain (tile-at map px py)) :grassland) ; land start
+             ;; a grassland start on a river -- a capital site with baseline trade
+             (setf (tile-terrain (tile-at map px py)) :grassland)
+             (setf (tile-river (tile-at map px py)) t)
              (register-unit state :type :settlers :owner (player-id p) :x px :y py)
              (register-unit state :type :warriors :owner (player-id p) :x px :y py))
     state))
