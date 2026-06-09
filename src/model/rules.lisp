@@ -9,7 +9,8 @@
 ;;; --- tile & city yields (derived, not stored) ------------------------------
 
 (defun tile-yield (tile)
-  "Return (values food shields trade) for TILE incl. improvements."
+  "Return (values food shields trade) for TILE incl. improvements,
+river (+1 trade) and its special resource."
   (let ((tt (tile-terrain tile)))
     (let ((f (terrain-def tt :food 0))
           (s (terrain-def tt :shields 0))
@@ -17,6 +18,11 @@
       (when (tile-irrigation tile) (incf f))
       (when (tile-mine tile) (incf s))
       (when (tile-road tile) (incf tr))
+      (when (tile-river tile) (incf tr))             ; rivers add trade
+      (when (tile-special tile)
+        (let ((bonus (cdr (assoc tt *special-bonus*))))
+          (when bonus
+            (incf f (first bonus)) (incf s (second bonus)) (incf tr (third bonus)))))
       (values f s tr))))
 
 (defun city-auto-work (state city)

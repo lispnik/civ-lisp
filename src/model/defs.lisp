@@ -53,6 +53,17 @@
      (:mathematics   :cost 0  :prereqs (:masonry :alphabet)    :unlocks (:catapult))))
   "Tech tree -> research cost, prerequisite techs, what it unlocks.")
 
+(defparameter *special-bonus*
+  ;; terrain -> (food shields trade) added when the tile has its special resource
+  '((:grassland 0 1 0)   ; shield
+    (:plains    0 2 0)   ; horses
+    (:forest    2 0 0)   ; game
+    (:hills     0 2 0)   ; coal
+    (:mountains 0 0 6)   ; gold
+    (:desert    3 0 0)   ; oasis
+    (:ocean     2 0 0))  ; fish
+  "Yield bonus per terrain's special resource.")
+
 (declaim (inline def-get))
 (defun def-get (table key prop &optional default)
   "Look up PROP for KEY in a definition TABLE."

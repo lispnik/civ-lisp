@@ -59,6 +59,16 @@
     (logior (if (same x (1- y)) +n+ 0) (if (same (1+ x) y) +e+ 0)
             (if (same x (1+ y)) +s+ 0) (if (same (1- x) y) +w+ 0))))
 
+(defun river-mask (map x y)
+  "Bitmask of N/E/S/W neighbours of (X,Y) that are river or ocean (a river
+connects to other rivers and flows into the sea)."
+  (flet ((wet (nx ny)
+           (let ((tl (civm:tile-at map nx ny)))
+             (and tl (or (civm:tile-river tl)
+                         (eq (civm:tile-terrain tl) :ocean))))))
+    (logior (if (wet x (1- y)) +n+ 0) (if (wet (1+ x) y) +e+ 0)
+            (if (wet x (1+ y)) +s+ 0) (if (wet (1- x) y) +w+ 0))))
+
 (defun ocean-land-mask (map x y)
   "Bitmask of the eight neighbours of ocean tile (X,Y) that are land."
   (let ((m 0))
@@ -139,9 +149,20 @@
     (when (and (h +sw+) (not (h +s+)) (not (h +w+))) (b 32 184 0 8))
     (when (and (h +se+) (not (h +s+)) (not (h +e+))) (b 40 184 8 8))))
 
+(defparameter +river-row+ 80)         ; SP257 y of river connection variants
+(defparameter +special-row+ 112)      ; SP257 y of terrain special resources
+
+(defun draw-special (p terr px py)
+  "Draw TERR's special-resource icon (transparent overlay) at (PX,PY).
+Indexed by terrain id along SP257 row 7; these cells have transparent
+backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
+  (blit p (painter-sprites p) (* (terrain-row terr) *tile*) +special-row+
+        *tile* *tile* px py))
+
 (defun draw-terrain-tile (p state x y)
   (let* ((map (civm:gs-map state))
-         (terr (civm:tile-terrain (civm:tile-at map x y)))
+         (tile (civm:tile-at map x y))
+         (terr (civm:tile-terrain tile))
          (px (* x *tile*)) (py (* y *tile*)))
     (if (eq terr :ocean)
         (progn
@@ -155,7 +176,13 @@
           (blit p (painter-terrain p)
                 (* (cardinal-same-mask map x y terr) *tile*)
                 (* (terrain-row terr) *tile*)
-                *tile* *tile* px py)))))
+                *tile* *tile* px py)))
+    ;; rivers (SP257 connection variants) then the special-resource icon
+    (when (civm:tile-river tile)
+      (blit p (painter-sprites p) (* (river-mask map x y) *tile*) +river-row+
+            *tile* *tile* px py))
+    (when (civm:tile-special tile)
+      (draw-special p terr px py))))
 
 ;;; --- the frame -------------------------------------------------------------
 

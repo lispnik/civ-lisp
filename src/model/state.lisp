@@ -67,6 +67,22 @@ starting settlers + warriors unit.  SEED makes the game reproducible."
         (when tile
           (setf (tile-terrain tile)
                 (nth (gs-rand state 4) '(:plains :forest :hills :ocean))))))
+    ;; a couple of meandering rivers (random walks over non-ocean tiles)
+    (dotimes (r 2)
+      (let ((x (gs-rand state width)) (y (gs-rand state height)))
+        (dotimes (step (+ 8 (gs-rand state 8)))
+          (let ((tile (tile-at map x y)))
+            (when (and tile (not (eq (tile-terrain tile) :ocean)))
+              (setf (tile-river tile) t)))
+          (ecase (gs-rand state 4)
+            (0 (incf x)) (1 (decf x)) (2 (incf y)) (3 (decf y)))
+          (setf x (max 0 (min (1- width) x))
+                y (max 0 (min (1- height) y))))))
+    ;; scatter special resources (~1 in 16 tiles)
+    (do-tiles (x y tile map)
+      (declare (ignore x y))
+      (when (zerop (gs-rand state 16))
+        (setf (tile-special tile) t)))
     ;; players + their starting units, spread across the map
     (loop for name in players
           for i from 0

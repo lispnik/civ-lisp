@@ -5,11 +5,12 @@
   (:nicknames #:civm)
   (:export
    ;; definitions (the data-driven rulebook)
-   #:*terrain* #:*units* #:*buildings* #:*techs*
+   #:*terrain* #:*units* #:*buildings* #:*techs* #:*special-bonus*
    #:terrain-def #:unit-def #:building-def #:tech-def
    #:def-get
    ;; map / tiles
    #:tile #:make-tile #:tile-terrain #:tile-feature #:tile-resource
+   #:tile-river #:tile-special
    #:tile-road #:tile-irrigation #:tile-mine #:tile-owner #:tile-city #:tile-units
    #:game-map #:map-width #:map-height #:map-tiles
    #:tile-at #:in-bounds-p #:neighbors #:do-tiles

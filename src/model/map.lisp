@@ -4,8 +4,10 @@
 
 (defstruct (tile (:constructor make-tile (&key (terrain :grassland))))
   (terrain :grassland :type keyword)
-  (feature nil)                ; :forest-overlay, :river, ... (optional)
-  (resource nil)              ; :wheat :iron ... (optional special yield)
+  (feature nil)                ; reserved for future overlays
+  (resource nil)              ; reserved
+  (river nil)                 ; a river runs through this tile
+  (special nil)               ; tile has its terrain's special resource
   ;; improvements
   (road nil)
   (irrigation nil)
