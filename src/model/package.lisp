@@ -28,5 +28,7 @@
    #:gs-random #:gs-rand #:gs-phase #:player-has-tech-p
    ;; rules
    #:tile-yield #:city-yields #:end-turn
+   ;; ai
+   #:run-ai-players #:ai-take-turn
    ;; commands
    #:apply-command #:command-error))

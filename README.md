@@ -11,8 +11,9 @@ extracted from the DOS game *Sid Meier's Civilization* (the sibling
 
 ![civ-lisp rendering a game with edge-blended terrain](docs/screenshot.png)
 
-*A rendered game: edge-blended terrain (TER257), rivers and resource specials
-(SP257), two settlers with owner-coloured borders.*
+*A game after 40 turns: edge-blended terrain (TER257), rivers and resource
+specials (SP257), the human city/units (blue borders) and an AI opponent that
+has expanded into several cities and units (red borders).*
 
 ## Controls
 
@@ -34,7 +35,9 @@ fish, mountain gold) are drawn as overlays and feed into tile yields. Units and
 cities use SP257 sprites. The map
 fills the window exactly (20×15 tiles of 16 px, scaled 2× → 640×480). Keyboard
 input is turned into `civ-model` commands — the view never mutates the model
-directly.
+directly. The rival civilization is run by a simple **AI** that issues the same
+commands (it founds and spaces out cities, sets production, explores, and
+researches); it takes its turn automatically whenever you end yours.
 
 ## Two systems
 

@@ -18,4 +18,5 @@
                (:file "entities")
                (:file "state")
                (:file "rules")
-               (:file "commands")))
+               (:file "commands")
+               (:file "ai")))

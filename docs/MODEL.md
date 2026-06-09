@@ -28,6 +28,7 @@ networking and AI tractable.
 | `state.lisp`    | `game-state` root + `make-new-game` |
 | `rules.lisp`    | yields, city growth/production, research, the `end-turn` loop |
 | `commands.lisp` | `apply-command` — the only sanctioned way to mutate state |
+| `ai.lisp`       | a simple AI opponent that issues commands (`run-ai-players`, called from `end-turn`) |
 
 ## Core state
 
@@ -67,7 +68,8 @@ This is a scaffold — the seams are in place, the depth is not:
 
 * **Combat** (attack/defense resolution, ZOC), **pathfinding** for `:goto`.
 * **Fog of war** / per-player visibility.
-* **Diplomacy** and a real **AI** (it would emit commands like any controller).
+* **Diplomacy**, and a smarter **AI** (a basic one exists in `ai.lisp` — it
+  expands, produces and researches; it doesn't yet fight, defend or negotiate).
 * **Happiness / health**, **government** effects, **wonders**, **victory checks**.
 * Richer **map generation** (continents, resources, rivers).
 

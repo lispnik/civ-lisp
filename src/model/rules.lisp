@@ -57,14 +57,16 @@ shields, then food.  The city centre is always worked for free."
               (mapcar (lambda (e) (list (first e) (second e))) chosen))))))
 
 (defun city-yields (state city)
-  "Return (values food shields trade) produced by CITY this turn."
+  "Return (values food shields trade) produced by CITY this turn.
+The city centre is worked for free and, per Civ1, always yields at least
+1 food / 1 shield / 1 trade so every city can grow, build and research."
   (let ((map (gs-map state)) (f 0) (s 0) (tr 0))
-    (flet ((add (tile)
-             (multiple-value-bind (a b c) (tile-yield tile)
-               (incf f a) (incf s b) (incf tr c))))
-      (add (tile-at map (city-x city) (city-y city)))   ; centre (free)
-      (dolist (w (city-worked city))
-        (add (tile-at map (first w) (second w)))))
+    (multiple-value-bind (cf cs ct)
+        (tile-yield (tile-at map (city-x city) (city-y city)))
+      (incf f (max 1 cf)) (incf s (max 1 cs)) (incf tr (max 1 ct)))
+    (dolist (w (city-worked city))
+      (multiple-value-bind (a b c) (tile-yield (tile-at map (first w) (second w)))
+        (incf f a) (incf s b) (incf tr c)))
     (values f s tr)))
 
 ;;; --- per-turn city processing ---------------------------------------------
@@ -156,10 +158,14 @@ same fine units as accrued science: 1000 = 10 'trade-turns' at 100% science."
   "Map a turn number to a (simplified) calendar year."
   (+ -4000 (* (1- turn) 40)))
 
+;; defined in ai.lisp (loaded after this file); declared so END-TURN compiles clean
+(declaim (ftype (function (t) t) run-ai-players))
+
 (defun end-turn (state)
   "Advance the whole world one turn and return STATE.
-Phases: process cities -> research -> refresh units -> advance clock.
-(A full game would interleave per-player movement/combat phases here.)"
+Phases: AI players act -> process cities -> research -> refresh units ->
+advance clock.  (A full game would interleave per-player movement/combat here.)"
+  (run-ai-players state)
   (process-cities state)
   (process-research state)
   (refresh-units state)
