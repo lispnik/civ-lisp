@@ -27,7 +27,7 @@
    #:make-new-game #:player-by-id #:unit-by-id #:city-by-id
    #:gs-random #:gs-rand #:gs-phase #:player-has-tech-p
    ;; rules
-   #:tile-yield #:city-yields #:end-turn
+   #:tile-yield #:city-yields #:end-turn #:resolve-combat
    ;; ai
    #:run-ai-players #:ai-take-turn
    ;; commands

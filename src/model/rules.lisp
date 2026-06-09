@@ -69,6 +69,48 @@ The city centre is worked for free and, per Civ1, always yields at least
         (incf f a) (incf s b) (incf tr c)))
     (values f s tr)))
 
+;;; --- combat ----------------------------------------------------------------
+
+(defparameter +max-hp+ 10 "Hit points each unit fights with.")
+
+(defun attack-strength (unit)
+  (unit-def (unit-type unit) :attack 0))
+
+(defun defense-strength (state unit)
+  "Defender strength incl. terrain, fortification and city bonuses."
+  (let* ((tile (tile-at (gs-map state) (unit-x unit) (unit-y unit)))
+         (base (unit-def (unit-type unit) :defense 0))
+         (terr (/ (terrain-def (tile-terrain tile) :defense 0) 100))
+         (fort (if (eq (unit-orders unit) :fortified) 1/2 0))
+         (city (if (tile-city tile) 1/2 0)))
+    (max 1 (round (* base (+ 1 terr fort city))))))
+
+(defun destroy-unit (state unit)
+  (let ((tile (tile-at (gs-map state) (unit-x unit) (unit-y unit))))
+    (when tile (setf (tile-units tile) (remove (unit-id unit) (tile-units tile)))))
+  (remhash (unit-id unit) (gs-units state)))
+
+(defun tile-enemies (state tile owner)
+  "Units on TILE not belonging to OWNER."
+  (loop for id in (tile-units tile)
+        for u = (unit-by-id state id)
+        when (and u (/= (unit-owner u) owner)) collect u))
+
+(defun resolve-combat (state attacker defender)
+  "Fight ATTACKER vs DEFENDER to the death using a Civ1-style round loop:
+each round, with probability A/(A+D) the defender takes a hit, else the
+attacker does.  Returns :attacker or :defender; the loser is removed and the
+winner restored to full health."
+  (let ((a (max 1 (attack-strength attacker)))
+        (d (defense-strength state defender))
+        (ahp +max-hp+) (dhp +max-hp+))
+    (loop while (and (plusp ahp) (plusp dhp))
+          do (if (< (gs-rand state (+ a d)) a) (decf dhp) (decf ahp)))
+    (cond ((plusp ahp) (setf (unit-hp attacker) +max-hp+)
+                       (destroy-unit state defender) :attacker)
+          (t           (setf (unit-hp defender) +max-hp+)
+                       (destroy-unit state attacker) :defender))))
+
 ;;; --- per-turn city processing ---------------------------------------------
 
 (defun production-cost (item)

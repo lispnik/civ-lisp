@@ -66,7 +66,9 @@ game would interleave per-player movement/combat phases here.
 
 This is a scaffold — the seams are in place, the depth is not:
 
-* **Combat** (attack/defense resolution, ZOC), **pathfinding** for `:goto`.
+* **Combat** exists (moving into an enemy tile fights to the death, with
+  terrain/fortify/city defense bonuses); still missing zones of control,
+  lingering damage/healing, and **pathfinding** for `:goto`.
 * **Fog of war** / per-player visibility.
 * **Diplomacy**, and a smarter **AI** (a basic one exists in `ai.lisp` — it
   expands, produces and researches; it doesn't yet fight, defend or negotiate).

@@ -37,6 +37,23 @@
     (ai-cmd state (list :move-unit :unit (unit-id unit)
                         :dx (car d) :dy (cdr d)))))
 
+(defun adjacent-enemy (state unit)
+  "An enemy unit on a tile bordering UNIT, or NIL."
+  (loop for (x y tile) in (neighbors (gs-map state) (unit-x unit) (unit-y unit))
+        do (loop for id in (tile-units tile)
+                 for e = (unit-by-id state id)
+                 when (and e (/= (unit-owner e) (unit-owner unit)))
+                   do (return-from adjacent-enemy e))))
+
+(defun ai-military (state unit)
+  "Attack an adjacent enemy if one is in reach, otherwise explore."
+  (let ((enemy (adjacent-enemy state unit)))
+    (if enemy
+        (ai-cmd state (list :move-unit :unit (unit-id unit)
+                            :dx (signum (- (unit-x enemy) (unit-x unit)))
+                            :dy (signum (- (unit-y enemy) (unit-y unit)))))
+        (ai-move-random state unit))))
+
 (defun ai-settler (state unit)
   "Found a city on good open ground, otherwise move to find some."
   (let ((tile (tile-at (gs-map state) (unit-x unit) (unit-y unit))))
@@ -66,10 +83,10 @@
   (let ((pid (player-id player)))
     ;; units: settlers settle/seek; everyone else explores
     (dolist (u (player-unit-list state pid))
-      (when (unit-by-id state (unit-id u))         ; may have been consumed
+      (when (unit-by-id state (unit-id u))         ; may have been consumed/killed
         (if (eq (unit-type u) :settlers)
             (ai-settler state u)
-            (ai-move-random state u))))
+            (ai-military state u))))
     ;; cities: pick production
     (dolist (c (player-city-list state pid))
       (ai-city-production state player c))))

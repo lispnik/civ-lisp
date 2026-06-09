@@ -15,6 +15,12 @@ extracted from the DOS game *Sid Meier's Civilization* (the sibling
 specials (SP257), the human city/units (blue borders) and an AI opponent that
 has expanded into several cities and units (red borders).*
 
+![cities close-up](docs/cities.png)
+
+*Close-up: city sprites (white skylines) with owner-coloured borders — the
+human's Rome (blue, with a warrior garrison) and the AI's cities (red, one on a
+river) — amid blended terrain, rivers and resource specials.*
+
 ## Controls
 
 | key | action |
@@ -37,7 +43,10 @@ fills the window exactly (20×15 tiles of 16 px, scaled 2× → 640×480). Keybo
 input is turned into `civ-model` commands — the view never mutates the model
 directly. The rival civilization is run by a simple **AI** that issues the same
 commands (it founds and spaces out cities, sets production, explores, and
-researches); it takes its turn automatically whenever you end yours.
+researches); it takes its turn automatically whenever you end yours. Moving a
+unit into an enemy-occupied tile triggers **combat** — a Civ1-style fight to the
+death with terrain, fortification and city defense bonuses; win and your unit
+advances onto the cleared tile.
 
 ## Two systems
 
