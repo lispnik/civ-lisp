@@ -68,8 +68,9 @@ This is a scaffold — the seams are in place, the depth is not:
 
 * **Combat** exists (moving into an enemy tile fights to the death, with
   terrain/fortify/city defense bonuses; damage carries and units heal between
-  turns — fortified/garrisoned units heal faster).  Still missing zones of
-  control and **pathfinding** for `:goto`.
+  turns — fortified/garrisoned units heal faster).  Zones of control stop units
+  slipping between enemy-adjacent tiles.  Still missing **pathfinding** for
+  `:goto`.
 * **Fog of war** / per-player visibility.
 * **Diplomacy**, and a smarter **AI** (a basic one exists in `ai.lisp` — it
   expands, produces and researches; it doesn't yet fight, defend or negotiate).

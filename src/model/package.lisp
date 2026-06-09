@@ -28,6 +28,7 @@
    #:gs-random #:gs-rand #:gs-phase #:player-has-tech-p
    ;; rules
    #:tile-yield #:city-yields #:end-turn #:resolve-combat #:heal-units
+   #:enemy-adjacent-p
    ;; ai
    #:run-ai-players #:ai-take-turn
    ;; commands

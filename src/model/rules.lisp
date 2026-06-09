@@ -90,6 +90,15 @@ The city centre is worked for free and, per Civ1, always yields at least
     (when tile (setf (tile-units tile) (remove (unit-id unit) (tile-units tile)))))
   (remhash (unit-id unit) (gs-units state)))
 
+(defun enemy-adjacent-p (state x y owner)
+  "T if a tile bordering (X,Y) holds a unit not owned by OWNER -- i.e. (X,Y)
+lies in an enemy zone of control."
+  (loop for cell in (neighbors (gs-map state) x y)
+        for tile = (third cell)
+        thereis (loop for id in (tile-units tile)
+                      for un = (unit-by-id state id)
+                      thereis (and un (/= (unit-owner un) owner)))))
+
 (defun tile-enemies (state tile owner)
   "Units on TILE not belonging to OWNER."
   (loop for id in (tile-units tile)

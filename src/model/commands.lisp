@@ -67,14 +67,22 @@ until it next moves."
                     (setf (unit-x u) nx (unit-y u) ny))))
               result))
           ;; normal move (possibly onto friendly units)
-          (let ((cost (terrain-def (tile-terrain dest) :move 1))
-                (old (tile-at map (unit-x u) (unit-y u))))
-            (setf (tile-units old) (remove (unit-id u) (tile-units old)))
-            (push (unit-id u) (tile-units dest))
-            (setf (unit-x u) nx (unit-y u) ny
-                  (unit-orders u) :idle)            ; moving breaks fortify
-            (decf (unit-moves-left u) (max 1 (min cost (unit-moves-left u))))
-            u)))))
+          (progn
+            ;; zone of control: can't slip directly from one enemy-ZOC tile to
+            ;; another, unless the destination has a friendly unit or is a city
+            (when (and (enemy-adjacent-p state (unit-x u) (unit-y u) (unit-owner u))
+                       (enemy-adjacent-p state nx ny (unit-owner u))
+                       (null (tile-units dest))
+                       (not (tile-city dest)))
+              (fail "blocked by enemy zone of control"))
+            (let ((cost (terrain-def (tile-terrain dest) :move 1))
+                  (old (tile-at map (unit-x u) (unit-y u))))
+              (setf (tile-units old) (remove (unit-id u) (tile-units old)))
+              (push (unit-id u) (tile-units dest))
+              (setf (unit-x u) nx (unit-y u) ny
+                    (unit-orders u) :idle)          ; moving breaks fortify
+              (decf (unit-moves-left u) (max 1 (min cost (unit-moves-left u))))
+              u))))))
 
 (defun cmd-found-city (state command)
   (let* ((args (rest command))
