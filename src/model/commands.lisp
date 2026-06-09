@@ -26,8 +26,18 @@ on an illegal move."
     (:found-city     (cmd-found-city state command))
     (:set-production (cmd-set-production state command))
     (:fortify        (cmd-fortify state command))
+    (:goto           (cmd-goto state command))
     (:end-turn       (end-turn state)))
   state)
+
+(defun cmd-goto (state command)
+  "Set a unit's destination; it then auto-moves there each turn (PROCESS-GOTO)."
+  (let* ((args (rest command))
+         (u (or (unit-by-id state (getf args :unit)) (fail "no such unit")))
+         (tx (getf args :x)) (ty (getf args :y)))
+    (unless (in-bounds-p (gs-map state) tx ty) (fail "goto target out of bounds"))
+    (setf (unit-goto-x u) tx (unit-goto-y u) ty (unit-orders u) :goto)
+    u))
 
 (defun cmd-fortify (state command)
   "Order a unit to fortify: it digs in for a defense bonus and faster healing

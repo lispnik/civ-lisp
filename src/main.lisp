@@ -146,6 +146,12 @@ Returns the scaled cursor surface so the caller can free it on exit."
                                   (sdl2:scancode= sc :scancode-d))
                               (when selected
                                 (try (list :move-unit :unit selected :dx 1 :dy 0)))))))
+                       (:mousebuttondown (:x mx :y my)
+                         ;; left-click sets a goto target for the selected unit
+                         (when selected
+                           (try (list :goto :unit selected
+                                      :x (floor mx (* *tile* scale))
+                                      :y (floor my (* *tile* scale))))))
                        (:idle ()
                          (render-game painter state selected)))
                   ;; cleanup

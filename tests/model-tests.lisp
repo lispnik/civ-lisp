@@ -283,6 +283,49 @@
     (dotimes (i 30) (end-turn s))
     (is (>= (city-size c) 2))))
 
+;;; --- pathfinding & goto -----------------------------------------------------
+
+(test find-path-open
+  (let ((s (bare-state 10 10)))
+    (let ((path (find-path s 1 1 5 1 1)))
+      (is-true path)
+      (is (= 4 (length path)))                  ; straight line, 4 steps east
+      (is (equal '(5 1) (car (last path)))))))   ; ends at the goal
+
+(test find-path-around-wall
+  ;; a vertical ocean wall at x=3 (rows 0..8) with a gap at y=9; path must detour
+  (let ((s (bare-state 8 12)))
+    (dotimes (y 9) (terrain! s 3 y :ocean))
+    (let ((path (find-path s 1 1 5 1 1)))
+      (is-true path)
+      (is-false (find '(3 1) path :test #'equal))   ; never steps onto the wall
+      (is (equal '(5 1) (car (last path)))))))
+
+(test find-path-blocked
+  ;; full ocean wall across x=3 -> no route
+  (let ((s (bare-state 8 6)))
+    (dotimes (y 6) (terrain! s 3 y :ocean))
+    (is (null (find-path s 1 1 6 1 1)))))
+
+(test goto-moves-and-arrives
+  (let* ((s (bare-state 12 6))
+         (u (add-unit s :legion 1 1 3)))            ; legion: 1 move/turn
+    (apply-command s (list :goto :unit (unit-id u) :x 8 :y 3))
+    (is (eq :goto (unit-orders u)))
+    (dotimes (i 12) (end-turn s))                   ; plenty of turns to walk 7 tiles
+    (is (= 8 (unit-x u))) (is (= 3 (unit-y u)))
+    (is (eq :idle (unit-orders u)))                 ; order cleared on arrival
+    (is (null (unit-goto-x u)))))
+
+(test goto-avoids-ocean
+  (let* ((s (bare-state 10 8))
+         (u (add-unit s :legion 1 1 1)))
+    (dotimes (y 6) (terrain! s 4 y :ocean))         ; wall with a gap at y=6,7
+    (apply-command s (list :goto :unit (unit-id u) :x 7 :y 1))
+    (dotimes (i 30) (end-turn s))
+    (is (= 7 (unit-x u))) (is (= 1 (unit-y u)))      ; detoured around and arrived
+    (is (not (eq :ocean (tile-terrain (tile-at (gs-map s) (unit-x u) (unit-y u))))))))
+
 (test ai-expands
   ;; the AI should found and expand to several cities on its own
   (let ((s (make-new-game :seed 7)))

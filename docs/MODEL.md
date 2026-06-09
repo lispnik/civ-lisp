@@ -29,6 +29,7 @@ networking and AI tractable.
 | `rules.lisp`    | yields, city growth/production, research, the `end-turn` loop |
 | `commands.lisp` | `apply-command` — the only sanctioned way to mutate state |
 | `ai.lisp`       | a simple AI opponent that issues commands (`run-ai-players`, called from `end-turn`) |
+| `pathfind.lisp` | A* pathfinding and the `:goto` order (`process-goto`, called from `end-turn`) |
 
 ## Core state
 
@@ -69,11 +70,13 @@ This is a scaffold — the seams are in place, the depth is not:
 * **Combat** exists (moving into an enemy tile fights to the death, with
   terrain/fortify/city defense bonuses; damage carries and units heal between
   turns — fortified/garrisoned units heal faster).  Zones of control stop units
-  slipping between enemy-adjacent tiles.  Still missing **pathfinding** for
-  `:goto`.
+  slipping between enemy-adjacent tiles.  A `:goto` order runs A* pathfinding
+  (terrain-cost-weighted, routing around ocean and enemy units) and walks the
+  unit toward its target each turn (`pathfind.lisp`).
 * **Fog of war** / per-player visibility.
 * **Diplomacy**, and a smarter **AI** (a basic one exists in `ai.lisp` — it
-  expands, produces and researches; it doesn't yet fight, defend or negotiate).
+  expands, produces, researches, garrisons/fortifies cities and attacks
+  adjacent enemies; it has no strategy or negotiation).
 * **Happiness / health**, **government** effects, **wonders**, **victory checks**.
 * Richer **map generation** (continents, resources, rivers).
 

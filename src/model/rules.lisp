@@ -229,8 +229,9 @@ before REFRESH-UNITS, so an unspent movement allowance marks a unit as rested."
   "Map a turn number to a (simplified) calendar year."
   (+ -4000 (* (1- turn) 40)))
 
-;; defined in ai.lisp (loaded after this file); declared so END-TURN compiles clean
-(declaim (ftype (function (t) t) run-ai-players))
+;; defined in later files (ai.lisp / pathfind.lisp); declared so END-TURN
+;; compiles without forward-reference warnings
+(declaim (ftype (function (t) t) run-ai-players process-goto))
 
 (defun end-turn (state)
   "Advance the whole world one turn and return STATE.
@@ -242,6 +243,8 @@ combat phases here.)"
   (process-research state)
   (heal-units state)            ; rested/garrisoned units recover HP
   (refresh-units state)
+  (process-goto state)          ; units on :goto walk toward their target
+
   (incf (gs-turn state))
   (setf (gs-year state) (turn->year (gs-turn state)))
   state)

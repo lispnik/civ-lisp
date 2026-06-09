@@ -19,7 +19,8 @@
                (:file "state")
                (:file "rules")
                (:file "commands")
-               (:file "ai"))
+               (:file "ai")
+               (:file "pathfind"))
   :in-order-to ((asdf:test-op (asdf:test-op "civ-model/tests"))))
 
 (asdf:defsystem "civ-model/tests"

@@ -29,6 +29,7 @@ river) — amid blended terrain, rivers and resource specials.*
 | Tab | cycle the selected unit |
 | B | found a city (with a settlers unit) |
 | F | fortify the selected unit (defense + faster healing) |
+| left-click | send the selected unit to that tile (auto-path each turn) |
 | Enter | end turn |
 | Esc / close | quit |
 
