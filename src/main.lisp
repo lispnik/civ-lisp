@@ -93,7 +93,9 @@ Returns the scaled cursor surface so the caller can free it on exit."
         (sdl2:with-renderer (ren win :flags '(:accelerated :presentvsync))
           (sdl2-ffi.functions:sdl-render-set-scale ren (float scale 1.0)
                                                    (float scale 1.0))
-          (let ((painter (make-renderer-painter ren (load-atlas ren *sprites-image*)))
+          (let ((painter (make-renderer-painter ren
+                                                (load-atlas ren *sprites-image*)
+                                                (load-atlas ren *terrain-image*)))
                 (torch (sdl2-image:load-image (namestring cursor-image))))
             (multiple-value-bind (cursor cursor-surface)
                 (set-image-cursor torch :scale scale)
@@ -144,7 +146,8 @@ Returns the scaled cursor surface so the caller can free it on exit."
                        (:idle ()
                          (render-game painter state selected)))
                   ;; cleanup
-                  (sdl2:destroy-texture (painter-tex painter))
+                  (sdl2:destroy-texture (painter-sprites painter))
+                  (sdl2:destroy-texture (painter-terrain painter))
                   (sdl2-ffi.functions:sdl-free-cursor cursor)
                   (sdl2-ffi.functions:sdl-free-surface cursor-surface)
                   (sdl2-image:quit))))))))))

@@ -9,6 +9,11 @@ extracted from the DOS game *Sid Meier's Civilization* (the sibling
 
 ![torch cursor](assets/torch.png)
 
+![civ-lisp rendering a game with edge-blended terrain](docs/screenshot.png)
+
+*A rendered game: grassland with edge-blended forest, hills and coastlines
+(TER257 sprites), two settlers with owner-coloured borders.*
+
 ## Controls
 
 | key | action |
@@ -19,7 +24,11 @@ extracted from the DOS game *Sid Meier's Civilization* (the sibling
 | Enter | end turn |
 | Esc / close | quit |
 
-Terrain is drawn as solid colours; units and cities use SP257 sprites. The map
+Terrain uses the original **edge-blending** scheme (CivOne's algorithm): a land
+tile is a generic base plus a TER257 overlay chosen by a bitmask of which
+cardinal neighbours share its terrain (N=1 E=2 S=4 W=8), so mismatched edges
+feather into their neighbours; ocean tiles add coastline sub-tiles from the
+eight surrounding land directions. Units and cities use SP257 sprites. The map
 fills the window exactly (20×15 tiles of 16 px, scaled 2× → 640×480). Keyboard
 input is turned into `civ-model` commands — the view never mutates the model
 directly.

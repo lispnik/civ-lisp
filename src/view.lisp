@@ -1,41 +1,78 @@
 ;;;; view.lisp -- render a civ-model GAME-STATE with SDL2.
 ;;;;
-;;;; The view is read-only: it draws the model and never mutates it.  Terrain is
-;;;; drawn as solid colours (the original TER257 sheet uses edge-blend variants
-;;;; that need a neighbour-bitmask lookup -- left for later); units and cities
-;;;; use sprites from the extracted SP257 sheet (assets/sprites.png), addressed
-;;;; as a 16x16 texture atlas.
+;;;; The view is read-only: it draws the model and never mutates it.
+;;;;
+;;;; Terrain uses the original Civilization edge-blending scheme (as in CivOne):
+;;;; a land tile is a generic land *base* (SP257) plus a terrain *overlay* taken
+;;;; from TER257 at column = bitmask of the four cardinal neighbours that share
+;;;; the same terrain (N=1 E=2 S=4 W=8), row = terrain id.  Where a neighbour
+;;;; differs, that edge of the overlay feathers out, blending the tiles.  Ocean
+;;;; tiles draw an ocean base plus coastline sub-tiles chosen from the eight
+;;;; surrounding land directions.  Units and cities use SP257 sprites.
 
 (in-package #:civ-lisp)
 
 (defparameter *tile* 16 "Native sprite/tile size in pixels.")
 
 (defparameter *sprites-image*
-  (merge-pathnames "assets/sprites.png" (asdf:system-source-directory :civ-lisp)))
+  (merge-pathnames "assets/sprites.png" (asdf:system-source-directory :civ-lisp))
+  "The SP257 sheet (units, cities, land base).")
+(defparameter *terrain-image*
+  (merge-pathnames "assets/terrain.png" (asdf:system-source-directory :civ-lisp))
+  "The TER257 sheet (terrain blend variants, ocean, coast).")
 
-;;; --- sprite atlas coordinates (col . row) in the SP257 sheet ---------------
+;;; --- sprite atlas coordinates ----------------------------------------------
+
+(defparameter *terrain-rows*
+  '((:desert . 0) (:plains . 1) (:grassland . 2) (:forest . 3) (:hills . 4)
+    (:mountains . 5) (:tundra . 6) (:arctic . 7) (:swamp . 8) (:jungle . 9)
+    (:ocean . 10))
+  "civ-model terrain -> TER257 row (terrain id).")
+
+(defun terrain-row (terrain) (or (cdr (assoc terrain *terrain-rows*)) 2))
+
+;; land base in SP257 (x,y); ocean base in TER257 (x,y)
+(defparameter +land-base+ '(0 . 64))
+(defparameter +ocean-base+ '(0 . 160))
 
 (defparameter *unit-sprites*
   '((:settlers . (0 . 10)) (:warriors . (1 . 10)) (:phalanx . (2 . 10))
     (:legion . (3 . 10)) (:catapult . (7 . 10)))
-  "civ-model unit type -> (col . row) in the sprite sheet.")
-
+  "civ-model unit type -> (col . row) in SP257.")
 (defparameter +default-unit-sprite+ '(1 . 10))
 (defparameter +city-sprite+ '(9 . 9))
 
 (defun unit-sprite (type)
   (or (cdr (assoc type *unit-sprites*)) +default-unit-sprite+))
 
+;;; cardinal direction bits (match CivOne's Direction enum)
+(defconstant +n+ 1) (defconstant +e+ 2) (defconstant +s+ 4) (defconstant +w+ 8)
+(defconstant +nw+ 16) (defconstant +ne+ 32) (defconstant +sw+ 64) (defconstant +se+ 128)
+
+;;; --- neighbour bitmasks ----------------------------------------------------
+
+(defun cardinal-same-mask (map x y terrain)
+  "Bitmask of the N/E/S/W neighbours of (X,Y) that share TERRAIN."
+  (flet ((same (nx ny)
+           (let ((tl (civm:tile-at map nx ny)))
+             (and tl (eq (civm:tile-terrain tl) terrain)))))
+    (logior (if (same x (1- y)) +n+ 0) (if (same (1+ x) y) +e+ 0)
+            (if (same x (1+ y)) +s+ 0) (if (same (1- x) y) +w+ 0))))
+
+(defun ocean-land-mask (map x y)
+  "Bitmask of the eight neighbours of ocean tile (X,Y) that are land."
+  (let ((m 0))
+    (flet ((land (nx ny bit)
+             (let ((tl (civm:tile-at map nx ny)))
+               (when (and tl (not (eq (civm:tile-terrain tl) :ocean)))
+                 (setf m (logior m bit))))))
+      (land x (1- y) +n+)  (land (1+ x) y +e+)
+      (land x (1+ y) +s+)  (land (1- x) y +w+)
+      (land (1- x) (1- y) +nw+) (land (1+ x) (1- y) +ne+)
+      (land (1- x) (1+ y) +sw+) (land (1+ x) (1+ y) +se+))
+    m))
+
 ;;; --- colours ---------------------------------------------------------------
-
-(defparameter *terrain-colors*
-  '((:ocean 40 90 165) (:grassland 86 150 70) (:plains 168 158 92)
-    (:forest 38 96 52) (:hills 120 108 72) (:mountains 110 110 122)
-    (:desert 200 188 120))
-  "Terrain -> (r g b) fill colour.")
-
-(defun terrain-color (terrain)
-  (or (cdr (assoc terrain *terrain-colors*)) '(60 60 60)))
 
 (defparameter *player-colors*
   '((1 80 150 235) (2 220 70 70) (3 90 200 120) (4 230 200 80))
@@ -46,46 +83,88 @@
     (if p (or (cdr (assoc (civm:player-color p) *player-colors*)) '(230 230 230))
         '(180 180 180))))
 
-;;; --- low-level drawing (reuses two rects to avoid per-draw allocation) -----
+;;; --- painter (reuses two rects to avoid per-draw allocation) ---------------
 
-(defstruct (painter (:constructor make-painter (ren tex src dst)))
-  ren tex src dst)
+(defstruct (painter (:constructor make-painter (ren sprites terrain src dst)))
+  ren sprites terrain src dst)
 
-(defun make-renderer-painter (ren tex)
-  (make-painter ren tex (sdl2:make-rect 0 0 *tile* *tile*)
+(defun make-renderer-painter (ren sprites-tex terrain-tex)
+  (make-painter ren sprites-tex terrain-tex
+                (sdl2:make-rect 0 0 *tile* *tile*)
                 (sdl2:make-rect 0 0 *tile* *tile*)))
 
 (defun set-rect (r x y w h)
   (setf (sdl2:rect-x r) x (sdl2:rect-y r) y
         (sdl2:rect-width r) w (sdl2:rect-height r) h))
 
-(defun fill-tile (p tx ty rgb)
+(defun blit (p tex sx sy w h dx dy)
+  "Copy the W x H region at (SX,SY) of TEX to (DX,DY) (logical coords)."
+  (set-rect (painter-src p) sx sy w h)
+  (set-rect (painter-dst p) dx dy w h)
+  (sdl2:render-copy (painter-ren p) tex
+                    :source-rect (painter-src p) :dest-rect (painter-dst p)))
+
+(defun draw-sprite (p col row dx dy)
+  (blit p (painter-sprites p) (* col *tile*) (* row *tile*) *tile* *tile* dx dy))
+
+(defun draw-border (p tx ty rgb)
   (destructuring-bind (r g b) rgb
     (sdl2:set-render-draw-color (painter-ren p) r g b 255)
     (set-rect (painter-dst p) (* tx *tile*) (* ty *tile*) *tile* *tile*)
-    (sdl2:render-fill-rect (painter-ren p) (painter-dst p))))
-
-(defun draw-sprite (p col row tx ty)
-  (set-rect (painter-src p) (* col *tile*) (* row *tile*) *tile* *tile*)
-  (set-rect (painter-dst p) (* tx *tile*) (* ty *tile*) *tile* *tile*)
-  (sdl2:render-copy (painter-ren p) (painter-tex p)
-                    :source-rect (painter-src p) :dest-rect (painter-dst p)))
-
-(defun draw-border (p tx ty rgb &optional (inset 0))
-  (destructuring-bind (r g b) rgb
-    (sdl2:set-render-draw-color (painter-ren p) r g b 255)
-    (set-rect (painter-dst p)
-              (+ (* tx *tile*) inset) (+ (* ty *tile*) inset)
-              (- *tile* (* 2 inset)) (- *tile* (* 2 inset)))
     (sdl2:render-draw-rect (painter-ren p) (painter-dst p))))
+
+;;; --- terrain ---------------------------------------------------------------
+
+(defun draw-coast (p land px py)
+  "Composite an ocean coastline from 8x8 TER257 sub-tiles given the LAND mask."
+  (flet ((b (sx sy lx ly)
+           (blit p (painter-terrain p) sx sy 8 8 (+ px lx) (+ py ly)))
+         (h (d) (plusp (logand land d))))
+    ;; cardinal coast segments (two 8x8 halves each)
+    (when (h +n+)
+      (b (cond ((h +w+) 80) ((h +nw+) 96) (t 64)) 176 0 0)
+      (b (cond ((h +e+) 88) ((h +ne+) 56) (t 24)) 176 8 0))
+    (when (h +e+)
+      (b (cond ((h +n+) 88) ((h +ne+) 104) (t 72)) 176 8 0)
+      (b (cond ((h +s+) 88) ((h +se+) 56) (t 24)) 184 8 8))
+    (when (h +s+)
+      (b (cond ((h +w+) 80) ((h +sw+) 48) (t 16)) 184 0 8)
+      (b (cond ((h +e+) 88) ((h +se+) 104) (t 72)) 184 8 8))
+    (when (h +w+)
+      (b (cond ((h +n+) 80) ((h +nw+) 48) (t 16)) 176 0 0)
+      (b (cond ((h +s+) 80) ((h +sw+) 96) (t 64)) 184 0 8))
+    ;; diagonal-only coasts
+    (when (and (h +nw+) (not (h +n+)) (not (h +w+))) (b 32 176 0 0))
+    (when (and (h +ne+) (not (h +n+)) (not (h +e+))) (b 40 176 8 0))
+    (when (and (h +sw+) (not (h +s+)) (not (h +w+))) (b 32 184 0 8))
+    (when (and (h +se+) (not (h +s+)) (not (h +e+))) (b 40 184 8 8))))
+
+(defun draw-terrain-tile (p state x y)
+  (let* ((map (civm:gs-map state))
+         (terr (civm:tile-terrain (civm:tile-at map x y)))
+         (px (* x *tile*)) (py (* y *tile*)))
+    (if (eq terr :ocean)
+        (progn
+          (blit p (painter-terrain p) (car +ocean-base+) (cdr +ocean-base+)
+                *tile* *tile* px py)
+          (draw-coast p (ocean-land-mask map x y) px py))
+        (progn
+          ;; generic land base, then the blended terrain overlay
+          (blit p (painter-sprites p) (car +land-base+) (cdr +land-base+)
+                *tile* *tile* px py)
+          (blit p (painter-terrain p)
+                (* (cardinal-same-mask map x y terr) *tile*)
+                (* (terrain-row terr) *tile*)
+                *tile* *tile* px py)))))
 
 ;;; --- the frame -------------------------------------------------------------
 
 (defun load-atlas (ren path)
-  "Load PATH as a texture (the caller owns/destroys it)."
+  "Load PATH as a blend-enabled texture (caller destroys it)."
   (let* ((surf (sdl2-image:load-image (namestring path)))
          (tex (sdl2:create-texture-from-surface ren surf)))
     (sdl2-ffi.functions:sdl-free-surface surf)
+    (sdl2-ffi.functions:sdl-set-texture-blend-mode tex 1) ; SDL_BLENDMODE_BLEND
     tex))
 
 (defun render-game (painter state selected-id)
@@ -94,21 +173,19 @@
         (map (civm:gs-map state)))
     (sdl2:set-render-draw-color ren 0 0 0 255)
     (sdl2:render-clear ren)
-    ;; terrain
     (civm:do-tiles (x y tile map)
-      (fill-tile painter x y (terrain-color (civm:tile-terrain tile))))
-    ;; cities
+      (declare (ignore tile))
+      (draw-terrain-tile painter state x y))
     (maphash (lambda (id c) (declare (ignore id))
                (draw-sprite painter (car +city-sprite+) (cdr +city-sprite+)
-                            (civm:city-x c) (civm:city-y c))
+                            (* (civm:city-x c) *tile*) (* (civm:city-y c) *tile*))
                (draw-border painter (civm:city-x c) (civm:city-y c)
                             (owner-color state (civm:city-owner c))))
              (civm:gs-cities state))
-    ;; units
     (maphash (lambda (id u)
                (let ((spr (unit-sprite (civm:unit-type u))))
                  (draw-sprite painter (car spr) (cdr spr)
-                              (civm:unit-x u) (civm:unit-y u))
+                              (* (civm:unit-x u) *tile*) (* (civm:unit-y u) *tile*))
                  (draw-border painter (civm:unit-x u) (civm:unit-y u)
                               (owner-color state (civm:unit-owner u)))
                  (when (eql id selected-id)
