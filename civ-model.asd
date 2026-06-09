@@ -19,4 +19,15 @@
                (:file "state")
                (:file "rules")
                (:file "commands")
-               (:file "ai")))
+               (:file "ai"))
+  :in-order-to ((asdf:test-op (asdf:test-op "civ-model/tests"))))
+
+(asdf:defsystem "civ-model/tests"
+  :description "FiveAM tests for the civ-model game model."
+  :depends-on ("civ-model" "fiveam")
+  :serial t
+  :pathname "tests"
+  :components ((:file "package")
+               (:file "model-tests"))
+  :perform (asdf:test-op (op c)
+             (uiop:symbol-call :fiveam :run! (uiop:find-symbol* :civ-model :civ-model/tests))))

@@ -2,5 +2,6 @@ cl-glu, ghcr.io/ocicl/cl-glut@sha256:04c26eb9b7cd15d9d9a998ab5523a8808ae915f1a00
 cl-glut, ghcr.io/ocicl/cl-glut@sha256:04c26eb9b7cd15d9d9a998ab5523a8808ae915f1a00299d906361ca8f1f7694d, cl-opengl-20250614-377a091/cl-glut.asd
 cl-glut-examples, ghcr.io/ocicl/cl-glut@sha256:04c26eb9b7cd15d9d9a998ab5523a8808ae915f1a00299d906361ca8f1f7694d, cl-opengl-20250614-377a091/cl-glut-examples.asd
 cl-opengl, ghcr.io/ocicl/cl-glut@sha256:04c26eb9b7cd15d9d9a998ab5523a8808ae915f1a00299d906361ca8f1f7694d, cl-opengl-20250614-377a091/cl-opengl.asd
+fiveam, ghcr.io/ocicl/fiveam@sha256:e283043dc8d31e8df2b214465cf5a06ea07bdbea10e600a40e17aaf9518226ac, fiveam-20240928-e43d6c8/fiveam.asd
 sdl2, ghcr.io/ocicl/sdl2@sha256:3eeeea3c48fc4f6d1b1d48a8e2dbd05ec587cee09a1d29168aaa6f34069185b2, cl-sdl2-20250706-8c78e68/sdl2.asd
 sdl2-image, ghcr.io/ocicl/sdl2-image@sha256:d108c01c46048c600dc969a96a004b6d91f16af38398b2bece69effeab16a46b, cl-sdl2-image-20240915-3963be8/sdl2-image.asd
