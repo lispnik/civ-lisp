@@ -46,13 +46,18 @@
                    do (return-from adjacent-enemy e))))
 
 (defun ai-military (state unit)
-  "Attack an adjacent enemy if one is in reach, otherwise explore."
-  (let ((enemy (adjacent-enemy state unit)))
-    (if enemy
-        (ai-cmd state (list :move-unit :unit (unit-id unit)
-                            :dx (signum (- (unit-x enemy) (unit-x unit)))
-                            :dy (signum (- (unit-y enemy) (unit-y unit)))))
-        (ai-move-random state unit))))
+  "Attack an adjacent enemy; else garrison (fortify) in an own city; else explore."
+  (let ((enemy (adjacent-enemy state unit))
+        (tile (tile-at (gs-map state) (unit-x unit) (unit-y unit))))
+    (cond
+      (enemy
+       (ai-cmd state (list :move-unit :unit (unit-id unit)
+                           :dx (signum (- (unit-x enemy) (unit-x unit)))
+                           :dy (signum (- (unit-y enemy) (unit-y unit))))))
+      ((and tile (tile-city tile) (eql (tile-owner tile) (unit-owner unit)))
+       (unless (eq (unit-orders unit) :fortified)
+         (ai-cmd state (list :fortify :unit (unit-id unit)))))
+      (t (ai-move-random state unit)))))
 
 (defun ai-settler (state unit)
   "Found a city on good open ground, otherwise move to find some."

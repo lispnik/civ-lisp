@@ -28,6 +28,7 @@ river) — amid blended terrain, rivers and resource specials.*
 | arrows / WASD | move the selected unit |
 | Tab | cycle the selected unit |
 | B | found a city (with a settlers unit) |
+| F | fortify the selected unit (defense + faster healing) |
 | Enter | end turn |
 | Esc / close | quit |
 
@@ -46,7 +47,10 @@ commands (it founds and spaces out cities, sets production, explores, and
 researches); it takes its turn automatically whenever you end yours. Moving a
 unit into an enemy-occupied tile triggers **combat** — a Civ1-style fight to the
 death with terrain, fortification and city defense bonuses; win and your unit
-advances onto the cleared tile.
+advances onto the cleared tile. Damage carries between fights, so units **heal**
+between turns when they stay put — fully in a city, faster when **fortified**
+(`F`), slowly otherwise; fortifying also adds +50% defense (the AI fortifies its
+city garrisons).
 
 ## Two systems
 

@@ -127,6 +127,9 @@ Returns the scaled cursor surface so the caller can free it on exit."
                               (when selected
                                 (try (list :found-city :unit selected :name "City"))
                                 (setf selected (first-human-unit state))))
+                             ((sdl2:scancode= sc :scancode-f)
+                              (when selected
+                                (try (list :fortify :unit selected))))
                              ((or (sdl2:scancode= sc :scancode-up)
                                   (sdl2:scancode= sc :scancode-w))
                               (when selected

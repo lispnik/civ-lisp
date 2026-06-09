@@ -25,8 +25,16 @@ on an illegal move."
     (:move-unit      (cmd-move-unit state command))
     (:found-city     (cmd-found-city state command))
     (:set-production (cmd-set-production state command))
+    (:fortify        (cmd-fortify state command))
     (:end-turn       (end-turn state)))
   state)
+
+(defun cmd-fortify (state command)
+  "Order a unit to fortify: it digs in for a defense bonus and faster healing
+until it next moves."
+  (let ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit"))))
+    (setf (unit-orders u) :fortified)
+    u))
 
 (defun cmd-move-unit (state command)
   (let* ((args (rest command))
@@ -50,7 +58,8 @@ on an illegal move."
                                           :key (lambda (e) (defense-strength state e)))))
                    (result (resolve-combat state u defender)))
               (when (eq result :attacker)
-                (setf (unit-moves-left u) 0)
+                (setf (unit-moves-left u) 0
+                      (unit-orders u) :idle)        ; attacking breaks fortify
                 (unless (tile-enemies state dest (unit-owner u))
                   (let ((old (tile-at map (unit-x u) (unit-y u))))
                     (setf (tile-units old) (remove (unit-id u) (tile-units old)))
@@ -62,7 +71,8 @@ on an illegal move."
                 (old (tile-at map (unit-x u) (unit-y u))))
             (setf (tile-units old) (remove (unit-id u) (tile-units old)))
             (push (unit-id u) (tile-units dest))
-            (setf (unit-x u) nx (unit-y u) ny)
+            (setf (unit-x u) nx (unit-y u) ny
+                  (unit-orders u) :idle)            ; moving breaks fortify
             (decf (unit-moves-left u) (max 1 (min cost (unit-moves-left u))))
             u)))))
 

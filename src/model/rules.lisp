@@ -191,21 +191,23 @@ same fine units as accrued science: 1000 = 10 'trade-turns' at 100% science."
 
 ;;; --- the turn loop ---------------------------------------------------------
 
-(defparameter +open-heal+ 2 "HP a unit regains per turn resting in the open.")
+(defparameter +open-heal+ 2 "HP a resting unit regains per turn in the open.")
+(defparameter +fortify-heal+ 4 "HP a fortified unit regains per turn in the open.")
 
 (defun heal-units (state)
-  "Heal units that did not move/fight this turn: fully if they are in a city,
-otherwise by +OPEN-HEAL+ (capped at +MAX-HP+).  Called before REFRESH-UNITS,
-so an unspent movement allowance marks a unit as having stayed put."
+  "Heal units that did not move/fight this turn: fully if garrisoned in a city,
++FORTIFY-HEAL+ if fortified, else +OPEN-HEAL+ (all capped at +MAX-HP+).  Called
+before REFRESH-UNITS, so an unspent movement allowance marks a unit as rested."
   (maphash
    (lambda (id u) (declare (ignore id))
      (let ((rested (>= (unit-moves-left u) (unit-def (unit-type u) :move 1)))
            (tile (tile-at (gs-map state) (unit-x u) (unit-y u))))
        (when (and rested (< (unit-hp u) +max-hp+))
          (setf (unit-hp u)
-               (if (and tile (tile-city tile))
-                   +max-hp+
-                   (min +max-hp+ (+ (unit-hp u) +open-heal+)))))))
+               (cond ((and tile (tile-city tile)) +max-hp+)
+                     ((eq (unit-orders u) :fortified)
+                      (min +max-hp+ (+ (unit-hp u) +fortify-heal+)))
+                     (t (min +max-hp+ (+ (unit-hp u) +open-heal+))))))))
    (gs-units state)))
 
 (defun refresh-units (state)

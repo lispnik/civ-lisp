@@ -117,6 +117,13 @@ connects to other rivers and flows into the sea)."
 (defun draw-sprite (p col row dx dy)
   (blit p (painter-sprites p) (* col *tile*) (* row *tile*) *tile* *tile* dx dy))
 
+(defun draw-marker (p tx ty w h rgb)
+  "Fill a small W x H rectangle at the top-left of tile (TX,TY)."
+  (destructuring-bind (r g b) rgb
+    (sdl2:set-render-draw-color (painter-ren p) r g b 255)
+    (set-rect (painter-dst p) (+ (* tx *tile*) 1) (+ (* ty *tile*) 1) w h)
+    (sdl2:render-fill-rect (painter-ren p) (painter-dst p))))
+
 (defun draw-border (p tx ty rgb)
   (destructuring-bind (r g b) rgb
     (sdl2:set-render-draw-color (painter-ren p) r g b 255)
@@ -215,6 +222,9 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
                               (* (civm:unit-x u) *tile*) (* (civm:unit-y u) *tile*))
                  (draw-border painter (civm:unit-x u) (civm:unit-y u)
                               (owner-color state (civm:unit-owner u)))
+                 (when (eq (civm:unit-orders u) :fortified)   ; dug-in marker
+                   (draw-marker painter (civm:unit-x u) (civm:unit-y u)
+                                3 3 '(245 245 245)))
                  (when (eql id selected-id)
                    (draw-border painter (civm:unit-x u) (civm:unit-y u)
                                 '(255 240 60)))))
