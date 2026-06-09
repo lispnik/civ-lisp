@@ -99,16 +99,17 @@ The city centre is worked for free and, per Civ1, always yields at least
 (defun resolve-combat (state attacker defender)
   "Fight ATTACKER vs DEFENDER to the death using a Civ1-style round loop:
 each round, with probability A/(A+D) the defender takes a hit, else the
-attacker does.  Returns :attacker or :defender; the loser is removed and the
-winner restored to full health."
+attacker does.  Both start from their current HP, so wounded units are weaker.
+Returns :attacker or :defender; the loser is removed and the winner keeps its
+remaining HP (it heals back over later turns)."
   (let ((a (max 1 (attack-strength attacker)))
         (d (defense-strength state defender))
-        (ahp +max-hp+) (dhp +max-hp+))
+        (ahp (unit-hp attacker)) (dhp (unit-hp defender)))
     (loop while (and (plusp ahp) (plusp dhp))
           do (if (< (gs-rand state (+ a d)) a) (decf dhp) (decf ahp)))
-    (cond ((plusp ahp) (setf (unit-hp attacker) +max-hp+)
+    (cond ((plusp ahp) (setf (unit-hp attacker) ahp)
                        (destroy-unit state defender) :attacker)
-          (t           (setf (unit-hp defender) +max-hp+)
+          (t           (setf (unit-hp defender) dhp)
                        (destroy-unit state attacker) :defender))))
 
 ;;; --- per-turn city processing ---------------------------------------------
@@ -190,6 +191,23 @@ same fine units as accrued science: 1000 = 10 'trade-turns' at 100% science."
 
 ;;; --- the turn loop ---------------------------------------------------------
 
+(defparameter +open-heal+ 2 "HP a unit regains per turn resting in the open.")
+
+(defun heal-units (state)
+  "Heal units that did not move/fight this turn: fully if they are in a city,
+otherwise by +OPEN-HEAL+ (capped at +MAX-HP+).  Called before REFRESH-UNITS,
+so an unspent movement allowance marks a unit as having stayed put."
+  (maphash
+   (lambda (id u) (declare (ignore id))
+     (let ((rested (>= (unit-moves-left u) (unit-def (unit-type u) :move 1)))
+           (tile (tile-at (gs-map state) (unit-x u) (unit-y u))))
+       (when (and rested (< (unit-hp u) +max-hp+))
+         (setf (unit-hp u)
+               (if (and tile (tile-city tile))
+                   +max-hp+
+                   (min +max-hp+ (+ (unit-hp u) +open-heal+)))))))
+   (gs-units state)))
+
 (defun refresh-units (state)
   "Restore every unit's movement allowance at the start of a turn."
   (maphash (lambda (id u) (declare (ignore id))
@@ -205,11 +223,13 @@ same fine units as accrued science: 1000 = 10 'trade-turns' at 100% science."
 
 (defun end-turn (state)
   "Advance the whole world one turn and return STATE.
-Phases: AI players act -> process cities -> research -> refresh units ->
-advance clock.  (A full game would interleave per-player movement/combat here.)"
+Phases: AI players act -> process cities -> research -> heal units -> refresh
+units -> advance clock.  (A full game would interleave per-player movement and
+combat phases here.)"
   (run-ai-players state)
   (process-cities state)
   (process-research state)
+  (heal-units state)            ; rested/garrisoned units recover HP
   (refresh-units state)
   (incf (gs-turn state))
   (setf (gs-year state) (turn->year (gs-turn state)))
