@@ -249,6 +249,19 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
       (draw-label painter font (civm:city-name city)
                   (+ px (floor *tile* 2)) (+ py *tile* 1)))))
 
+(defun draw-unit (painter state u)
+  "Draw unit U's sprite, owner border and fortify marker."
+  (let ((spr (unit-sprite (civm:unit-type u)))
+        (ux (civm:unit-x u)) (uy (civm:unit-y u)))
+    (draw-sprite painter (car spr) (cdr spr) (* ux *tile*) (* uy *tile*))
+    (draw-border painter ux uy (owner-color state (civm:unit-owner u)))
+    (when (eq (civm:unit-orders u) :fortified)
+      (draw-marker painter ux uy 3 3 '(245 245 245)))))
+
+(defun blink-on-p ()
+  "Toggles every 500 ms (drives the selected-unit blink)."
+  (evenp (floor (sdl2-ffi.functions:sdl-get-ticks) 500)))
+
 (defun render-game (painter state selected-id &key (fog t))
   "Draw STATE from the human player's perspective.  With FOG, unexplored tiles
 are black, explored-but-unseen tiles are dimmed, and units/cities are shown
@@ -272,24 +285,18 @@ only on currently-visible tiles."
                  (when (visible (civm:city-x c) (civm:city-y c))
                    (draw-city painter state c)))
                (civm:gs-cities state))
+      ;; units, except the selected one and city garrisons (the city stands in
+      ;; for a garrison; the selected unit is drawn last so it's on top)
       (maphash (lambda (id u)
                  (let ((ux (civm:unit-x u)) (uy (civm:unit-y u)))
-                   (when (visible ux uy)
-                     ;; units inside a city aren't drawn separately -- the city
-                     ;; (and its black "defended" border) represents the garrison
-                     (cond
-                       ((civm:tile-city (civm:tile-at map ux uy))
-                        (when (eql id selected-id)
-                          (draw-border painter ux uy '(255 240 60))))
-                       (t
-                        (let ((spr (unit-sprite (civm:unit-type u))))
-                          (draw-sprite painter (car spr) (cdr spr)
-                                       (* ux *tile*) (* uy *tile*))
-                          (draw-border painter ux uy
-                                       (owner-color state (civm:unit-owner u)))
-                          (when (eq (civm:unit-orders u) :fortified)
-                            (draw-marker painter ux uy 3 3 '(245 245 245)))
-                          (when (eql id selected-id)
-                            (draw-border painter ux uy '(255 240 60)))))))))
+                   (when (and (visible ux uy)
+                              (not (eql id selected-id))
+                              (not (civm:tile-city (civm:tile-at map ux uy))))
+                     (draw-unit painter state u))))
                (civm:gs-units state))
+      ;; the selected unit blinks on top of everything on its square
+      (let ((sel (and selected-id (civm:unit-by-id state selected-id))))
+        (when (and sel (visible (civm:unit-x sel) (civm:unit-y sel)) (blink-on-p))
+          (draw-unit painter state sel)
+          (draw-border painter (civm:unit-x sel) (civm:unit-y sel) '(255 240 60))))
       (sdl2:render-present ren))))
