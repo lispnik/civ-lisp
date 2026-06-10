@@ -23,6 +23,28 @@
 (defparameter *scale* 2
   "Global integer scale factor applied to the whole app.")
 
+;;; --- raw SDL_Event field access --------------------------------------------
+;;; cl-sdl2's high-level accessors (scancode-value, the :x/:y event
+;;; destructuring) read the wrong struct offsets for SDL2 2.x on arm64 macOS,
+;;; yielding garbage.  We read the fields ourselves at the documented SDL_Event
+;;; byte offsets, which is correct regardless of the (mismatched) FFI spec.
+
+(defun ev-type (ev)     (cffi:mem-ref (autowrap:ptr ev) :uint32 0))
+(defun ev-scancode (ev) (cffi:mem-ref (autowrap:ptr ev) :uint32 16)) ; key.keysym.scancode
+(defun ev-mouse-x (ev)  (cffi:mem-ref (autowrap:ptr ev) :int32 20))  ; button.x
+(defun ev-mouse-y (ev)  (cffi:mem-ref (autowrap:ptr ev) :int32 24))  ; button.y
+
+(defconstant +ev-quit+ #x100)
+(defconstant +ev-keydown+ #x300)
+(defconstant +ev-mousebuttondown+ #x401)
+
+;; SDL scancodes for the keys we use
+(defconstant +sc-a+ 4) (defconstant +sc-b+ 5) (defconstant +sc-d+ 7)
+(defconstant +sc-f+ 9) (defconstant +sc-g+ 10) (defconstant +sc-s+ 22)
+(defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
+(defconstant +sc-tab+ 43) (defconstant +sc-right+ 79) (defconstant +sc-left+ 80)
+(defconstant +sc-down+ 81) (defconstant +sc-up+ 82)
+
 ;;; --- cursor (the OS cursor is not affected by the render scale, so its
 ;;;     surface is upscaled separately) ----------------------------------------
 
@@ -70,6 +92,14 @@ Returns the cursor (the loaded surfaces leak until process exit, which is fine).
 
 (defun first-human-unit (state) (first (human-unit-ids state)))
 
+(defun human-unit-at (state tx ty)
+  "Id of one of the player's units standing on tile (TX,TY), or NIL.  A
+garrison sits on its city's tile, so this also picks up a city's defender."
+  (loop for id in (human-unit-ids state)
+        for u = (civm:unit-by-id state id)
+        when (and u (= (civm:unit-x u) tx) (= (civm:unit-y u) ty))
+          return id))
+
 (defun next-human-unit (state current)
   (let ((ids (human-unit-ids state)))
     (cond ((null ids) nil)
@@ -104,7 +134,9 @@ Returns the cursor (the loaded surfaces leak until process exit, which is fine).
                 (goto-mode nil))
             (sdl2-ffi.functions:sdl-set-cursor torch-cursor)
             (sdl2:show-cursor)
-            (progn
+            (sdl2:raise-window win)        ; bring the window to the front / focus it
+            (let ((ev (autowrap:alloc 'sdl2-ffi:sdl-event))
+                  (running t))
               (flet ((torch! () (setf goto-mode nil)
                        (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
                      (retitle ()
@@ -118,61 +150,57 @@ Returns the cursor (the loaded surfaces leak until process exit, which is fine).
                          (civm:command-error () nil))))
                 (retitle)
                 (unwind-protect
-                     (sdl2:with-event-loop (:method :poll)
-                       (:quit () t)
-                       (:keydown (:keysym k)
-                         (let ((sc (sdl2:scancode-value k)))
+                     ;; manual poll loop, reading event fields at raw SDL offsets
+                     (loop while running do
+                       (loop while (/= 0 (sdl2-ffi.functions:sdl-poll-event ev)) do
+                         (let ((type (ev-type ev)))
                            (cond
-                             ((sdl2:scancode= sc :scancode-escape)
-                              ;; cancel a pending goto, otherwise quit
-                              (if goto-mode (progn (torch!) (retitle))
-                                  (sdl2:push-quit-event)))
-                             ((sdl2:scancode= sc :scancode-g)
-                              ;; enter goto mode: pick a destination by clicking
-                              (when selected
-                                (setf goto-mode t)
-                                (sdl2-ffi.functions:sdl-set-cursor go-cursor)
-                                (retitle)))
-                             ((sdl2:scancode= sc :scancode-return)
-                              (when goto-mode (torch!))
-                              (try '(:end-turn))
-                              (setf selected (first-human-unit state))
-                              (retitle))
-                             ((sdl2:scancode= sc :scancode-tab)
-                              (setf selected (next-human-unit state selected)))
-                             ((sdl2:scancode= sc :scancode-b)
-                              (when selected
-                                (try (list :found-city :unit selected :name "City"))
-                                (setf selected (first-human-unit state))))
-                             ((sdl2:scancode= sc :scancode-f)
-                              (when selected
-                                (try (list :fortify :unit selected))))
-                             ((or (sdl2:scancode= sc :scancode-up)
-                                  (sdl2:scancode= sc :scancode-w))
-                              (when selected
-                                (try (list :move-unit :unit selected :dx 0 :dy -1))))
-                             ((or (sdl2:scancode= sc :scancode-down)
-                                  (sdl2:scancode= sc :scancode-s))
-                              (when selected
-                                (try (list :move-unit :unit selected :dx 0 :dy 1))))
-                             ((or (sdl2:scancode= sc :scancode-left)
-                                  (sdl2:scancode= sc :scancode-a))
-                              (when selected
-                                (try (list :move-unit :unit selected :dx -1 :dy 0))))
-                             ((or (sdl2:scancode= sc :scancode-right)
-                                  (sdl2:scancode= sc :scancode-d))
-                              (when selected
-                                (try (list :move-unit :unit selected :dx 1 :dy 0)))))))
-                       (:mousebuttondown (:x mx :y my)
-                         ;; in goto mode, click sets the destination then reverts
-                         (when (and goto-mode selected)
-                           (try (list :goto :unit selected
-                                      :x (floor mx (* *tile* scale))
-                                      :y (floor my (* *tile* scale))))
-                           (torch!)
-                           (retitle)))
-                       (:idle ()
-                         (render-game painter state selected)))
+                             ((= type +ev-quit+) (setf running nil))
+                             ((= type +ev-keydown+)
+                              (let ((sc (ev-scancode ev)))
+                                (cond
+                                  ((= sc +sc-escape+)
+                                   (if goto-mode (progn (torch!) (retitle))
+                                       (setf running nil)))
+                                  ((= sc +sc-g+)
+                                   (when selected
+                                     (setf goto-mode t)
+                                     (sdl2-ffi.functions:sdl-set-cursor go-cursor)
+                                     (retitle)))
+                                  ((= sc +sc-return+)
+                                   (when goto-mode (torch!))
+                                   (try '(:end-turn))
+                                   (setf selected (first-human-unit state))
+                                   (retitle))
+                                  ((= sc +sc-tab+)
+                                   (setf selected (next-human-unit state selected)))
+                                  ((= sc +sc-b+)
+                                   (when selected
+                                     (try (list :found-city :unit selected :name "City"))
+                                     (setf selected (first-human-unit state))))
+                                  ((= sc +sc-f+)
+                                   (when selected (try (list :fortify :unit selected))))
+                                  ((or (= sc +sc-up+) (= sc +sc-w+))
+                                   (when selected (try (list :move-unit :unit selected :dx 0 :dy -1))))
+                                  ((or (= sc +sc-down+) (= sc +sc-s+))
+                                   (when selected (try (list :move-unit :unit selected :dx 0 :dy 1))))
+                                  ((or (= sc +sc-left+) (= sc +sc-a+))
+                                   (when selected (try (list :move-unit :unit selected :dx -1 :dy 0))))
+                                  ((or (= sc +sc-right+) (= sc +sc-d+))
+                                   (when selected (try (list :move-unit :unit selected :dx 1 :dy 0)))))))
+                             ((= type +ev-mousebuttondown+)
+                              (let ((tx (floor (ev-mouse-x ev) (* *tile* scale)))
+                                    (ty (floor (ev-mouse-y ev) (* *tile* scale))))
+                                (cond
+                                  ;; in goto mode: send the selected unit there
+                                  ((and goto-mode selected)
+                                   (try (list :goto :unit selected :x tx :y ty))
+                                   (torch!) (retitle))
+                                  ;; otherwise: select the unit/garrison on that tile
+                                  (t (let ((u (human-unit-at state tx ty)))
+                                       (when u (setf selected u))))))))))
+                       (render-game painter state selected)
+                       (sdl2:delay 16))
                   ;; cleanup
                   (sdl2:destroy-texture (painter-sprites painter))
                   (sdl2:destroy-texture (painter-terrain painter))

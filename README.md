@@ -30,6 +30,7 @@ sight, bright = currently visible. A scout's trail is dimmed behind it.*
 
 | key | action |
 |-----|--------|
+| left-click | select the unit (or city garrison) on that tile |
 | arrows / WASD | move the selected unit |
 | Tab | cycle the selected unit |
 | B | found a city (with a settlers unit) |
@@ -61,6 +62,12 @@ advances onto the cleared tile. Damage carries between fights, so units **heal**
 between turns when they stay put — fully in a city, faster when **fortified**
 (`F`), slowly otherwise; fortifying also adds +50% defense (the AI fortifies its
 city garrisons).
+
+> **macOS / arm64 note:** cl-sdl2's high-level event accessors (`scancode-value`,
+> the `:x`/`:y` destructuring) read the wrong `SDL_Event` struct offsets against
+> SDL2 2.x on Apple Silicon, so keyboard/mouse came through as garbage. The front
+> end instead runs its own `SDL_PollEvent` loop and reads fields at the documented
+> byte offsets (scancode @16, mouse x/y @20/24). See `src/main.lisp`.
 
 ## Two systems
 
