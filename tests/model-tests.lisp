@@ -159,6 +159,24 @@
     (apply-command s (list :wake :unit (unit-id u)))
     (is (eq :idle (unit-orders u)))))           ; clicking a fortified unit wakes it
 
+(test terrain-domain
+  ;; land units may not enter ocean, but rivers (land terrain) are fine
+  (let ((s (bare-state 6 6)))
+    (terrain! s 3 2 :ocean)
+    (setf (tile-river (tile-at (gs-map s) 1 2)) t)   ; river on a land tile
+    (let ((u (add-unit s :warriors 1 2 2)))
+      (signals command-error (apply-command s (list :move-unit :unit (unit-id u) :dx 1 :dy 0))) ; ->ocean
+      (is (= 2 (unit-x u)))                          ; didn't move
+      (apply-command s (list :move-unit :unit (unit-id u) :dx -1 :dy 0))  ; ->river tile
+      (is (= 1 (unit-x u)))))                         ; rivers are passable
+  ;; sea units may not move onto land, but move on ocean
+  (let ((s (bare-state 6 6)))
+    (terrain! s 2 2 :ocean) (terrain! s 3 2 :ocean)
+    (let ((u (add-unit s :trireme 1 2 2)))
+      (signals command-error (apply-command s (list :move-unit :unit (unit-id u) :dx 0 :dy 1))) ; ->land
+      (apply-command s (list :move-unit :unit (unit-id u) :dx 1 :dy 0))  ; ->ocean
+      (is (= 3 (unit-x u))))))
+
 ;;; --- combat -----------------------------------------------------------------
 
 (test combat-strong-beats-weak

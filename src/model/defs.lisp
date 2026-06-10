@@ -26,13 +26,15 @@
 
 (defparameter *units*
   (%table
-   '((:settlers :attack 0 :defense 1 :move 1 :cost 30 :requires nil
+   '((:settlers :attack 0 :defense 1 :move 1 :cost 30 :requires nil :domain :land
       :abilities (:found-city))
-     (:warriors :attack 1 :defense 1 :move 1 :cost 10 :requires nil)
-     (:phalanx  :attack 1 :defense 2 :move 1 :cost 20 :requires :bronze-working)
-     (:legion   :attack 4 :defense 2 :move 1 :cost 20 :requires :iron-working)
-     (:catapult :attack 6 :defense 1 :move 1 :cost 40 :requires :mathematics)))
-  "Unit types -> combat stats, build cost, tech requirement, abilities.")
+     (:warriors :attack 1 :defense 1 :move 1 :cost 10 :requires nil :domain :land)
+     (:phalanx  :attack 1 :defense 2 :move 1 :cost 20 :requires :bronze-working :domain :land)
+     (:legion   :attack 4 :defense 2 :move 1 :cost 20 :requires :iron-working :domain :land)
+     (:catapult :attack 6 :defense 1 :move 1 :cost 40 :requires :mathematics :domain :land)
+     (:trireme  :attack 1 :defense 1 :move 3 :cost 40 :requires :map-making :domain :sea)))
+  "Unit types -> combat stats, build cost, tech requirement, abilities.
+:domain is :land (blocked from ocean) or :sea (must stay on ocean).")
 
 (defparameter *buildings*
   (%table
