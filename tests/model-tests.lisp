@@ -179,6 +179,37 @@
       (signals command-error
         (apply-command s (list :set-production :city (city-id c) :item '(:wonder :great-library)))))))
 
+(test building-effects
+  ;; library boosts a city's science output by 50%
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)) (p (player-by-id s 1)))
+      (civ-model::city-auto-work s c)
+      (multiple-value-bind (f sh tr) (civ-model::city-yields s c) (declare (ignore f sh))
+        (let ((base-sci (* tr (player-science-rate p))))
+          (push :library (city-buildings c))
+          (let ((b0 (player-beakers p)))
+            (civ-model::process-city s c)
+            (is (= (- (player-beakers p) b0)
+                   (floor (* base-sci 3) 2))))))))   ; +50%
+  ;; barracks -> veteran units, which hit harder
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (push :barracks (city-buildings c))
+      (setf (city-production c) '(:unit :legion) (city-shield-box c) 999)
+      (civ-model::city-try-complete s c)
+      (let ((vet (a-unit s 1 :legion)))
+        (is-true (unit-veteran vet))
+        (is (= 6 (civ-model::attack-strength vet))))))  ; legion 4 * 1.5
+  ;; walls add +100% defense
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let* ((c (a-city s)) (u (add-unit s :phalanx 1 2 2)))   ; phalanx def 2, in city
+      (let ((d0 (civ-model::defense-strength s u)))           ; city +50% -> 3
+        (push :walls (city-buildings c))
+        (is (> (civ-model::defense-strength s u) d0))))))     ; walls add more
+
 (test fortify-and-clear
   (let* ((s (bare-state 6 6)) (u (add-unit s :warriors 1 2 2)))
     (apply-command s (list :fortify :unit (unit-id u)))

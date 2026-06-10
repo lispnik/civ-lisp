@@ -46,11 +46,11 @@
 
 (defparameter *wonders*
   (%table
-   '((:pyramids         :cost 200 :requires :masonry        :effect "extra production")
-     (:hanging-gardens  :cost 120 :requires :pottery        :effect "happiness")
-     (:colossus         :cost 120 :requires :bronze-working :effect "trade in its city")
-     (:great-library    :cost 300 :requires :writing        :effect "free advances")
-     (:great-wall       :cost 180 :requires :masonry        :effect "land defense")))
+   '((:pyramids         :cost 200 :requires :masonry        :effect "+50% shields")
+     (:hanging-gardens  :cost 120 :requires :pottery        :effect "+1 food")
+     (:colossus         :cost 120 :requires :bronze-working :effect "+50% trade")
+     (:great-library    :cost 300 :requires :writing        :effect "+50% science")
+     (:great-wall       :cost 180 :requires :masonry        :effect "+100% city defense")))
   "World wonders (one per game) -> cost, tech requirement, effect.")
 
 (defparameter *techs*

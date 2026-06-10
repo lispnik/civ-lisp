@@ -60,13 +60,18 @@ shields, then food.  The city centre is always worked for free."
   "Return (values food shields trade) produced by CITY this turn.
 The city centre is worked for free and, per Civ1, always yields at least
 1 food / 1 shield / 1 trade so every city can grow, build and research."
-  (let ((map (gs-map state)) (f 0) (s 0) (tr 0))
+  (let ((map (gs-map state)) (f 0) (s 0) (tr 0)
+        (b (city-buildings city)))
     (multiple-value-bind (cf cs ct)
         (tile-yield (tile-at map (city-x city) (city-y city)))
       (incf f (max 1 cf)) (incf s (max 1 cs)) (incf tr (max 1 ct)))
     (dolist (w (city-worked city))
       (multiple-value-bind (a b c) (tile-yield (tile-at map (first w) (second w)))
         (incf f a) (incf s b) (incf tr c)))
+    ;; wonder yield effects (local to the city that built them)
+    (when (member :hanging-gardens b) (incf f 1))           ; +1 food
+    (when (member :pyramids b) (setf s (floor (* s 3) 2)))  ; +50% shields
+    (when (member :colossus b) (setf tr (floor (* tr 3) 2))); +50% trade
     (values f s tr)))
 
 ;;; --- combat ----------------------------------------------------------------
@@ -74,16 +79,22 @@ The city centre is worked for free and, per Civ1, always yields at least
 (defparameter +max-hp+ 10 "Hit points each unit fights with.")
 
 (defun attack-strength (unit)
-  (unit-def (unit-type unit) :attack 0))
+  (let ((a (unit-def (unit-type unit) :attack 0)))
+    (if (unit-veteran unit) (round (* a 3/2)) a)))   ; veterans (barracks) +50%
 
 (defun defense-strength (state unit)
-  "Defender strength incl. terrain, fortification and city bonuses."
+  "Defender strength incl. terrain, fortification, city, walls and veteran."
   (let* ((tile (tile-at (gs-map state) (unit-x unit) (unit-y unit)))
          (base (unit-def (unit-type unit) :defense 0))
          (terr (/ (terrain-def (tile-terrain tile) :defense 0) 100))
          (fort (if (eq (unit-orders unit) :fortified) 1/2 0))
-         (city (if (tile-city tile) 1/2 0)))
-    (max 1 (round (* base (+ 1 terr fort city))))))
+         (cityobj (and (tile-city tile) (city-by-id state (tile-city tile))))
+         (city (if cityobj 1/2 0))
+         (walls (if (and cityobj (or (member :walls (city-buildings cityobj))
+                                     (member :great-wall (city-buildings cityobj))))
+                    1 0))                                ; city walls +100%
+         (vet (if (unit-veteran unit) 1/2 0)))           ; veteran +50%
+    (max 1 (round (* base (+ 1 terr fort city walls vet))))))
 
 (defun destroy-unit (state unit)
   (let ((tile (tile-at (gs-map state) (unit-x unit) (unit-y unit))))
@@ -150,9 +161,11 @@ remaining HP (it heals back over later turns)."
       (let ((cost (production-cost item)))
         (when (>= (city-shield-box city) cost)
           (ecase (first item)
-            (:unit (register-unit state :type (second item)
-                                  :owner (city-owner city)
-                                  :x (city-x city) :y (city-y city)))
+            (:unit (let ((nu (register-unit state :type (second item)
+                                            :owner (city-owner city)
+                                            :x (city-x city) :y (city-y city))))
+                     (when (member :barracks (city-buildings city))
+                       (setf (unit-veteran nu) t))))      ; barracks -> veterans
             ((:building :wonder) (pushnew (second item) (city-buildings city))))
           (decf (city-shield-box city) cost)
           ;; buildings and wonders are one-shot; units keep producing
@@ -168,7 +181,9 @@ remaining HP (it heals back over later turns)."
       (incf (city-food-box city) net)
       (cond ((>= (city-food-box city) threshold)
              (incf (city-size city))
-             (setf (city-food-box city) 0))
+             ;; a granary keeps half the food box after growth
+             (setf (city-food-box city)
+                   (if (member :granary (city-buildings city)) (floor threshold 2) 0)))
             ((minusp (city-food-box city))            ; starvation
              (when (> (city-size city) 1) (decf (city-size city)))
              (setf (city-food-box city) 0))))
@@ -181,8 +196,13 @@ remaining HP (it heals back over later turns)."
     ;; match); gold keeps whole units.
     (let ((p (player-by-id state (city-owner city))))
       (when p
-        (incf (player-gold p)    (floor (* trade (player-tax-rate p)) 100))
-        (incf (player-beakers p) (* trade (player-science-rate p)))))))
+        (let ((sci (* trade (player-science-rate p))))
+          (when (member :library (city-buildings city))       ; library +50%
+            (setf sci (floor (* sci 3) 2)))
+          (when (member :great-library (city-buildings city)) ; great library +50%
+            (setf sci (floor (* sci 3) 2)))
+          (incf (player-gold p)    (floor (* trade (player-tax-rate p)) 100))
+          (incf (player-beakers p) sci))))))
 
 (defun process-cities (state)
   (maphash (lambda (id c) (declare (ignore id)) (process-city state c))
