@@ -105,9 +105,12 @@ Returns the cursor (the loaded surfaces leak until process exit, which is fine).
     (if w (+ 1000000 w) id)))
 
 (defun active-human-unit-ids (state)
-  "Human unit ids for cycling: fortified units excluded, waited units last."
+  "Human unit ids for cycling: fortified and out-of-moves units excluded,
+waited units sorted last."
   (sort (remove-if (lambda (id)
-                     (eq (civm:unit-orders (civm:unit-by-id state id)) :fortified))
+                     (let ((u (civm:unit-by-id state id)))
+                       (or (eq (civm:unit-orders u) :fortified)
+                           (<= (civm:unit-moves-left u) 0))))
                    (human-unit-ids state))
         #'< :key #'cycle-key))
 
@@ -118,7 +121,8 @@ Returns the cursor (the loaded surfaces leak until process exit, which is fine).
 fortified units and city garrisons, so a click can wake them."
   (loop for id in (human-unit-ids state)
         for u = (civm:unit-by-id state id)
-        when (and u (= (civm:unit-x u) tx) (= (civm:unit-y u) ty))
+        when (and u (= (civm:unit-x u) tx) (= (civm:unit-y u) ty)
+                  (> (civm:unit-moves-left u) 0))   ; spent units aren't selectable
           return id))
 
 (defun next-human-unit (state current)
@@ -160,17 +164,25 @@ fortified units and city garrisons, so a click can wake them."
             (sdl2:raise-window win)        ; bring the window to the front / focus it
             (let ((ev (autowrap:alloc 'sdl2-ffi:sdl-event))
                   (running t))
-              (flet ((torch! () (setf goto-mode nil)
-                       (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
-                     (retitle ()
-                       (sdl2:set-window-title
-                        win (format nil "civ-lisp — turn ~D, ~A~@[   ~A~]"
-                                    (civm:gs-turn state)
-                                    (year-string (civm:gs-year state))
-                                    (and goto-mode "[GO: click a destination]"))))
-                     (try (cmd)
-                       (handler-case (civm:apply-command state cmd)
-                         (civm:command-error () nil))))
+              (labels ((torch! () (setf goto-mode nil)
+                         (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
+                       (retitle ()
+                         (sdl2:set-window-title
+                          win (format nil "civ-lisp — turn ~D, ~A~@[   ~A~]"
+                                      (civm:gs-turn state)
+                                      (year-string (civm:gs-year state))
+                                      (and goto-mode "[GO: click a destination]"))))
+                       (try (cmd)
+                         (handler-case (civm:apply-command state cmd)
+                           (civm:command-error () nil)))
+                       (step! (dx dy)
+                         ;; move the selected unit, then auto-advance off it once
+                         ;; it's spent (out of moves) or gone (lost in combat)
+                         (when selected
+                           (try (list :move-unit :unit selected :dx dx :dy dy))
+                           (let ((u (civm:unit-by-id state selected)))
+                             (when (or (null u) (<= (civm:unit-moves-left u) 0))
+                               (setf selected (next-human-unit state selected)))))))
                 (retitle)
                 (unwind-protect
                      ;; manual poll loop, reading event fields at raw SDL offsets
@@ -209,14 +221,10 @@ fortified units and city garrisons, so a click can wake them."
                                      (setf selected (first-human-unit state))))
                                   ((= sc +sc-f+)
                                    (when selected (try (list :fortify :unit selected))))
-                                  ((= sc +sc-up+)
-                                   (when selected (try (list :move-unit :unit selected :dx 0 :dy -1))))
-                                  ((or (= sc +sc-down+) (= sc +sc-s+))
-                                   (when selected (try (list :move-unit :unit selected :dx 0 :dy 1))))
-                                  ((or (= sc +sc-left+) (= sc +sc-a+))
-                                   (when selected (try (list :move-unit :unit selected :dx -1 :dy 0))))
-                                  ((or (= sc +sc-right+) (= sc +sc-d+))
-                                   (when selected (try (list :move-unit :unit selected :dx 1 :dy 0)))))))
+                                  ((= sc +sc-up+) (step! 0 -1))
+                                  ((or (= sc +sc-down+) (= sc +sc-s+)) (step! 0 1))
+                                  ((or (= sc +sc-left+) (= sc +sc-a+)) (step! -1 0))
+                                  ((or (= sc +sc-right+) (= sc +sc-d+)) (step! 1 0)))))
                              ((= type +ev-mousebuttondown+)
                               (let ((tx (floor (ev-mouse-x ev) (* *tile* scale)))
                                     (ty (floor (ev-mouse-y ev) (* *tile* scale))))
