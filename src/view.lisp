@@ -297,25 +297,44 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
 (defparameter *menu-x* 92 "Build-menu panel position (logical px).")
 (defparameter *menu-y* 52)
 
-(defparameter *buildable-order*
-  '(:settlers :warriors :phalanx :legion :catapult :trireme)
-  "Order units appear in the build menu.")
+(defparameter *unit-order*
+  '(:settlers :warriors :phalanx :legion :catapult :trireme))
+(defparameter *improvement-order* '(:granary :library :walls :barracks))
+(defparameter *wonder-order*
+  '(:pyramids :hanging-gardens :colossus :great-library :great-wall))
 
-(defun buildable-units (state city)
-  "Unit types CITY's owner has the tech to build."
-  (let ((owner (civm:player-by-id state (civm:city-owner city))))
-    (remove-if-not (lambda (type)
-                     (civm:player-has-tech-p owner (civm:unit-def type :requires)))
-                   *buildable-order*)))
+(defun item-cost (item)
+  (ecase (first item)
+    (:unit (civm:unit-def (second item) :cost 0))
+    (:building (civm:building-def (second item) :cost 0))
+    (:wonder (civm:wonder-def (second item) :cost 0))))
+
+(defun buildable-items (state city)
+  "Production items (:unit/:building/:wonder ...) CITY can currently build."
+  (let ((owner (civm:player-by-id state (civm:city-owner city)))
+        (items '()))
+    (dolist (type *unit-order*)
+      (when (civm:player-has-tech-p owner (civm:unit-def type :requires))
+        (push (list :unit type) items)))
+    (dolist (b *improvement-order*)        ; improvements not already built here
+      (when (and (civm:player-has-tech-p owner (civm:building-def b :requires))
+                 (not (member b (civm:city-buildings city))))
+        (push (list :building b) items)))
+    (dolist (w *wonder-order*)             ; wonders not yet built anywhere
+      (when (and (civm:player-has-tech-p owner (civm:wonder-def w :requires))
+                 (not (civm:wonder-built-p state w)))
+        (push (list :wonder w) items)))
+    (nreverse items)))
 
 (defun build-menu-lines (state city)
-  "List of (index type label) for CITY's build menu (1-based index)."
-  (loop for type in (buildable-units state city)
+  "List of (index item label) for CITY's build menu (1-based index)."
+  (loop for item in (buildable-items state city)
         for i from 1
-        collect (list i type
-                      (format nil "~D ~A (~D)" i
-                              (string-capitalize (symbol-name type))
-                              (civm:unit-def type :cost 0)))))
+        collect (list i item
+                      (format nil "~D ~A (~D)~A" i
+                              (string-capitalize (symbol-name (second item)))
+                              (item-cost item)
+                              (if (eq (first item) :wonder) " *" "")))))
 
 (defun build-menu-pick (painter state city ly)
   "Return the unit type whose menu line is at logical y LY, or NIL."
@@ -338,8 +357,8 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
     (sdl2:set-render-draw-color ren 220 220 220 255)
     (sdl2:render-draw-rect ren (painter-dst painter))
     (draw-text painter font title (+ *menu-x* 2) (+ *menu-y* 2) 255 230 120)
-    (loop for (i type label) in lines
-          do (let ((cur (equal (civm:city-production city) (list :unit type))))
+    (loop for (i item label) in lines
+          do (let ((cur (equal (civm:city-production city) item)))
                (draw-text painter font label (+ *menu-x* 2)
                           (+ *menu-y* 2 (* i (1+ h)))
                           (if cur 120 255) 255 (if cur 120 255))))))

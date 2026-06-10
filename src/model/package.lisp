@@ -5,8 +5,8 @@
   (:nicknames #:civm)
   (:export
    ;; definitions (the data-driven rulebook)
-   #:*terrain* #:*units* #:*buildings* #:*techs* #:*special-bonus*
-   #:terrain-def #:unit-def #:building-def #:tech-def
+   #:*terrain* #:*units* #:*buildings* #:*techs* #:*special-bonus* #:*wonders*
+   #:terrain-def #:unit-def #:building-def #:tech-def #:wonder-def
    #:def-get
    ;; map / tiles
    #:tile #:make-tile #:tile-terrain #:tile-feature #:tile-resource
@@ -31,7 +31,7 @@
    #:player-seen #:update-visibility #:visible-set #:seen-p
    ;; rules
    #:tile-yield #:city-yields #:end-turn #:resolve-combat #:heal-units
-   #:enemy-adjacent-p #:city-defended-p
+   #:enemy-adjacent-p #:city-defended-p #:wonder-built-p
    ;; pathfinding / goto
    #:find-path #:process-goto
    ;; ai

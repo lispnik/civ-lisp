@@ -31,6 +31,10 @@
   (loop for u being the hash-values of (gs-units state)
         when (and (= (unit-owner u) owner) (eq (unit-type u) type)) return u))
 
+(defun city-named (state name)
+  (loop for c being the hash-values of (gs-cities state)
+        when (string= (city-name c) name) return c))
+
 (defun unit-positions (state)
   (sort (loop for u being the hash-values of (gs-units state)
               collect (list (unit-id u) (unit-type u) (unit-x u) (unit-y u)))
@@ -145,6 +149,35 @@
       (is (equal '(:building :library) (city-production c)))
       (signals command-error
         (apply-command s (list :set-production :city (city-id c) :item '(:unit :zerg)))))))
+
+(test build-improvements-and-wonders
+  (let* ((s (bare-state 8 8)) (st (add-unit s :settlers 1 4 4)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)) (p (player-by-id s 1)))
+      (setf (gethash :pottery (player-techs p)) t      ; granary, hanging-gardens
+            (gethash :masonry (player-techs p)) t)      ; walls, pyramids
+      ;; an improvement: granary
+      (apply-command s (list :set-production :city (city-id c) :item '(:building :granary)))
+      (is (equal '(:building :granary) (city-production c)))
+      ;; complete it and confirm it can't be re-built
+      (setf (city-shield-box c) 999) (civ-model::city-try-complete s c)
+      (is (member :granary (city-buildings c)))
+      (signals command-error
+        (apply-command s (list :set-production :city (city-id c) :item '(:building :granary))))
+      ;; a wonder: pyramids
+      (apply-command s (list :set-production :city (city-id c) :item '(:wonder :pyramids)))
+      (is (equal '(:wonder :pyramids) (city-production c)))
+      (setf (city-shield-box c) 999) (civ-model::city-try-complete s c)
+      (is-true (wonder-built-p s :pyramids))
+      ;; a wonder is one-per-game: another city can't build it
+      (let* ((s2 (add-unit s :settlers 1 1 1)))
+        (apply-command s (list :found-city :unit (unit-id s2) :name "Veii"))
+        (signals command-error
+          (apply-command s (list :set-production :city (city-id (city-named s "Veii"))
+                                 :item '(:wonder :pyramids)))))
+      ;; tech gate: great-library needs writing
+      (signals command-error
+        (apply-command s (list :set-production :city (city-id c) :item '(:wonder :great-library)))))))
 
 (test fortify-and-clear
   (let* ((s (bare-state 6 6)) (u (add-unit s :warriors 1 2 2)))

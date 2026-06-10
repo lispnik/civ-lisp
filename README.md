@@ -32,7 +32,7 @@ sight, bright = currently visible. A scout's trail is dimmed behind it.*
 | key | action |
 |-----|--------|
 | left-click | select a unit (wakes a fortified one), or open a friendly city's **build menu** |
-| 1–9 | in the build menu, choose what the city builds (or click a line; Esc closes) |
+| 1–9 / click | in the build menu, choose a unit, improvement, or wonder (`*`) to build; Esc closes |
 | arrow keys | move the selected unit |
 | Tab | cycle to the next active unit (skips fortified / out-of-moves) |
 | W | wait — send the unit to the end of this turn's cycle |

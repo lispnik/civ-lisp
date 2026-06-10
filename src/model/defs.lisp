@@ -44,6 +44,15 @@
      (:barracks :cost 40 :upkeep 1 :requires nil         :effect (:veteran t))))
   "Building types -> cost, gold upkeep, tech requirement, effect.")
 
+(defparameter *wonders*
+  (%table
+   '((:pyramids         :cost 200 :requires :masonry        :effect "extra production")
+     (:hanging-gardens  :cost 120 :requires :pottery        :effect "happiness")
+     (:colossus         :cost 120 :requires :bronze-working :effect "trade in its city")
+     (:great-library    :cost 300 :requires :writing        :effect "free advances")
+     (:great-wall       :cost 180 :requires :masonry        :effect "land defense")))
+  "World wonders (one per game) -> cost, tech requirement, effect.")
+
 (defparameter *techs*
   (%table
    '((:pottery       :cost 0  :prereqs ()                      :unlocks (:granary))
@@ -75,4 +84,5 @@
 (defun terrain-def  (key prop &optional d) (def-get *terrain* key prop d))
 (defun unit-def     (key prop &optional d) (def-get *units* key prop d))
 (defun building-def (key prop &optional d) (def-get *buildings* key prop d))
+(defun wonder-def   (key prop &optional d) (def-get *wonders* key prop d))
 (defun tech-def     (key prop &optional d) (def-get *techs* key prop d))

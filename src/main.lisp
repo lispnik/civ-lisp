@@ -215,7 +215,7 @@ fortified units and city garrisons, so a click can wake them."
                                                         (civm:city-by-id state build-city)))))
                                         (when pick
                                           (try (list :set-production :city build-city
-                                                     :item (list :unit (second pick))))))
+                                                     :item (second pick)))))
                                       (setf build-city nil))
                                      ((= sc +sc-escape+) (setf build-city nil))))
                                   ((= sc +sc-escape+)
@@ -262,7 +262,7 @@ fortified units and city garrisons, so a click can wake them."
                                                 (floor (ev-mouse-y ev) scale))))
                                      (when pick
                                        (try (list :set-production :city build-city
-                                                  :item (list :unit pick)))))
+                                                  :item pick))))
                                    (setf build-city nil))
                                   ;; in goto mode: send the selected unit there
                                   ((and goto-mode selected)

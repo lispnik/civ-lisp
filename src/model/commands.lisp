@@ -143,6 +143,11 @@ until it next moves."
        (unless (gethash (second item) *buildings*) (fail "unknown building ~A" (second item)))
        (when (member (second item) (city-buildings c)) (fail "already built"))
        (let ((req (building-def (second item) :requires)))
+         (unless (player-has-tech-p owner req) (fail "requires tech ~(~A~)" req))))
+      (:wonder
+       (unless (gethash (second item) *wonders*) (fail "unknown wonder ~A" (second item)))
+       (when (wonder-built-p state (second item)) (fail "wonder already built"))
+       (let ((req (wonder-def (second item) :requires)))
          (unless (player-has-tech-p owner req) (fail "requires tech ~(~A~)" req)))))
     (setf (city-production c) item)
     c))

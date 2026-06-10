@@ -132,10 +132,16 @@ remaining HP (it heals back over later turns)."
 
 ;;; --- per-turn city processing ---------------------------------------------
 
+(defun wonder-built-p (state key)
+  "T if any city has already built wonder KEY (wonders are one per game)."
+  (loop for c being the hash-values of (gs-cities state)
+        thereis (member key (city-buildings c))))
+
 (defun production-cost (item)
   (ecase (first item)
     (:unit     (unit-def (second item) :cost 9999))
-    (:building (building-def (second item) :cost 9999))))
+    (:building (building-def (second item) :cost 9999))
+    (:wonder   (wonder-def (second item) :cost 9999))))
 
 (defun city-try-complete (state city)
   "Finish the current production if enough shields have accumulated."
@@ -147,10 +153,10 @@ remaining HP (it heals back over later turns)."
             (:unit (register-unit state :type (second item)
                                   :owner (city-owner city)
                                   :x (city-x city) :y (city-y city)))
-            (:building (pushnew (second item) (city-buildings city))))
+            ((:building :wonder) (pushnew (second item) (city-buildings city))))
           (decf (city-shield-box city) cost)
-          ;; buildings are one-shot; units keep producing
-          (when (eq (first item) :building)
+          ;; buildings and wonders are one-shot; units keep producing
+          (when (member (first item) '(:building :wonder))
             (setf (city-production city) nil)))))))
 
 (defun process-city (state city)
