@@ -224,22 +224,26 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
 (black when a military unit garrisons it), and a name label below."
   (let* ((cx (civm:city-x city)) (cy (civm:city-y city))
          (px (* cx *tile*)) (py (* cy *tile*))
-         (font (painter-font painter)))
+         (font (painter-font painter))
+         (ren (painter-ren painter)))
+    ;; the city sprite is transparent, so paint the owner's colour square first
+    (destructuring-bind (r g b) (owner-color state (civm:city-owner city))
+      (sdl2:set-render-draw-color ren r g b 255)
+      (set-rect (painter-dst painter) px py *tile* *tile*)
+      (sdl2:render-fill-rect ren (painter-dst painter)))
     (draw-sprite painter (car +city-sprite+) (cdr +city-sprite+) px py)
     (when (member :walls (civm:city-buildings city))
       (draw-frame painter cx cy '(180 178 160) 1))          ; stone walls
-    (draw-border painter cx cy
-                 (if (civm:city-defended-p state city)
-                     '(0 0 0)                                ; garrisoned: black
-                     (owner-color state (civm:city-owner city))))
+    ;; a black border marks a city garrisoned by a military unit
+    (when (civm:city-defended-p state city)
+      (draw-border painter cx cy '(0 0 0)))
     (when font
-      ;; population number in a small owner-coloured box at the top-left
+      ;; population number in a small black box at the top-left
       (let* ((label (princ-to-string (civm:city-size city)))
              (bw (1+ (text-width font label))))
-        (destructuring-bind (r g b) (owner-color state (civm:city-owner city))
-          (sdl2:set-render-draw-color (painter-ren painter) r g b 255))
+        (sdl2:set-render-draw-color ren 0 0 0 255)
         (set-rect (painter-dst painter) px py bw (+ 2 (gfont-height font)))
-        (sdl2:render-fill-rect (painter-ren painter) (painter-dst painter))
+        (sdl2:render-fill-rect ren (painter-dst painter))
         (draw-text painter font label px (1+ py) 255 255 255))
       ;; city name centred just below the tile
       (draw-label painter font (civm:city-name city)
