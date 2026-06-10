@@ -343,25 +343,44 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
     (when (and (>= row 1) (<= row (length lines)))
       (second (nth (1- row) lines)))))
 
+(defun built-effect (key)
+  "Human-readable effect string for a built improvement or wonder."
+  (or (civm:building-def key :effect) (civm:wonder-def key :effect) ""))
+
+(defun built-lines (city)
+  "\"Name - effect\" strings for the improvements/wonders the city has."
+  (loop for key in (append *improvement-order* *wonder-order*)
+        when (member key (civm:city-buildings city))
+          collect (format nil "~A - ~A"
+                          (string-capitalize (symbol-name key)) (built-effect key))))
+
 (defun draw-build-menu (painter state city)
   (let* ((font (painter-font painter)) (ren (painter-ren painter))
          (h (gfont-height font))
          (lines (build-menu-lines state city))
+         (built (built-lines city))
          (title (format nil "Build (~A):" (civm:city-name city)))
-         (texts (cons title (mapcar #'third lines)))
+         (texts (append (list title) (mapcar #'third lines)
+                        (when built (cons "Built:" built))))
          (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
-         (ph (+ 4 (* (1+ (length lines)) (1+ h)))))
+         (ph (+ 4 (* (length texts) (1+ h)))))
     (sdl2:set-render-draw-color ren 0 0 0 230)
     (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
     (sdl2:render-fill-rect ren (painter-dst painter))
     (sdl2:set-render-draw-color ren 220 220 220 255)
     (sdl2:render-draw-rect ren (painter-dst painter))
-    (draw-text painter font title (+ *menu-x* 2) (+ *menu-y* 2) 255 230 120)
-    (loop for (i item label) in lines
-          do (let ((cur (equal (civm:city-production city) item)))
-               (draw-text painter font label (+ *menu-x* 2)
-                          (+ *menu-y* 2 (* i (1+ h)))
-                          (if cur 120 255) 255 (if cur 120 255))))))
+    (flet ((line (text row r g b)
+             (draw-text painter font text (+ *menu-x* 2)
+                        (+ *menu-y* 2 (* row (1+ h))) r g b)))
+      (line title 0 255 230 120)                               ; title
+      (loop for (i item label) in lines                        ; buildable
+            do (let ((cur (equal (civm:city-production city) item)))
+                 (line label i (if cur 120 255) 255 (if cur 120 255))))
+      (when built                                              ; already built
+        (let ((base (1+ (length lines))))
+          (line "Built:" base 180 180 180)
+          (loop for s in built for k from 1
+                do (line s (+ base k) 150 200 150)))))))
 
 (defun render-game (painter state selected-id &key (fog t) build-city)
   "Draw STATE from the human player's perspective.  With FOG, unexplored tiles

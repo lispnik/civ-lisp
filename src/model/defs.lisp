@@ -38,19 +38,19 @@
 
 (defparameter *buildings*
   (%table
-   '((:granary :cost 60 :upkeep 1 :requires :pottery     :effect (:food-keep 1/2))
-     (:library :cost 80 :upkeep 1 :requires :writing     :effect (:science 1/2))
-     (:walls   :cost 60 :upkeep 0 :requires :masonry     :effect (:defense 2))
-     (:barracks :cost 40 :upkeep 1 :requires nil         :effect (:veteran t))))
+   '((:granary :cost 60 :upkeep 1 :requires :pottery :effect "keeps food on growth")
+     (:library :cost 80 :upkeep 1 :requires :writing :effect "boosts science")
+     (:walls   :cost 60 :upkeep 0 :requires :masonry :effect "stronger defense")
+     (:barracks :cost 40 :upkeep 1 :requires nil     :effect "builds veterans")))
   "Building types -> cost, gold upkeep, tech requirement, effect.")
 
 (defparameter *wonders*
   (%table
-   '((:pyramids         :cost 200 :requires :masonry        :effect "+50% shields")
-     (:hanging-gardens  :cost 120 :requires :pottery        :effect "+1 food")
-     (:colossus         :cost 120 :requires :bronze-working :effect "+50% trade")
-     (:great-library    :cost 300 :requires :writing        :effect "+50% science")
-     (:great-wall       :cost 180 :requires :masonry        :effect "+100% city defense")))
+   '((:pyramids         :cost 200 :requires :masonry        :effect "boosts production")
+     (:hanging-gardens  :cost 120 :requires :pottery        :effect "extra food")
+     (:colossus         :cost 120 :requires :bronze-working :effect "boosts trade")
+     (:great-library    :cost 300 :requires :writing        :effect "boosts science")
+     (:great-wall       :cost 180 :requires :masonry        :effect "stronger city defense")))
   "World wonders (one per game) -> cost, tech requirement, effect.")
 
 (defparameter *techs*
