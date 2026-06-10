@@ -265,6 +265,33 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
   "Toggles every 500 ms (drives the selected-unit blink)."
   (evenp (floor (sdl2-ffi.functions:sdl-get-ticks) 500)))
 
+(defun draw-unit-panel (painter state u)
+  "A small stats panel for the selected unit, anchored bottom-left."
+  (let* ((font (painter-font painter))
+         (ren (painter-ren painter))
+         (h (gfont-height font))
+         (tile (civm:tile-at (civm:gs-map state) (civm:unit-x u) (civm:unit-y u)))
+         (lines (list (string-capitalize (symbol-name (civm:unit-type u)))
+                      (format nil "Atk ~D  Def ~D"
+                              (civm:unit-def (civm:unit-type u) :attack 0)
+                              (civm:unit-def (civm:unit-type u) :defense 0))
+                      (format nil "Move ~D  HP ~D"
+                              (civm:unit-moves-left u) (civm:unit-hp u))
+                      (string-capitalize (symbol-name (civm:tile-terrain tile)))))
+         (pw (+ 4 (reduce #'max lines :key (lambda (s) (text-width font s)))))
+         (ph (+ 3 (* (length lines) (1+ h))))
+         (py (- (* (civm:map-height (civm:gs-map state)) *tile*) ph)))
+    (sdl2:set-render-draw-color ren 0 0 0 200)
+    (set-rect (painter-dst painter) 0 py pw ph)
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    ;; owner-coloured accent line at the top of the panel
+    (destructuring-bind (r g b) (owner-color state (civm:unit-owner u))
+      (sdl2:set-render-draw-color ren r g b 255))
+    (set-rect (painter-dst painter) 0 py pw 1)
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (loop for line in lines for i from 0
+          do (draw-text painter font line 2 (+ py 2 (* i (1+ h))) 255 255 255))))
+
 (defun render-game (painter state selected-id &key (fog t))
   "Draw STATE from the human player's perspective.  With FOG, unexplored tiles
 are black, explored-but-unseen tiles are dimmed, and units/cities are shown
@@ -301,7 +328,10 @@ only on currently-visible tiles."
       (let ((sel (and selected-id (civm:unit-by-id state selected-id))))
         (when (and sel (visible (civm:unit-x sel) (civm:unit-y sel)) (blink-on-p))
           (draw-unit painter state sel)
-          (draw-border painter (civm:unit-x sel) (civm:unit-y sel) '(255 240 60))))
+          (draw-border painter (civm:unit-x sel) (civm:unit-y sel) '(255 240 60)))
+        ;; stats panel for the selected unit
+        (when (and sel (painter-font painter))
+          (draw-unit-panel painter state sel)))
       ;; turn/year readout, top-left
       (let ((font (painter-font painter)))
         (when font
