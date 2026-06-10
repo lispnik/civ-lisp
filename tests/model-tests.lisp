@@ -61,7 +61,9 @@
   (is (= 2 (terrain-def :forest :shields)))
   (is (= 50 (terrain-def :hills :defense)))
   (is (= 0 (unit-def :settlers :attack)))
-  (is (= 4 (unit-def :legion :attack)))
+  (is (= 3 (unit-def :legion :attack)))
+  (is (eq :sea (unit-def :battleship :domain)))
+  (is (eq :air (unit-def :fighter :domain)))
   (is (member :found-city (unit-def :settlers :abilities))))
 
 (test map-basics
@@ -211,11 +213,11 @@
     (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
     (let ((c (a-city s)))
       (push :barracks (city-buildings c))
-      (setf (city-production c) '(:unit :legion) (city-shield-box c) 999)
+      (setf (city-production c) '(:unit :catapult) (city-shield-box c) 999)
       (civ-model::city-try-complete s c)
-      (let ((vet (a-unit s 1 :legion)))
+      (let ((vet (a-unit s 1 :catapult)))
         (is-true (unit-veteran vet))
-        (is (= 6 (civ-model::attack-strength vet))))))  ; legion 4 * 1.5
+        (is (= 9 (civ-model::attack-strength vet))))))  ; catapult 6 * 1.5
   ;; walls add +100% defense
   (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
     (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))

@@ -298,10 +298,20 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
 (defparameter *menu-y* 52)
 
 (defparameter *unit-order*
-  '(:settlers :warriors :phalanx :legion :catapult :trireme))
-(defparameter *improvement-order* '(:granary :library :walls :barracks))
+  '(:warriors :cavalry :legion :phalanx :diplomat :musketeers :riflemen :cannon
+    :catapult :chariot :frigate :knights :sail :settlers :trireme :caravan :mech-inf
+    :submarine :transport :artillery :fighter :ironclad :armor :cruiser :bomber
+    :battleship :carrier :nuclear))
+(defparameter *improvement-order*
+  '(:barracks :temple :granary :courthouse :library :marketplace :colosseum :aqueduct
+    :bank :walls :cathedral :mass-transit :nuclear-plant :power-plant :university
+    :factory :palace :recycling-center :sdi-defense :hydro-plant :mfg-plant))
 (defparameter *wonder-order*
-  '(:pyramids :hanging-gardens :colossus :great-library :great-wall))
+  '(:colossus :lighthouse :copernicus-observatory :darwins-voyage :great-library
+    :great-wall :hanging-gardens :michelangelos-chapel :oracle :pyramids
+    :isaac-newtons-college :j-s-bachs-cathedral :magellans-expedition
+    :shakespeares-theatre :apollo-program :cure-for-cancer :hoover-dam
+    :manhattan-project :s-e-t-i-program :united-nations :womens-suffrage))
 
 (defun item-cost (item)
   (ecase (first item)
@@ -348,11 +358,12 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
   (or (civm:building-def key :effect) (civm:wonder-def key :effect) ""))
 
 (defun built-lines (city)
-  "\"Name - effect\" strings for the improvements/wonders the city has."
+  "Strings (\"Name\" or \"Name - effect\") for the city's improvements/wonders."
   (loop for key in (append *improvement-order* *wonder-order*)
         when (member key (civm:city-buildings city))
-          collect (format nil "~A - ~A"
-                          (string-capitalize (symbol-name key)) (built-effect key))))
+          collect (let ((eff (built-effect key))
+                        (name (string-capitalize (symbol-name key))))
+                    (if (string= eff "") name (format nil "~A - ~A" name eff)))))
 
 (defun draw-build-menu (painter state city)
   (let* ((font (painter-font painter)) (ren (painter-ren painter))

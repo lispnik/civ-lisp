@@ -72,11 +72,12 @@ until it next moves."
     (let* ((dest (tile-at map nx ny))
            (sea-dest (eq (tile-terrain dest) :ocean))
            (enemies (tile-enemies state dest (unit-owner u))))
-      ;; terrain domain: land units can't enter ocean; sea units can't land.
-      ;; (rivers sit on land terrain, so they stay passable for land units)
-      (if (eq (unit-def (unit-type u) :domain :land) :sea)
-          (unless sea-dest (fail "naval unit can't move onto land"))
-          (when sea-dest (fail "land unit can't move into the water")))
+      ;; terrain domain: land units can't enter ocean; sea units can't land;
+      ;; air units go anywhere.  (rivers are land terrain, so land units cross them)
+      (ecase (unit-def (unit-type u) :domain :land)
+        (:sea (unless sea-dest (fail "naval unit can't move onto land")))
+        (:land (when sea-dest (fail "land unit can't move into the water")))
+        (:air nil))
       (if enemies
           ;; attack: fight the strongest defender, advance if the tile clears
           (progn
