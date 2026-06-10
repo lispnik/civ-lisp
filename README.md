@@ -27,6 +27,27 @@ defended; text uses a font extracted from the game's `FONTS.CV`.*
 *Fog of war from the human's view: black = unexplored, dim = explored but out of
 sight, bright = currently visible. A scout's trail is dimmed behind it.*
 
+### Building a wonder
+
+Selecting a friendly city opens its **build menu**: every unit, improvement and
+wonder the city's owner has unlocked through the [advance tree](docs/MODEL.md),
+priced in shields. One-per-game wonders are marked with `*`.
+
+![build menu with the Pyramids selected](docs/wonder-before.png)
+
+*Rome's build menu set to the **Pyramids** (300 shields). The roster is gated by
+tech, so only what's been researched appears.*
+
+Production accumulates shields each turn until the item completes. Below, after
+Rome has grown and worked its tiles for ~150 turns, the Pyramids are done: they
+drop out of the buildable list (one per game) and appear in the **Built:**
+section with their effect.
+
+![the Pyramids in Rome's built list](docs/wonder-after.png)
+
+*After completion — `Pyramids — boosts production` now shows under **Built:**,
+and AI cities (Akkad, Uruk) have grown alongside.*
+
 ## Controls
 
 | key | action |
