@@ -40,7 +40,7 @@
     (:legion . (3 . 10)) (:catapult . (7 . 10)))
   "civ-model unit type -> (col . row) in SP257.")
 (defparameter +default-unit-sprite+ '(1 . 10))
-(defparameter +city-sprite+ '(9 . 9))
+(defparameter +city-sprite+ '(12 . 7))   ; SP257 col 12, row 7 (tile_007_012)
 
 (defun unit-sprite (type)
   (or (cdr (assoc type *unit-sprites*)) +default-unit-sprite+))
