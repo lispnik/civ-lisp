@@ -219,6 +219,9 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
 (defun human-player (state)
   (find :human (civm:gs-players state) :key #'civm:player-kind))
 
+(defun year-text (year)
+  (if (minusp year) (format nil "~D BC" (- year)) (format nil "AD ~D" year)))
+
 (defun draw-city (painter state city)
   "Civ1-style city: skyline, optional walls, a size box, an owner/black border
 (black when a military unit garrisons it), and a name label below."
@@ -299,4 +302,14 @@ only on currently-visible tiles."
         (when (and sel (visible (civm:unit-x sel) (civm:unit-y sel)) (blink-on-p))
           (draw-unit painter state sel)
           (draw-border painter (civm:unit-x sel) (civm:unit-y sel) '(255 240 60))))
+      ;; turn/year readout, top-left
+      (let ((font (painter-font painter)))
+        (when font
+          (let* ((s (format nil "~A   TURN ~D"
+                            (year-text (civm:gs-year state)) (civm:gs-turn state)))
+                 (tw (text-width font s)))
+            (sdl2:set-render-draw-color ren 0 0 0 190)
+            (set-rect (painter-dst painter) 0 0 (+ tw 2) (+ 2 (gfont-height font)))
+            (sdl2:render-fill-rect ren (painter-dst painter))
+            (draw-text painter font s 1 1 255 255 255))))
       (sdl2:render-present ren))))

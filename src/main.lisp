@@ -48,6 +48,7 @@
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
 (defconstant +sc-tab+ 43) (defconstant +sc-right+ 79) (defconstant +sc-left+ 80)
 (defconstant +sc-down+ 81) (defconstant +sc-up+ 82)
+(defconstant +sc-kp-enter+ 88)          ; numpad Enter
 
 ;;; --- cursor (the OS cursor is not affected by the render scale, so its
 ;;;     surface is upscaled separately) ----------------------------------------
@@ -173,7 +174,7 @@ garrison sits on its city's tile, so this also picks up a city's defender."
                                      (setf goto-mode t)
                                      (sdl2-ffi.functions:sdl-set-cursor go-cursor)
                                      (retitle)))
-                                  ((= sc +sc-return+)
+                                  ((or (= sc +sc-return+) (= sc +sc-kp-enter+))
                                    (when goto-mode (torch!))
                                    (try '(:end-turn))
                                    (setf selected (first-human-unit state))
