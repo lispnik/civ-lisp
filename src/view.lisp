@@ -292,7 +292,59 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
     (loop for line in lines for i from 0
           do (draw-text painter font line 2 (+ py 2 (* i (1+ h))) 255 255 255))))
 
-(defun render-game (painter state selected-id &key (fog t))
+;;; --- build menu ------------------------------------------------------------
+
+(defparameter *menu-x* 92 "Build-menu panel position (logical px).")
+(defparameter *menu-y* 52)
+
+(defparameter *buildable-order*
+  '(:settlers :warriors :phalanx :legion :catapult :trireme)
+  "Order units appear in the build menu.")
+
+(defun buildable-units (state city)
+  "Unit types CITY's owner has the tech to build."
+  (let ((owner (civm:player-by-id state (civm:city-owner city))))
+    (remove-if-not (lambda (type)
+                     (civm:player-has-tech-p owner (civm:unit-def type :requires)))
+                   *buildable-order*)))
+
+(defun build-menu-lines (state city)
+  "List of (index type label) for CITY's build menu (1-based index)."
+  (loop for type in (buildable-units state city)
+        for i from 1
+        collect (list i type
+                      (format nil "~D ~A (~D)" i
+                              (string-capitalize (symbol-name type))
+                              (civm:unit-def type :cost 0)))))
+
+(defun build-menu-pick (painter state city ly)
+  "Return the unit type whose menu line is at logical y LY, or NIL."
+  (let ((row (floor (- ly (+ *menu-y* 2)) (1+ (gfont-height (painter-font painter)))))
+        (lines (build-menu-lines state city)))
+    (when (and (>= row 1) (<= row (length lines)))
+      (second (nth (1- row) lines)))))
+
+(defun draw-build-menu (painter state city)
+  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+         (h (gfont-height font))
+         (lines (build-menu-lines state city))
+         (title (format nil "Build (~A):" (civm:city-name city)))
+         (texts (cons title (mapcar #'third lines)))
+         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
+         (ph (+ 4 (* (1+ (length lines)) (1+ h)))))
+    (sdl2:set-render-draw-color ren 0 0 0 230)
+    (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (sdl2:set-render-draw-color ren 220 220 220 255)
+    (sdl2:render-draw-rect ren (painter-dst painter))
+    (draw-text painter font title (+ *menu-x* 2) (+ *menu-y* 2) 255 230 120)
+    (loop for (i type label) in lines
+          do (let ((cur (equal (civm:city-production city) (list :unit type))))
+               (draw-text painter font label (+ *menu-x* 2)
+                          (+ *menu-y* 2 (* i (1+ h)))
+                          (if cur 120 255) 255 (if cur 120 255))))))
+
+(defun render-game (painter state selected-id &key (fog t) build-city)
   "Draw STATE from the human player's perspective.  With FOG, unexplored tiles
 are black, explored-but-unseen tiles are dimmed, and units/cities are shown
 only on currently-visible tiles."
@@ -329,9 +381,13 @@ only on currently-visible tiles."
         (when (and sel (visible (civm:unit-x sel) (civm:unit-y sel)) (blink-on-p))
           (draw-unit painter state sel)
           (draw-border painter (civm:unit-x sel) (civm:unit-y sel) '(255 240 60)))
-        ;; stats panel for the selected unit
-        (when (and sel (painter-font painter))
+        ;; stats panel for the selected unit (hidden while the build menu is up)
+        (when (and sel (not build-city) (painter-font painter))
           (draw-unit-panel painter state sel)))
+      ;; build menu overlay
+      (when (and build-city (painter-font painter))
+        (let ((c (civm:city-by-id state build-city)))
+          (when c (draw-build-menu painter state c))))
       ;; turn/year readout, top-left
       (let ((font (painter-font painter)))
         (when font

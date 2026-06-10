@@ -49,6 +49,17 @@
 (defconstant +sc-tab+ 43) (defconstant +sc-right+ 79) (defconstant +sc-left+ 80)
 (defconstant +sc-down+ 81) (defconstant +sc-up+ 82)
 (defconstant +sc-kp-enter+ 88)          ; numpad Enter
+(defconstant +sc-1+ 30)                 ; '1'..'9' are 30..38
+
+(defun human-city-at (state tx ty)
+  "City id of a human-owned city on tile (TX,TY), or NIL."
+  (let ((tile (civm:tile-at (civm:gs-map state) tx ty)))
+    (let ((cid (and tile (civm:tile-city tile))))
+      (when cid
+        (let ((c (civm:city-by-id state cid)))
+          (when (eq (civm:player-kind (civm:player-by-id state (civm:city-owner c)))
+                    :human)
+            cid))))))
 
 ;;; --- cursor (the OS cursor is not affected by the render scale, so its
 ;;;     surface is upscaled separately) ----------------------------------------
@@ -163,7 +174,8 @@ fortified units and city garrisons, so a click can wake them."
             (sdl2:show-cursor)
             (sdl2:raise-window win)        ; bring the window to the front / focus it
             (let ((ev (autowrap:alloc 'sdl2-ffi:sdl-event))
-                  (running t))
+                  (running t)
+                  (build-city nil))   ; city id whose build menu is open
               (labels ((torch! () (setf goto-mode nil)
                          (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
                        (retitle ()
@@ -194,6 +206,18 @@ fortified units and city garrisons, so a click can wake them."
                              ((= type +ev-keydown+)
                               (let ((sc (ev-scancode ev)))
                                 (cond
+                                  ;; build menu open: number picks a unit, Esc closes
+                                  (build-city
+                                   (cond
+                                     ((and (>= sc +sc-1+) (<= sc (+ +sc-1+ 8)))
+                                      (let ((pick (nth (- sc +sc-1+)
+                                                       (build-menu-lines state
+                                                        (civm:city-by-id state build-city)))))
+                                        (when pick
+                                          (try (list :set-production :city build-city
+                                                     :item (list :unit (second pick))))))
+                                      (setf build-city nil))
+                                     ((= sc +sc-escape+) (setf build-city nil))))
                                   ((= sc +sc-escape+)
                                    (if goto-mode (progn (torch!) (retitle))
                                        (setf running nil)))
@@ -229,10 +253,24 @@ fortified units and city garrisons, so a click can wake them."
                               (let ((tx (floor (ev-mouse-x ev) (* *tile* scale)))
                                     (ty (floor (ev-mouse-y ev) (* *tile* scale))))
                                 (cond
+                                  ;; build menu open: a click on a line picks it,
+                                  ;; anywhere else closes the menu
+                                  (build-city
+                                   (let ((pick (build-menu-pick
+                                                painter state
+                                                (civm:city-by-id state build-city)
+                                                (floor (ev-mouse-y ev) scale))))
+                                     (when pick
+                                       (try (list :set-production :city build-city
+                                                  :item (list :unit pick)))))
+                                   (setf build-city nil))
                                   ;; in goto mode: send the selected unit there
                                   ((and goto-mode selected)
                                    (try (list :goto :unit selected :x tx :y ty))
                                    (torch!) (retitle))
+                                  ;; clicking a friendly city opens its build menu
+                                  ((human-city-at state tx ty)
+                                   (setf build-city (human-city-at state tx ty)))
                                   ;; otherwise: select the unit/garrison on that
                                   ;; tile, waking it if it was fortified
                                   (t (let ((u (human-unit-at state tx ty)))
@@ -242,7 +280,7 @@ fortified units and city garrisons, so a click can wake them."
                                                     (civm:unit-by-id state u))
                                                    :fortified)
                                            (try (list :wake :unit u))))))))))))
-                       (render-game painter state selected)
+                       (render-game painter state selected :build-city build-city)
                        (sdl2:delay 16))
                   ;; cleanup
                   (sdl2:destroy-texture (painter-sprites painter))
