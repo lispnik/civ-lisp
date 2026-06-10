@@ -99,6 +99,15 @@ lies in an enemy zone of control."
                       for un = (unit-by-id state id)
                       thereis (and un (/= (unit-owner un) owner)))))
 
+(defun city-defended-p (state city)
+  "T if a combat unit (attack > 0) is garrisoned on CITY's tile."
+  (let ((tile (tile-at (gs-map state) (city-x city) (city-y city))))
+    (and tile
+         (some (lambda (id)
+                 (let ((u (unit-by-id state id)))
+                   (and u (plusp (unit-def (unit-type u) :attack 0)))))
+               (tile-units tile)))))
+
 (defun tile-enemies (state tile owner)
   "Units on TILE not belonging to OWNER."
   (loop for id in (tile-units tile)

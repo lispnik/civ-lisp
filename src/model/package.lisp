@@ -31,7 +31,7 @@
    #:player-seen #:update-visibility #:visible-set #:seen-p
    ;; rules
    #:tile-yield #:city-yields #:end-turn #:resolve-combat #:heal-units
-   #:enemy-adjacent-p
+   #:enemy-adjacent-p #:city-defended-p
    ;; pathfinding / goto
    #:find-path #:process-goto
    ;; ai

@@ -334,6 +334,18 @@
     (is (= 7 (unit-x u))) (is (= 1 (unit-y u)))      ; detoured around and arrived
     (is (not (eq :ocean (tile-terrain (tile-at (gs-map s) (unit-x u) (unit-y u))))))))
 
+(test city-defended
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "C"))
+    (let ((c (a-city s)))
+      (is-false (city-defended-p s c))            ; freshly founded: no garrison
+      (add-unit s :warriors 1 2 2)
+      (is-true (city-defended-p s c))))           ; a combat unit defends it
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 3 3)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "C2"))
+    (add-unit s :settlers 1 3 3)                  ; a settler (attack 0) is not a defender
+    (is-false (city-defended-p s (a-city s)))))
+
 ;;; --- fog of war -------------------------------------------------------------
 
 (test fog-initial-sight

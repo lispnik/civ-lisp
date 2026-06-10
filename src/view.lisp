@@ -96,7 +96,12 @@ connects to other rivers and flows into the sea)."
 ;;; --- painter (reuses two rects to avoid per-draw allocation) ---------------
 
 (defstruct (painter (:constructor make-painter (ren sprites terrain src dst)))
-  ren sprites terrain src dst)
+  ren sprites terrain src dst (font nil))
+
+;; defined in font.lisp (loaded after this file)
+(declaim (ftype (function (t t t t t t t t) t) draw-text))
+(declaim (ftype (function (t t t t t) t) draw-label))
+(declaim (ftype (function (t t) t) text-width))
 
 (defun make-renderer-painter (ren sprites-tex terrain-tex)
   (make-painter ren sprites-tex terrain-tex
@@ -124,11 +129,15 @@ connects to other rivers and flows into the sea)."
     (set-rect (painter-dst p) (+ (* tx *tile*) 1) (+ (* ty *tile*) 1) w h)
     (sdl2:render-fill-rect (painter-ren p) (painter-dst p))))
 
-(defun draw-border (p tx ty rgb)
+(defun draw-frame (p tx ty rgb &optional (inset 0))
+  "Draw a rectangle outline INSET pixels inside tile (TX,TY)."
   (destructuring-bind (r g b) rgb
     (sdl2:set-render-draw-color (painter-ren p) r g b 255)
-    (set-rect (painter-dst p) (* tx *tile*) (* ty *tile*) *tile* *tile*)
+    (set-rect (painter-dst p) (+ (* tx *tile*) inset) (+ (* ty *tile*) inset)
+              (- *tile* (* 2 inset)) (- *tile* (* 2 inset)))
     (sdl2:render-draw-rect (painter-ren p) (painter-dst p))))
+
+(defun draw-border (p tx ty rgb) (draw-frame p tx ty rgb 0))
 
 ;;; --- terrain ---------------------------------------------------------------
 
@@ -210,6 +219,32 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
 (defun human-player (state)
   (find :human (civm:gs-players state) :key #'civm:player-kind))
 
+(defun draw-city (painter state city)
+  "Civ1-style city: skyline, optional walls, a size box, an owner/black border
+(black when a military unit garrisons it), and a name label below."
+  (let* ((cx (civm:city-x city)) (cy (civm:city-y city))
+         (px (* cx *tile*)) (py (* cy *tile*))
+         (font (painter-font painter)))
+    (draw-sprite painter (car +city-sprite+) (cdr +city-sprite+) px py)
+    (when (member :walls (civm:city-buildings city))
+      (draw-frame painter cx cy '(180 178 160) 1))          ; stone walls
+    (draw-border painter cx cy
+                 (if (civm:city-defended-p state city)
+                     '(0 0 0)                                ; garrisoned: black
+                     (owner-color state (civm:city-owner city))))
+    (when font
+      ;; population number in a small owner-coloured box at the top-left
+      (let* ((label (princ-to-string (civm:city-size city)))
+             (bw (1+ (text-width font label))))
+        (destructuring-bind (r g b) (owner-color state (civm:city-owner city))
+          (sdl2:set-render-draw-color (painter-ren painter) r g b 255))
+        (set-rect (painter-dst painter) px py bw (+ 2 (gfont-height font)))
+        (sdl2:render-fill-rect (painter-ren painter) (painter-dst painter))
+        (draw-text painter font label px (1+ py) 255 255 255))
+      ;; city name centred just below the tile
+      (draw-label painter font (civm:city-name city)
+                  (+ px (floor *tile* 2)) (+ py *tile* 1)))))
+
 (defun render-game (painter state selected-id &key (fog t))
   "Draw STATE from the human player's perspective.  With FOG, unexplored tiles
 are black, explored-but-unseen tiles are dimmed, and units/cities are shown
@@ -231,23 +266,26 @@ only on currently-visible tiles."
       ;; cities and units (only where currently visible)
       (maphash (lambda (id c) (declare (ignore id))
                  (when (visible (civm:city-x c) (civm:city-y c))
-                   (draw-sprite painter (car +city-sprite+) (cdr +city-sprite+)
-                                (* (civm:city-x c) *tile*) (* (civm:city-y c) *tile*))
-                   (draw-border painter (civm:city-x c) (civm:city-y c)
-                                (owner-color state (civm:city-owner c)))))
+                   (draw-city painter state c)))
                (civm:gs-cities state))
       (maphash (lambda (id u)
-                 (when (visible (civm:unit-x u) (civm:unit-y u))
-                   (let ((spr (unit-sprite (civm:unit-type u))))
-                     (draw-sprite painter (car spr) (cdr spr)
-                                  (* (civm:unit-x u) *tile*) (* (civm:unit-y u) *tile*))
-                     (draw-border painter (civm:unit-x u) (civm:unit-y u)
-                                  (owner-color state (civm:unit-owner u)))
-                     (when (eq (civm:unit-orders u) :fortified)
-                       (draw-marker painter (civm:unit-x u) (civm:unit-y u)
-                                    3 3 '(245 245 245)))
-                     (when (eql id selected-id)
-                       (draw-border painter (civm:unit-x u) (civm:unit-y u)
-                                    '(255 240 60))))))
+                 (let ((ux (civm:unit-x u)) (uy (civm:unit-y u)))
+                   (when (visible ux uy)
+                     ;; units inside a city aren't drawn separately -- the city
+                     ;; (and its black "defended" border) represents the garrison
+                     (cond
+                       ((civm:tile-city (civm:tile-at map ux uy))
+                        (when (eql id selected-id)
+                          (draw-border painter ux uy '(255 240 60))))
+                       (t
+                        (let ((spr (unit-sprite (civm:unit-type u))))
+                          (draw-sprite painter (car spr) (cdr spr)
+                                       (* ux *tile*) (* uy *tile*))
+                          (draw-border painter ux uy
+                                       (owner-color state (civm:unit-owner u)))
+                          (when (eq (civm:unit-orders u) :fortified)
+                            (draw-marker painter ux uy 3 3 '(245 245 245)))
+                          (when (eql id selected-id)
+                            (draw-border painter ux uy '(255 240 60)))))))))
                (civm:gs-units state))
       (sdl2:render-present ren))))

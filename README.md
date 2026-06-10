@@ -17,9 +17,10 @@ has expanded into several cities and units (red borders).*
 
 ![cities close-up](docs/cities.png)
 
-*Close-up: city sprites (white skylines) with owner-coloured borders — the
-human's Rome (blue, with a warrior garrison) and the AI's cities (red, one on a
-river) — amid blended terrain, rivers and resource specials.*
+*Cities rendered Civ1-style: a size box (population, in the owner's colour), the
+city graphic, optional walls, a name label, and a **black border** when a
+military unit garrisons it. Rome (size 7) and Nineveh (size 2) are both
+defended; text uses a font extracted from the game's `FONTS.CV`.*
 
 ![fog of war](docs/fog.png)
 

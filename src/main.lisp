@@ -20,6 +20,10 @@
   (merge-pathnames "assets/go.png" (asdf:system-source-directory :civ-lisp))
   "The Civilization \"Go\" arrow, used as the cursor while choosing a goto tile.")
 
+(defparameter *font-file*
+  (merge-pathnames "assets/fonts.cv" (asdf:system-source-directory :civ-lisp))
+  "Civilization's bitmap font file (FONTS.CV); used for in-window text.")
+
 (defparameter *scale* 2
   "Global integer scale factor applied to the whole app.")
 
@@ -129,9 +133,11 @@ garrison sits on its city's tile, so this also picks up a city's defender."
           (let ((painter (make-renderer-painter ren
                                                 (load-atlas ren *sprites-image*)
                                                 (load-atlas ren *terrain-image*)))
+                (font (load-gfont (namestring *font-file*) 1))   ; small label font
                 (torch-cursor (make-cursor cursor-image scale))
                 (go-cursor (make-cursor *go-cursor-image* scale))
                 (goto-mode nil))
+            (setf (painter-font painter) font)
             (sdl2-ffi.functions:sdl-set-cursor torch-cursor)
             (sdl2:show-cursor)
             (sdl2:raise-window win)        ; bring the window to the front / focus it

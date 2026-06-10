@@ -16,4 +16,5 @@
   :pathname "src"
   :components ((:file "package")
                (:file "view")
+               (:file "font")
                (:file "main")))
