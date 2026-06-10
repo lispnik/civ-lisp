@@ -42,6 +42,20 @@
 
 ;;; --- definitions & map -----------------------------------------------------
 
+(test tech-tree
+  ;; the full Civilization advance tree loaded and is internally consistent
+  (is (= 67 (hash-table-count *techs*)))
+  (maphash (lambda (tech def) (declare (ignore def))
+             (dolist (pre (tech-def tech :prereqs))
+               (is-true (nth-value 1 (gethash pre *techs*)))))   ; prereq exists
+           *techs*)
+  ;; classic no-prerequisite starting advances
+  (dolist (start '(:pottery :bronze-working :masonry :alphabet
+                   :ceremonial-burial :horseback-riding :the-wheel))
+    (is (null (tech-def start :prereqs))))
+  ;; a deep advance has the right prerequisites
+  (is (equal '(:flight :electricity) (tech-def :advanced-flight :prereqs))))
+
 (test terrain-and-unit-defs
   (is (= 2 (terrain-def :grassland :food)))
   (is (= 2 (terrain-def :forest :shields)))
