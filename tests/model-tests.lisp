@@ -153,6 +153,12 @@
     (apply-command s (list :move-unit :unit (unit-id u) :dx 1 :dy 0))
     (is (eq :idle (unit-orders u)))))           ; moving breaks fortify
 
+(test wake-clears-orders
+  (let* ((s (bare-state 6 6)) (u (add-unit s :warriors 1 2 2)))
+    (apply-command s (list :fortify :unit (unit-id u)))
+    (apply-command s (list :wake :unit (unit-id u)))
+    (is (eq :idle (unit-orders u)))))           ; clicking a fortified unit wakes it
+
 ;;; --- combat -----------------------------------------------------------------
 
 (test combat-strong-beats-weak

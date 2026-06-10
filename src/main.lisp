@@ -95,18 +95,24 @@ Returns the cursor (the loaded surfaces leak until process exit, which is fine).
                 when (member (civm:unit-owner u) humans) collect id)
           #'<)))
 
-(defun first-human-unit (state) (first (human-unit-ids state)))
+(defun active-human-unit-ids (state)
+  "Human unit ids excluding fortified ones (Tab / auto-select skip those)."
+  (remove-if (lambda (id)
+               (eq (civm:unit-orders (civm:unit-by-id state id)) :fortified))
+             (human-unit-ids state)))
+
+(defun first-human-unit (state) (first (active-human-unit-ids state)))
 
 (defun human-unit-at (state tx ty)
-  "Id of one of the player's units standing on tile (TX,TY), or NIL.  A
-garrison sits on its city's tile, so this also picks up a city's defender."
+  "Id of one of the player's units standing on tile (TX,TY), or NIL -- includes
+fortified units and city garrisons, so a click can wake them."
   (loop for id in (human-unit-ids state)
         for u = (civm:unit-by-id state id)
         when (and u (= (civm:unit-x u) tx) (= (civm:unit-y u) ty))
           return id))
 
 (defun next-human-unit (state current)
-  (let ((ids (human-unit-ids state)))
+  (let ((ids (active-human-unit-ids state)))
     (cond ((null ids) nil)
           ((null current) (first ids))
           (t (or (cadr (member current ids)) (first ids))))))
@@ -203,9 +209,15 @@ garrison sits on its city's tile, so this also picks up a city's defender."
                                   ((and goto-mode selected)
                                    (try (list :goto :unit selected :x tx :y ty))
                                    (torch!) (retitle))
-                                  ;; otherwise: select the unit/garrison on that tile
+                                  ;; otherwise: select the unit/garrison on that
+                                  ;; tile, waking it if it was fortified
                                   (t (let ((u (human-unit-at state tx ty)))
-                                       (when u (setf selected u))))))))))
+                                       (when u
+                                         (setf selected u)
+                                         (when (eq (civm:unit-orders
+                                                    (civm:unit-by-id state u))
+                                                   :fortified)
+                                           (try (list :wake :unit u))))))))))))
                        (render-game painter state selected)
                        (sdl2:delay 16))
                   ;; cleanup

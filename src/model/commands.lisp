@@ -26,6 +26,7 @@ on an illegal move."
     (:found-city     (cmd-found-city state command))
     (:set-production (cmd-set-production state command))
     (:fortify        (cmd-fortify state command))
+    (:wake           (cmd-wake state command))
     (:goto           (cmd-goto state command))
     (:end-turn       (end-turn state)))
   state)
@@ -49,6 +50,12 @@ following turn via PROCESS-GOTO)."
 until it next moves."
   (let ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit"))))
     (setf (unit-orders u) :fortified)
+    u))
+
+(defun cmd-wake (state command)
+  "Clear a unit's standing orders (fortify/goto), making it active again."
+  (let ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit"))))
+    (setf (unit-orders u) :idle (unit-goto-x u) nil (unit-goto-y u) nil)
     u))
 
 (defun cmd-move-unit (state command)
