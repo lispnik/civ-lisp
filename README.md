@@ -31,9 +31,10 @@ sight, bright = currently visible. A scout's trail is dimmed behind it.*
 
 | key | action |
 |-----|--------|
-| left-click | select the unit (or city garrison) on that tile |
-| arrows / WASD | move the selected unit |
-| Tab | cycle the selected unit |
+| left-click | select the unit (or city garrison) on that tile; wakes a fortified unit |
+| arrows / A S D | move the selected unit |
+| Tab | cycle to the next active unit (skips fortified) |
+| W | wait — send the unit to the end of this turn's cycle |
 | B | found a city (with a settlers unit) |
 | F | fortify the selected unit (defense + faster healing) |
 | G, then left-click | send the selected unit to a tile (auto-paths each turn); the cursor becomes the **Go** arrow |

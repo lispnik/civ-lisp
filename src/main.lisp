@@ -95,11 +95,21 @@ Returns the cursor (the loaded surfaces leak until process exit, which is fine).
                 when (member (civm:unit-owner u) humans) collect id)
           #'<)))
 
+(defparameter *waited* (make-hash-table)
+  "Unit id -> wait sequence number this turn; waited units cycle last.")
+(defparameter *wait-seq* 0)
+
+(defun cycle-key (id)
+  "Sort key for the unit cycle: waited units sort after all un-waited ones."
+  (let ((w (gethash id *waited*)))
+    (if w (+ 1000000 w) id)))
+
 (defun active-human-unit-ids (state)
-  "Human unit ids excluding fortified ones (Tab / auto-select skip those)."
-  (remove-if (lambda (id)
-               (eq (civm:unit-orders (civm:unit-by-id state id)) :fortified))
-             (human-unit-ids state)))
+  "Human unit ids for cycling: fortified units excluded, waited units last."
+  (sort (remove-if (lambda (id)
+                     (eq (civm:unit-orders (civm:unit-by-id state id)) :fortified))
+                   (human-unit-ids state))
+        #'< :key #'cycle-key))
 
 (defun first-human-unit (state) (first (active-human-unit-ids state)))
 
@@ -183,8 +193,14 @@ fortified units and city garrisons, so a click can wake them."
                                   ((or (= sc +sc-return+) (= sc +sc-kp-enter+))
                                    (when goto-mode (torch!))
                                    (try '(:end-turn))
+                                   (clrhash *waited*) (setf *wait-seq* 0)
                                    (setf selected (first-human-unit state))
                                    (retitle))
+                                  ((= sc +sc-w+)
+                                   ;; wait: send this unit to the end of the cycle
+                                   (when selected
+                                     (setf (gethash selected *waited*) (incf *wait-seq*))
+                                     (setf selected (next-human-unit state selected))))
                                   ((= sc +sc-tab+)
                                    (setf selected (next-human-unit state selected)))
                                   ((= sc +sc-b+)
@@ -193,7 +209,7 @@ fortified units and city garrisons, so a click can wake them."
                                      (setf selected (first-human-unit state))))
                                   ((= sc +sc-f+)
                                    (when selected (try (list :fortify :unit selected))))
-                                  ((or (= sc +sc-up+) (= sc +sc-w+))
+                                  ((= sc +sc-up+)
                                    (when selected (try (list :move-unit :unit selected :dx 0 :dy -1))))
                                   ((or (= sc +sc-down+) (= sc +sc-s+))
                                    (when selected (try (list :move-unit :unit selected :dx 0 :dy 1))))
