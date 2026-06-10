@@ -37,7 +37,7 @@
 
 (defparameter *unit-sprites*
   '((:settlers . (0 . 10)) (:warriors . (1 . 10)) (:phalanx . (2 . 10))
-    (:legion . (3 . 10)) (:catapult . (7 . 10)))
+    (:legion . (3 . 10)) (:catapult . (7 . 10)) (:trireme . (16 . 10)))
   "civ-model unit type -> (col . row) in SP257.")
 (defparameter +default-unit-sprite+ '(1 . 10))
 (defparameter +city-sprite+ '(12 . 7))   ; SP257 col 12, row 7 (tile_007_012)
