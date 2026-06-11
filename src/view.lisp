@@ -53,6 +53,7 @@
 (defparameter +default-unit-sprite+ '(1 . 10))
 (defparameter +city-sprite+ '(12 . 7))   ; SP257 col 12, row 7 (tile_007_012)
 (defparameter +city-walls-sprite+ '(13 . 7)) ; SP257 col 13, row 7 (tile_007_013): walls overlay
+(defparameter +irrigation-sprite+ '(4 . 2))  ; SP257 col 4, row 2 (tile_002_004): irrigation overlay
 
 (defun unit-sprite (type)
   (or (cdr (assoc type *unit-sprites*)) +default-unit-sprite+))
@@ -205,6 +206,10 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
                 (* (cardinal-same-mask map x y terr) *tile*)
                 (* (terrain-row terr) *tile*)
                 *tile* *tile* px py)))
+    ;; terrain improvements: irrigation (then roads/mines could follow)
+    (when (civm:tile-irrigation tile)
+      (blit p (painter-sprites p) (* (car +irrigation-sprite+) *tile*)
+            (* (cdr +irrigation-sprite+) *tile*) *tile* *tile* px py))
     ;; rivers (SP257 connection variants) then the special-resource icon
     (when (civm:tile-river tile)
       (blit p (painter-sprites p) (* (river-mask map x y) *tile*) +river-row+
