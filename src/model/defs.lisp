@@ -39,7 +39,7 @@
      (:frigate     :attack 2 :defense 2 :move 3 :cost 40 :requires :magnetism :domain :sea)
      (:knights     :attack 4 :defense 2 :move 2 :cost 40 :requires :chivalry :domain :land)
      (:sail        :attack 1 :defense 1 :move 3 :cost 40 :requires :navigation :domain :sea)
-     (:settlers    :attack 0 :defense 1 :move 1 :cost 40 :requires nil :domain :land :abilities (:found-city))
+     (:settlers    :attack 0 :defense 1 :move 1 :cost 40 :requires nil :domain :land :abilities (:found-city :terraform))
      (:trireme     :attack 1 :defense 0 :move 3 :cost 40 :requires :map-making :domain :sea)
      (:caravan     :attack 0 :defense 1 :move 1 :cost 50 :requires :trade :domain :land)
      (:mech-inf    :attack 6 :defense 6 :move 3 :cost 50 :requires :labor-union :domain :land)
@@ -190,14 +190,26 @@ and display name.  Sourced from the CC0 CivOne advance data.")
     (:ocean     2 0 0))  ; fish
   "Yield bonus per terrain's special resource.")
 
+(defparameter *terraform*
+  (%table
+   '((:build-road :flag :road       :verb "road"       :turns 2
+                  :terrains (:grassland :plains :forest :hills :mountains :desert))
+     (:irrigate   :flag :irrigation :verb "irrigation" :turns 4
+                  :terrains (:grassland :plains :desert :hills))
+     (:mine       :flag :mine       :verb "mine"        :turns 4
+                  :terrains (:hills :mountains :desert))))
+  "Settler terraform jobs -> the tile flag they set, how many turns they take,
+and which terrains allow them.")
+
 (declaim (inline def-get))
 (defun def-get (table key prop &optional default)
   "Look up PROP for KEY in a definition TABLE."
   (getf (gethash key table) prop default))
 
 ;; convenience wrappers
-(defun terrain-def  (key prop &optional d) (def-get *terrain* key prop d))
-(defun unit-def     (key prop &optional d) (def-get *units* key prop d))
-(defun building-def (key prop &optional d) (def-get *buildings* key prop d))
-(defun wonder-def   (key prop &optional d) (def-get *wonders* key prop d))
-(defun tech-def     (key prop &optional d) (def-get *techs* key prop d))
+(defun terrain-def   (key prop &optional d) (def-get *terrain* key prop d))
+(defun unit-def      (key prop &optional d) (def-get *units* key prop d))
+(defun building-def  (key prop &optional d) (def-get *buildings* key prop d))
+(defun wonder-def    (key prop &optional d) (def-get *wonders* key prop d))
+(defun tech-def      (key prop &optional d) (def-get *techs* key prop d))
+(defun terraform-def (key prop &optional d) (def-get *terraform* key prop d))

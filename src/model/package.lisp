@@ -6,7 +6,8 @@
   (:export
    ;; definitions (the data-driven rulebook)
    #:*terrain* #:*units* #:*buildings* #:*techs* #:*special-bonus* #:*wonders*
-   #:terrain-def #:unit-def #:building-def #:tech-def #:wonder-def
+   #:*terraform*
+   #:terrain-def #:unit-def #:building-def #:tech-def #:wonder-def #:terraform-def
    #:def-get
    ;; map / tiles
    #:tile #:make-tile #:tile-terrain #:tile-feature #:tile-resource
@@ -20,7 +21,7 @@
    #:player-color #:player-tax-rate #:player-science-rate #:player-luxury-rate
    #:unit #:unit-id #:unit-type #:unit-owner #:unit-x #:unit-y
    #:unit-hp #:unit-moves-left #:unit-orders #:unit-veteran
-   #:unit-goto-x #:unit-goto-y
+   #:unit-goto-x #:unit-goto-y #:unit-work #:unit-work-left
    #:city #:city-id #:city-name #:city-owner #:city-x #:city-y #:city-size
    #:city-food-box #:city-shield-box #:city-buildings #:city-production #:city-worked
    ;; state
@@ -31,7 +32,9 @@
    #:player-seen #:update-visibility #:visible-set #:seen-p
    ;; rules
    #:tile-yield #:city-yields #:end-turn #:resolve-combat #:heal-units
-   #:enemy-adjacent-p #:city-defended-p #:wonder-built-p
+   #:enemy-adjacent-p #:city-defended-p #:wonder-built-p #:city-upkeep
+   ;; persistence
+   #:save-game #:load-game #:dump-game #:load-game-form
    ;; pathfinding / goto
    #:find-path #:process-goto
    ;; ai

@@ -502,3 +502,127 @@
     (is (>= (loop for c being the hash-values of (gs-cities s)
                   count (= (city-owner c) 2))
             2))))
+
+;;; --- terraform -------------------------------------------------------------
+
+(test terraform-builds-improvement
+  ;; a settler's road job takes 2 turns; it holds position while working
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (u (add-unit s :settlers 1 2 2))
+         (tile (tile-at (gs-map s) 2 2)))
+    (apply-command s (list :build-road :unit (unit-id u)))
+    (is (eq :build-road (unit-work u)))
+    (is (= 0 (unit-moves-left u)))          ; busy: no movement
+    (is-false (tile-road tile))
+    (end-turn s)
+    (is-false (tile-road tile))             ; still working
+    (is (= 0 (unit-moves-left u)))          ; re-zeroed while busy
+    (end-turn s)
+    (is-true (tile-road tile))              ; finished
+    (is-false (unit-work u))
+    (is (> (unit-moves-left u) 0))))        ; free to move again
+
+(test terraform-yield-bonus
+  ;; a mine on hills adds +1 shield, which flows through TILE-YIELD
+  (let* ((s (bare-state 6 6 :terrain :hills))
+         (u (add-unit s :settlers 1 2 2))
+         (tile (tile-at (gs-map s) 2 2))
+         (s0 (nth-value 1 (tile-yield tile))))
+    (apply-command s (list :mine :unit (unit-id u)))
+    (dotimes (i 4) (end-turn s))            ; mine takes 4 turns
+    (is-true (tile-mine tile))
+    (is (= (1+ s0) (nth-value 1 (tile-yield tile))))))
+
+(test terraform-restrictions
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (settler (add-unit s :settlers 1 2 2))
+         (warrior (add-unit s :warriors 1 3 3)))
+    ;; only units with the :terraform ability can build
+    (signals command-error
+      (apply-command s (list :build-road :unit (unit-id warrior))))
+    ;; a mine needs the right terrain (not grassland)
+    (signals command-error
+      (apply-command s (list :mine :unit (unit-id settler))))
+    ;; no double-building the same improvement
+    (setf (tile-road (tile-at (gs-map s) 2 2)) t)
+    (signals command-error
+      (apply-command s (list :build-road :unit (unit-id settler))))))
+
+(test terraform-cancelled-by-move
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (u (add-unit s :settlers 1 2 2)))
+    (apply-command s (list :build-road :unit (unit-id u)))
+    (is (eq :build-road (unit-work u)))
+    (setf (unit-moves-left u) 1)            ; give it a step
+    (apply-command s (list :move-unit :unit (unit-id u) :dx 1 :dy 0))
+    (is-false (unit-work u))                ; moving abandons the job
+    (is-false (tile-road (tile-at (gs-map s) 2 2)))))
+
+;;; --- economy / upkeep ------------------------------------------------------
+
+(test improvement-upkeep
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (setf (city-buildings c) '(:library :marketplace))   ; upkeep 1 + 1
+    (setf (player-gold p) 10)
+    (is (= 2 (city-upkeep c)))
+    (civ-model::process-economy s)
+    (is (= 8 (player-gold p)))))
+
+(test wonders-have-no-upkeep
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-buildings c) '(:pyramids :library))      ; only library costs
+    (is (= 1 (city-upkeep c)))))
+
+(test bankruptcy-sells-buildings
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (setf (city-buildings c) '(:university :factory))    ; upkeep 3 + 4 = 7
+    (setf (player-gold p) 0)
+    (civ-model::process-economy s)
+    (is (= 0 (player-gold p)))                           ; floored, never negative
+    (is (< (length (city-buildings c)) 2))))             ; sold to stay solvent
+
+;;; --- save / load -----------------------------------------------------------
+
+(test save-load-roundtrip
+  (let ((s (make-new-game :seed 9)))
+    (dotimes (i 5) (end-turn s))
+    (uiop:with-temporary-file (:pathname path :type "lisp")
+      (save-game s path)
+      (let ((s2 (load-game path)))
+        (is (= (gs-turn s) (gs-turn s2)))
+        (is (= (gs-year s) (gs-year s2)))
+        (is (= (hash-table-count (gs-units s)) (hash-table-count (gs-units s2))))
+        (is (= (hash-table-count (gs-cities s)) (hash-table-count (gs-cities s2))))
+        (is (equal (unit-positions s) (unit-positions s2)))
+        (is (eq (tile-terrain (tile-at (gs-map s) 3 3))
+                (tile-terrain (tile-at (gs-map s2) 3 3))))
+        ;; deterministic RNG: a loaded game rolls identically
+        (is (= (gs-rand s 1000000) (gs-rand s2 1000000)))))))
+
+(test save-load-preserves-detail
+  (let* ((s (bare-state 6 6))
+         (u (add-unit s :settlers 1 2 2))
+         (p (player-by-id s 1)))
+    (setf (gethash :pottery (player-techs p)) t
+          (player-gold p) 42)
+    (apply-command s (list :build-road :unit (unit-id u)))   ; job in progress
+    (civ-model::register-city s :name "Rome" :owner 1 :x 4 :y 4)
+    (uiop:with-temporary-file (:pathname path :type "lisp")
+      (save-game s path)
+      (let* ((s2 (load-game path))
+             (u2 (a-unit s2 1 :settlers))
+             (p2 (player-by-id s2 1)))
+        (is (eq :build-road (unit-work u2)))
+        (is (= (unit-work-left u) (unit-work-left u2)))
+        (is-true (player-has-tech-p p2 :pottery))
+        (is (= 42 (player-gold p2)))
+        (is-true (city-named s2 "Rome"))
+        ;; tile occupancy is rebuilt from the entity lists
+        (is (member (unit-id u2) (tile-units (tile-at (gs-map s2) 2 2))))
+        (is (= (city-id (city-named s2 "Rome"))
+               (tile-city (tile-at (gs-map s2) 4 4))))))))

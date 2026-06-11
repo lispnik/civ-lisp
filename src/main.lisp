@@ -5,9 +5,11 @@
 ;;;; input is turned into civ-model COMMANDS -- the view never mutates the model
 ;;;; directly.
 ;;;;
-;;;;   arrows / WASD : move selected unit      Tab : cycle selected unit
-;;;;   B            : found city (settlers)    Enter : end turn
-;;;;   Esc / close  : quit
+;;;;   arrows       : move selected unit        Tab   : cycle selected unit
+;;;;   B            : found city (settlers)     F     : fortify
+;;;;   R / I / M    : build road / irrigate / mine (settlers)
+;;;;   G            : goto (then click)         Enter : end turn
+;;;;   S / L        : save / load game          Esc / close : quit
 
 (in-package #:civ-lisp)
 
@@ -44,12 +46,18 @@
 
 ;; SDL scancodes for the keys we use
 (defconstant +sc-a+ 4) (defconstant +sc-b+ 5) (defconstant +sc-d+ 7)
-(defconstant +sc-f+ 9) (defconstant +sc-g+ 10) (defconstant +sc-s+ 22)
+(defconstant +sc-f+ 9) (defconstant +sc-g+ 10) (defconstant +sc-i+ 12)
+(defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
+(defconstant +sc-s+ 22)
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
 (defconstant +sc-tab+ 43) (defconstant +sc-right+ 79) (defconstant +sc-left+ 80)
 (defconstant +sc-down+ 81) (defconstant +sc-up+ 82)
 (defconstant +sc-kp-enter+ 88)          ; numpad Enter
 (defconstant +sc-1+ 30)                 ; '1'..'9' are 30..38
+
+(defparameter *save-path*
+  (merge-pathnames "civ-save.lisp" (asdf:system-source-directory :civ-lisp))
+  "Single-slot quicksave file (S saves, L loads).")
 
 (defun human-city-at (state tx ty)
   "City id of a human-owned city on tile (TX,TY), or NIL."
@@ -194,7 +202,13 @@ fortified units and city garrisons, so a click can wake them."
                            (try (list :move-unit :unit selected :dx dx :dy dy))
                            (let ((u (civm:unit-by-id state selected)))
                              (when (or (null u) (<= (civm:unit-moves-left u) 0))
-                               (setf selected (next-human-unit state selected)))))))
+                               (setf selected (next-human-unit state selected))))))
+                       (terra (job)
+                         ;; order the selected settler to terraform; it goes busy,
+                         ;; so move the cursor on to the next active unit
+                         (when selected
+                           (try (list job :unit selected))
+                           (setf selected (next-human-unit state selected)))))
                 (retitle)
                 (unwind-protect
                      ;; manual poll loop, reading event fields at raw SDL offsets
@@ -245,6 +259,20 @@ fortified units and city garrisons, so a click can wake them."
                                      (setf selected (first-human-unit state))))
                                   ((= sc +sc-f+)
                                    (when selected (try (list :fortify :unit selected))))
+                                  ((= sc +sc-r+) (terra :build-road))
+                                  ((= sc +sc-i+) (terra :irrigate))
+                                  ((= sc +sc-m+) (terra :mine))
+                                  ((= sc +sc-s+)
+                                   (civm:save-game state *save-path*)
+                                   (sdl2:set-window-title win "civ-lisp — game saved"))
+                                  ((= sc +sc-l+)
+                                   (when (probe-file *save-path*)
+                                     (when goto-mode (torch!))
+                                     (setf state (civm:load-game *save-path*)
+                                           build-city nil
+                                           selected (first-human-unit state))
+                                     (clrhash *waited*) (setf *wait-seq* 0)
+                                     (retitle)))
                                   ((= sc +sc-up+) (step! 0 -1))
                                   ((= sc +sc-down+) (step! 0 1))
                                   ((= sc +sc-left+) (step! -1 0))

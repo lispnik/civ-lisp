@@ -52,6 +52,19 @@
         for tile = (tile-at map nx ny)
         when tile collect (list nx ny tile)))
 
+(defun tile-improvement (tile flag)
+  "Read a terraform improvement FLAG (:road/:irrigation/:mine) on TILE."
+  (ecase flag
+    (:road (tile-road tile))
+    (:irrigation (tile-irrigation tile))
+    (:mine (tile-mine tile))))
+
+(defun (setf tile-improvement) (value tile flag)
+  (ecase flag
+    (:road (setf (tile-road tile) value))
+    (:irrigation (setf (tile-irrigation tile) value))
+    (:mine (setf (tile-mine tile) value))))
+
 (defmacro do-tiles ((x y tile map) &body body)
   "Iterate X Y TILE over every tile of MAP."
   (let ((m (gensym)))

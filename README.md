@@ -73,8 +73,10 @@ and AI cities (Akkad, Uruk) have grown alongside.*
 | W | wait — send the unit to the end of this turn's cycle |
 | B | found a city (with a settlers unit) |
 | F | fortify the selected unit (defense + faster healing) |
+| R / I / M | with a settlers unit: build **road** / **irrigation** / **mine** on its tile (takes several turns) |
 | G, then left-click | send the selected unit to a tile (auto-paths each turn); the cursor becomes the **Go** arrow |
 | Enter | end turn |
+| S / L | **save** / **load** the game (single quicksave slot) |
 | Esc | cancel a pending Go (restores the torch cursor); otherwise quit |
 
 The map is covered by **fog of war**: unexplored tiles are black, tiles you've
@@ -82,6 +84,15 @@ seen but can't currently see are dimmed, and enemy units/cities show only while
 in sight of one of your units or cities. The selected unit shows an info box in
 the bottom-left (owner, type, attack/defense, moves, HP, city, terrain, and the
 units sharing its square) — see [Selecting a unit](#selecting-a-unit) above.
+
+Settlers can **terraform** the tile they stand on — `R` builds a road (+1 trade),
+`I` irrigates (+1 food), `M` mines (+1 shield) — over several turns, during which
+the unit holds position; the improvement then feeds straight into that tile's
+yield. City improvements carry a gold **upkeep** that's charged every turn; a
+player who can't pay sells off improvements (priciest first) until solvent.
+Press `S` to **save** and `L` to **load** — because the whole `civ-model` state
+is flat, serializable data (the RNG included), a loaded game continues rolling
+identically, so save/load is fully deterministic.
 
 Terrain uses the original **edge-blending** scheme (CivOne's algorithm): a land
 tile is a generic base plus a TER257 overlay chosen by a bitmask of which

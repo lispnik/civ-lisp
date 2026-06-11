@@ -28,8 +28,13 @@ on an illegal move."
     (:fortify        (cmd-fortify state command))
     (:wake           (cmd-wake state command))
     (:goto           (cmd-goto state command))
+    ((:build-road :irrigate :mine) (cmd-terraform state command))
     (:end-turn       (end-turn state)))
   state)
+
+(defun clear-work (u)
+  "Abandon any in-progress terraform job on U."
+  (setf (unit-work u) nil (unit-work-left u) 0))
 
 ;; defined in pathfind.lisp (loaded later)
 (declaim (ftype (function (t t) t) advance-goto))
@@ -41,6 +46,7 @@ following turn via PROCESS-GOTO)."
          (u (or (unit-by-id state (getf args :unit)) (fail "no such unit")))
          (tx (getf args :x)) (ty (getf args :y)))
     (unless (in-bounds-p (gs-map state) tx ty) (fail "goto target out of bounds"))
+    (clear-work u)
     (setf (unit-goto-x u) tx (unit-goto-y u) ty (unit-orders u) :goto)
     (advance-goto state u)          ; move now, don't wait for end-of-turn
     u))
@@ -50,12 +56,36 @@ following turn via PROCESS-GOTO)."
 until it next moves."
   (let ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit"))))
     (setf (unit-orders u) :fortified)
+    (clear-work u)
     u))
 
 (defun cmd-wake (state command)
-  "Clear a unit's standing orders (fortify/goto), making it active again."
+  "Clear a unit's standing orders (fortify/goto/terraform), making it active again."
   (let ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit"))))
     (setf (unit-orders u) :idle (unit-goto-x u) nil (unit-goto-y u) nil)
+    (clear-work u)
+    u))
+
+(defun cmd-terraform (state command)
+  "Order a settler to begin a terraform job (:build-road/:irrigate/:mine) on the
+tile it stands on.  The job takes several turns (see *TERRAFORM*); the unit holds
+position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
+  (let* ((job (first command))
+         (u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit")))
+         (tile (tile-at (gs-map state) (unit-x u) (unit-y u)))
+         (terr (tile-terrain tile))
+         (flag (terraform-def job :flag)))
+    (unless (member :terraform (unit-def (unit-type u) :abilities))
+      (fail "~(~A~) cannot build terrain improvements" (unit-type u)))
+    (unless (member terr (terraform-def job :terrains))
+      (fail "can't build ~A on ~(~A~)" (terraform-def job :verb) terr))
+    (when (tile-improvement tile flag)
+      (fail "~A already here" (terraform-def job :verb)))
+    (when (<= (unit-moves-left u) 0) (fail "unit has no moves left"))
+    (setf (unit-work u) job
+          (unit-work-left u) (terraform-def job :turns)
+          (unit-orders u) :idle
+          (unit-moves-left u) 0)            ; busy: no movement while working
     u))
 
 (defun cmd-move-unit (state command)
@@ -87,6 +117,7 @@ until it next moves."
                                           :key (lambda (e) (defense-strength state e)))))
                    (result (resolve-combat state u defender)))
               (when (eq result :attacker)
+                (clear-work u)                      ; attacking breaks terraform
                 (setf (unit-moves-left u) 0
                       (unit-orders u) :idle)        ; attacking breaks fortify
                 (unless (tile-enemies state dest (unit-owner u))
@@ -108,6 +139,7 @@ until it next moves."
                   (old (tile-at map (unit-x u) (unit-y u))))
               (setf (tile-units old) (remove (unit-id u) (tile-units old)))
               (push (unit-id u) (tile-units dest))
+              (clear-work u)                        ; moving breaks terraform
               (setf (unit-x u) nx (unit-y u) ny
                     (unit-orders u) :idle)          ; moving breaks fortify
               (decf (unit-moves-left u) (max 1 (min cost (unit-moves-left u))))

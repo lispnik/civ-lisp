@@ -21,7 +21,8 @@
                (:file "rules")
                (:file "commands")
                (:file "ai")
-               (:file "pathfind"))
+               (:file "pathfind")
+               (:file "persist"))
   :in-order-to ((asdf:test-op (asdf:test-op "civ-model/tests"))))
 
 (asdf:defsystem "civ-model/tests"

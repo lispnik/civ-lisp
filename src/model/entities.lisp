@@ -32,6 +32,8 @@
   (moves-left 1 :type fixnum)
   (orders :idle :type keyword)    ; :idle :fortified :sentry :goto ...
   (goto-x nil) (goto-y nil)       ; :goto target tile
+  (work nil)                      ; terraform job in progress: :build-road/:irrigate/:mine or NIL
+  (work-left 0 :type fixnum)      ; turns of work remaining on WORK
   (veteran nil))
 
 (defstruct (city (:constructor make-city (&key id name owner x y (size 1))))

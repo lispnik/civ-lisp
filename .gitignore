@@ -7,3 +7,6 @@ ocicl/
 
 # dumped standalone executable
 /civ-lisp
+
+# quicksave slot (S in-game)
+/civ-save.lisp

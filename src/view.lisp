@@ -289,6 +289,11 @@ plus a row of every unit sharing the square (the selected one outlined cyan)."
                                       (civm:unit-def type :defense 0))
                               (format nil "Moves: ~D  HP ~D"
                                       (civm:unit-moves-left u) (civm:unit-hp u))
+                              (let ((w (civm:unit-work u)))
+                                (and w (format nil "~A ~D"
+                                               (string-capitalize
+                                                (civm:terraform-def w :verb))
+                                               (civm:unit-work-left u))))
                               (and city (civm:city-name city))
                               (format nil "(~A)" (string-capitalize (symbol-name terr)))
                               (format nil "F~D S~D T~D  Def+~D%"

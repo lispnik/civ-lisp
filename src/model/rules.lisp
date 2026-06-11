@@ -260,6 +260,59 @@ before REFRESH-UNITS, so an unspent movement allowance marks a unit as rested."
              (setf (unit-moves-left u) (unit-def (unit-type u) :move 1)))
            (gs-units state)))
 
+(defun process-terraform (state)
+  "Advance each settler's terraform job; when the work runs out, stamp the
+improvement onto the tile.  A unit still working holds position (no moves this
+turn).  Run after REFRESH-UNITS so a busy unit's restored moves are taken back."
+  (maphash
+   (lambda (id u) (declare (ignore id))
+     (when (unit-work u)
+       (decf (unit-work-left u))
+       (if (<= (unit-work-left u) 0)
+           (let ((tile (tile-at (gs-map state) (unit-x u) (unit-y u))))
+             (setf (tile-improvement tile (terraform-def (unit-work u) :flag)) t)
+             (setf (unit-work u) nil (unit-work-left u) 0))
+           (setf (unit-moves-left u) 0))))      ; still busy
+   (gs-units state)))
+
+(defun city-upkeep (city)
+  "Total gold upkeep of CITY's improvements (wonders cost nothing to maintain)."
+  (reduce #'+ (city-buildings city) :initial-value 0
+          :key (lambda (b) (building-def b :upkeep 0))))
+
+(defun sell-a-building (city)
+  "Drop CITY's costliest-to-maintain improvement (a bankruptcy fire-sale) and
+return its key, or NIL if the city has no sellable improvement."
+  (let ((worst (first (sort (remove-if-not (lambda (b) (gethash b *buildings*))
+                                           (copy-list (city-buildings city)))
+                            #'> :key (lambda (b) (building-def b :upkeep 0))))))
+    (when worst
+      (setf (city-buildings city) (remove worst (city-buildings city)))
+      worst)))
+
+(defun process-economy (state)
+  "Charge every player gold upkeep for their improvements.  A player who can't
+cover it sells improvements (priciest upkeep first) until solvent, then floors
+at zero gold."
+  (loop for p across (gs-players state)
+        for pid = (player-id p) do
+          (let ((cities '()))
+            (maphash (lambda (id c) (declare (ignore id))
+                       (when (= (city-owner c) pid)
+                         (push c cities)
+                         (decf (player-gold p) (city-upkeep c))))
+                     (gs-cities state))
+            ;; bankruptcy: sell one building per city per pass until back in black
+            (loop while (and (minusp (player-gold p)) cities) do
+              (let ((sold nil))
+                (dolist (c cities)
+                  (let ((b (sell-a-building c)))
+                    (when b
+                      (incf (player-gold p) (building-def b :upkeep 0))
+                      (setf sold t))))
+                (unless sold (return))))
+            (when (minusp (player-gold p)) (setf (player-gold p) 0)))))
+
 (defun turn->year (turn)
   "Map a turn number to a (simplified) calendar year."
   (+ -4000 (* (1- turn) 40)))
@@ -275,9 +328,11 @@ units -> advance clock.  (A full game would interleave per-player movement and
 combat phases here.)"
   (run-ai-players state)
   (process-cities state)
+  (process-economy state)       ; charge improvement upkeep (sell on bankruptcy)
   (process-research state)
   (heal-units state)            ; rested/garrisoned units recover HP
   (refresh-units state)
+  (process-terraform state)     ; advance settler road/irrigation/mine jobs
   (process-goto state)          ; units on :goto walk toward their target
   (update-visibility state)     ; reveal newly-scouted tiles (fog of war)
 
