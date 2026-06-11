@@ -36,9 +36,20 @@
 (defparameter +ocean-base+ '(0 . 160))
 
 (defparameter *unit-sprites*
-  '((:settlers . (0 . 10)) (:warriors . (1 . 10)) (:phalanx . (2 . 10))
-    (:legion . (3 . 10)) (:catapult . (7 . 10)) (:trireme . (16 . 10)))
-  "civ-model unit type -> (col . row) in SP257.")
+  '(;; row 10: land + air units, in SP257 column order
+    (:settlers . (0 . 10)) (:warriors . (1 . 10)) (:phalanx . (2 . 10))
+    (:legion . (3 . 10)) (:musketeers . (4 . 10)) (:riflemen . (5 . 10))
+    (:cavalry . (6 . 10)) (:knights . (7 . 10)) (:catapult . (8 . 10))
+    (:cannon . (9 . 10)) (:chariot . (10 . 10)) (:armor . (11 . 10))
+    (:mech-inf . (12 . 10)) (:artillery . (13 . 10)) (:fighter . (14 . 10))
+    (:bomber . (15 . 10))
+    ;; cols 16-19 + row 11 cols 0-4: the naval units
+    (:trireme . (16 . 10)) (:sail . (17 . 10)) (:frigate . (18 . 10))
+    (:ironclad . (19 . 10)) (:cruiser . (0 . 11)) (:battleship . (1 . 11))
+    (:submarine . (2 . 11)) (:carrier . (3 . 11)) (:transport . (4 . 11))
+    ;; row 11 cols 5-7: the special units
+    (:nuclear . (5 . 11)) (:diplomat . (6 . 11)) (:caravan . (7 . 11)))
+  "civ-model unit type -> (col . row) in the SP257 sprite atlas.")
 (defparameter +default-unit-sprite+ '(1 . 10))
 (defparameter +city-sprite+ '(12 . 7))   ; SP257 col 12, row 7 (tile_007_012)
 (defparameter +city-walls-sprite+ '(13 . 7)) ; SP257 col 13, row 7 (tile_007_013): walls overlay
