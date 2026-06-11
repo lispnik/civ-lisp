@@ -676,6 +676,56 @@
     (is (= 60 (player-tax-rate p)))
     (is (= 40 (player-science-rate p)))))
 
+(test war-weariness
+  (let* ((s (bare-state 8 8))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 4 :y 4))
+         (p (player-by-id s 1)))
+    (setf (city-size c) 5 (player-government p) :republic)
+    (is (= 1 (nth-value 2 (city-happiness s c 0))))   ; size 5: one unhappy baseline
+    (add-unit s :legion 1 0 0)                         ; a military unit in the field
+    (is (= 2 (nth-value 2 (city-happiness s c 0))))    ; republic: +1 from the field unit
+    (setf (player-government p) :democracy)
+    (is (= 3 (nth-value 2 (city-happiness s c 0))))    ; democracy: +2
+    (setf (player-government p) :despotism)
+    (is (= 1 (nth-value 2 (city-happiness s c 0))))    ; despotism feels no war weariness
+    ;; a garrison inside a city is not "in the field"
+    (setf (player-government p) :republic)
+    (add-unit s :phalanx 1 4 4)
+    (is (= 1 (civ-model::city-military-unhappiness s c)))))
+
+(test rapture-growth
+  (let* ((s (bare-state 7 7))
+         (c (civ-model::register-city s :name "B" :owner 1 :x 3 :y 3))
+         (p (player-by-id s 1)))
+    (setf (player-government p) :republic (city-size c) 3
+          (player-luxury-rate p) 80 (player-tax-rate p) 0 (player-science-rate p) 20)
+    ;; rich surroundings: irrigated, rivered, roaded grassland for food & trade
+    (dolist (xy '((2 2)(3 2)(4 2)(2 3)(4 3)(2 4)(3 4)(4 4)))
+      (let ((tl (tile-at (gs-map s) (first xy) (second xy))))
+        (setf (tile-irrigation tl) t (tile-river tl) t (tile-road tl) t)))
+    (setf (tile-river (tile-at (gs-map s) 3 3)) t (tile-road (tile-at (gs-map s) 3 3)) t)
+    (civ-model::city-auto-work s c)
+    (is-true (city-celebrating-p s c))
+    ;; "We Love the King": +1 size every turn while celebrating (no 40-food wait)
+    (civ-model::process-city s c)
+    (is (= 4 (city-size c)))
+    (civ-model::process-city s c)
+    (is (= 5 (city-size c)))))
+
+(test growth-cap-and-aqueduct
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "C" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 8
+          (city-buildings c) '(:temple :colosseum :cathedral))  ; keep it content
+    (is-false (city-disorder-p s c))
+    (setf (city-food-box c) 1000)
+    (civ-model::process-city s c)
+    (is (= 8 (city-size c)))                ; without an aqueduct a city can't pass 8
+    (push :aqueduct (city-buildings c))
+    (setf (city-food-box c) 1000)
+    (civ-model::process-city s c)
+    (is (= 9 (city-size c)))))              ; an aqueduct lifts the cap
+
 ;;; --- save / load -----------------------------------------------------------
 
 (test save-load-roundtrip

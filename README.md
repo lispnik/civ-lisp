@@ -101,13 +101,16 @@ free and the rest start unhappy, quieted by temples, colosseums and cathedrals,
 by **luxuries** (`.`/`,` adjust the rate), by military garrisons under
 martial-law governments, and by a handful of wonders. If a city has more unhappy
 than happy citizens it falls into **civil disorder** (no production, trade or
-growth); get at least half happy and it **celebrates**. The city menu shows the
-mood and flags both states. Your **government** (`V` to start a revolution —
-one turn of anarchy, then the new regime) sets the rules: despotism docks busy
-tiles and bridles the economy, a republic or democracy adds trade but bans
-martial law, and corruption, rate caps and martial-law limits all vary by
-government. The advance tree unlocks Monarchy, Communism, The Republic and
-Democracy.
+growth); get at least half its citizens happy and it **celebrates** — under a
+republic or democracy that triggers **"We Love the King" rapture growth**, +1
+population every turn (up to the size-8 cap, lifted by an **aqueduct**). The city
+menu shows the mood and flags both states. Your **government** (`V` to start a
+revolution — one turn of anarchy, then the new regime) sets the rules: despotism
+docks busy tiles and bridles the economy; a republic or democracy adds trade but
+bans martial law and suffers **war weariness** — every military unit out in the
+field makes a citizen back home unhappy (one under a republic, two under a
+democracy). Corruption, rate caps and martial-law limits all vary by government,
+and the advance tree unlocks Monarchy, Communism, The Republic and Democracy.
 
 Terrain uses the original **edge-blending** scheme (CivOne's algorithm): a land
 tile is a generic base plus a TER257 overlay chosen by a bitmask of which

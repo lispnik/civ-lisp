@@ -180,12 +180,50 @@ remaining HP (it heals back over later turns)."
                              (and u (plusp (unit-def (unit-type u) :attack 0)))))
               (tile-units tile))))
 
+(defun unit-in-friendly-city-p (state u)
+  "T if unit U stands in a city its own owner holds."
+  (let ((tile (tile-at (gs-map state) (unit-x u) (unit-y u))))
+    (and (tile-city tile) (eql (tile-owner tile) (unit-owner u)))))
+
+(defun nearest-city-id (state pid x y)
+  "Id of PID's city nearest (chebyshev) to (X,Y), or NIL if PID has no city."
+  (let (best bestd)
+    (maphash (lambda (id c) (declare (ignore id))
+               (when (= (city-owner c) pid)
+                 (let ((d (max (abs (- (city-x c) x)) (abs (- (city-y c) y)))))
+                   (when (or (null bestd) (< d bestd))
+                     (setf best (city-id c) bestd d)))))
+             (gs-cities state))
+    best))
+
+(defun city-military-unhappiness (state city)
+  "Unhappy citizens CITY suffers from its owner's units in the field (war
+weariness).  Only republics and democracies feel it: each owned military unit
+that is NOT in a friendly city is 'homed' to the owner's nearest city, adding 1
+unhappy there under a republic, 2 under a democracy."
+  (let* ((pid (city-owner city))
+         (owner (player-by-id state pid))
+         (gov (and owner (player-government owner))))
+    (if (and gov (government-def gov :trade-bonus))      ; republic / democracy only
+        (let ((per (if (eq gov :democracy) 2 1)) (n 0))
+          (maphash (lambda (id u) (declare (ignore id))
+                     (when (and (= (unit-owner u) pid)
+                                (plusp (unit-def (unit-type u) :attack 0))
+                                (not (unit-in-friendly-city-p state u))
+                                (eql (nearest-city-id state pid (unit-x u) (unit-y u))
+                                     (city-id city)))
+                       (incf n)))
+                   (gs-units state))
+          (* per n))
+        0)))
+
 (defun city-happiness (state city trade)
   "Classify CITY's citizens given its TRADE this turn.
 Returns (values happy content unhappy).  Citizens past *BASE-CONTENT* start
-unhappy; temples/colosseums/cathedrals and (in martial-law governments) military
-units quiet them; luxuries (2 arrows each) push unhappy->content->happy; a few
-wonders help globally."
+unhappy (plus war weariness from units in the field under republic/democracy);
+temples/colosseums/cathedrals and (in martial-law governments) military units
+quiet them; luxuries (2 arrows each) push unhappy->content->happy; a few wonders
+help globally."
   (let* ((size (city-size city))
          (owner (player-by-id state (city-owner city)))
          (gov (and owner (player-government owner)))
@@ -193,6 +231,9 @@ wonders help globally."
          (content (min size *base-content*))
          (unhappy (max 0 (- size *base-content*)))
          (happy 0))
+    ;; war weariness: units in the field flip content citizens to unhappy
+    (let ((flip (min content (city-military-unhappiness state city))))
+      (decf content flip) (incf unhappy flip))
     (flet ((calm (n)                       ; up to N unhappy -> content
              (let ((k (min (max 0 n) unhappy))) (decf unhappy k) (incf content k)))
            (cheer (n)                       ; up to N: unhappy->content, then content->happy
@@ -270,28 +311,48 @@ happy, none unhappy, size >= 3."
                                                        gov)))))
         0)))
 
+(defun city-growth-cap (city)
+  "Largest size CITY can reach with its water infrastructure: 8 without an
+aqueduct (Civ1), unbounded with one."
+  (if (member :aqueduct (city-buildings city)) most-positive-fixnum 8))
+
 (defun process-city (state city)
   (city-auto-work state city)
   (multiple-value-bind (food shields trade) (city-yields state city)
     (multiple-value-bind (happy content unhappy) (city-happiness state city trade)
       (declare (ignore content))
-      (let ((disorder (> unhappy happy))
-            (p (player-by-id state (city-owner city))))
+      (let* ((size (city-size city))
+             (disorder (> unhappy happy))
+             (p (player-by-id state (city-owner city)))
+             (gov (and p (player-government p)))
+             (celebrating (and (>= size 3) (zerop unhappy)
+                               (>= happy (ceiling size 2)))))
         (cond
           (disorder
            ;; civil disorder: no growth, no production, no economy this turn
            nil)
           (t
            ;; growth: each citizen eats 2 food
-           (let ((net (- food (* 2 (city-size city))))
-                 (threshold (* 10 (1+ (city-size city)))))
+           (let ((net (- food (* 2 size)))
+                 (threshold (* 10 (1+ size)))
+                 (cap (city-growth-cap city))
+                 ;; "We Love the King" rapture growth: a celebrating republic or
+                 ;; democracy with a food surplus grows by 1 every turn
+                 (rapture (and celebrating gov (government-def gov :trade-bonus))))
              (incf (city-food-box city) net)
-             (cond ((>= (city-food-box city) threshold)
+             (cond ((and rapture (>= net 0) (< size cap))
+                    (incf (city-size city))
+                    (setf (city-food-box city)
+                          (if (member :granary (city-buildings city))
+                              (floor threshold 2) 0)))
+                   ((and (>= (city-food-box city) threshold) (< size cap))
                     (incf (city-size city))
                     ;; a granary keeps half the food box after growth
                     (setf (city-food-box city)
                           (if (member :granary (city-buildings city))
                               (floor threshold 2) 0)))
+                   ((>= (city-food-box city) threshold)      ; full but capped: hold
+                    (setf (city-food-box city) threshold))
                    ((minusp (city-food-box city))            ; starvation
                     (when (> (city-size city) 1) (decf (city-size city)))
                     (setf (city-food-box city) 0))))
@@ -299,8 +360,7 @@ happy, none unhappy, size >= 3."
            (incf (city-shield-box city) shields)
            (city-try-complete state city)
            ;; a celebrating republic/democracy city earns bonus trade
-           (when (and (>= (city-size city) 3) (zerop unhappy)
-                      (>= happy (ceiling (city-size city) 2)))
+           (when celebrating
              (incf trade (celebration-trade-bonus state city)))
            ;; economy: trade splits into the owner's gold and science.  Science is
            ;; accrued in fine (percent-trade) units so a city with only 1 trade
