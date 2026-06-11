@@ -54,6 +54,7 @@
 (defparameter +city-sprite+ '(12 . 7))   ; SP257 col 12, row 7 (tile_007_012)
 (defparameter +city-walls-sprite+ '(13 . 7)) ; SP257 col 13, row 7 (tile_007_013): walls overlay
 (defparameter +irrigation-sprite+ '(4 . 2))  ; SP257 col 4, row 2 (tile_002_004): irrigation overlay
+(defparameter +mine-sprite+ '(5 . 2))         ; SP257 col 5, row 2 (tile_002_005): mine overlay
 
 (defun unit-sprite (type)
   (or (cdr (assoc type *unit-sprites*)) +default-unit-sprite+))
@@ -188,6 +189,34 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
   (blit p (painter-sprites p) (* (terrain-row terr) *tile*) +special-row+
         *tile* *tile* px py))
 
+;;; roads are drawn additively: SP257 row 3 holds eight directional segments
+;;; (one per neighbour), clockwise from north, OR'd together per connection.
+(defparameter +road-row+ 3)
+(defparameter +road-dirs+
+  '((0 -1 . 0) (1 -1 . 1) (1 0 . 2) (1 1 . 3)
+    (0 1 . 4) (-1 1 . 5) (-1 0 . 6) (-1 -1 . 7))
+  "(dx dy . column) for each road segment in SP257 row 3.")
+
+(defun road-link-p (map x y)
+  "T if tile (X,Y) carries a road or a city (roads connect into cities)."
+  (let ((tl (civm:tile-at map x y)))
+    (and tl (or (civm:tile-road tl) (civm:tile-city tl)))))
+
+(defun draw-road (p map x y px py)
+  "Composite a road from the directional segments toward each connected
+neighbour; an isolated road gets a small central stub."
+  (let ((linked nil))
+    (dolist (d +road-dirs+)
+      (destructuring-bind (dx dy . col) d
+        (when (road-link-p map (+ x dx) (+ y dy))
+          (setf linked t)
+          (blit p (painter-sprites p) (* col *tile*) (* +road-row+ *tile*)
+                *tile* *tile* px py))))
+    (unless linked
+      (sdl2:set-render-draw-color (painter-ren p) 150 110 70 255)
+      (set-rect (painter-dst p) (+ px 6) (+ py 6) 4 4)
+      (sdl2:render-fill-rect (painter-ren p) (painter-dst p)))))
+
 (defun draw-terrain-tile (p state x y)
   (let* ((map (civm:gs-map state))
          (tile (civm:tile-at map x y))
@@ -206,10 +235,15 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
                 (* (cardinal-same-mask map x y terr) *tile*)
                 (* (terrain-row terr) *tile*)
                 *tile* *tile* px py)))
-    ;; terrain improvements: irrigation (then roads/mines could follow)
+    ;; terrain improvements: irrigation / mine overlays, then roads
     (when (civm:tile-irrigation tile)
       (blit p (painter-sprites p) (* (car +irrigation-sprite+) *tile*)
             (* (cdr +irrigation-sprite+) *tile*) *tile* *tile* px py))
+    (when (civm:tile-mine tile)
+      (blit p (painter-sprites p) (* (car +mine-sprite+) *tile*)
+            (* (cdr +mine-sprite+) *tile*) *tile* *tile* px py))
+    (when (civm:tile-road tile)
+      (draw-road p map x y px py))
     ;; rivers (SP257 connection variants) then the special-resource icon
     (when (civm:tile-river tile)
       (blit p (painter-sprites p) (* (river-mask map x y) *tile*) +river-row+
