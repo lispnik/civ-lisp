@@ -42,6 +42,8 @@
 (defun ev-scancode (ev) (cffi:mem-ref (autowrap:ptr ev) :uint32 16)) ; key.keysym.scancode
 (defun ev-mouse-x (ev)  (cffi:mem-ref (autowrap:ptr ev) :int32 20))  ; button.x
 (defun ev-mouse-y (ev)  (cffi:mem-ref (autowrap:ptr ev) :int32 24))  ; button.y
+(defun ev-keymod (ev)   (cffi:mem-ref (autowrap:ptr ev) :uint16 24)) ; key.keysym.mod
+(defun ev-ctrl-p (ev)   (logtest (ev-keymod ev) #xc0))               ; L/R Ctrl held
 
 (defun ev-text (ev)
   "The UTF-8 text of an SDL_TEXTINPUT event (text char[32] at byte offset 12)."
@@ -61,7 +63,7 @@
 (defconstant +sc-e+ 8)
 (defconstant +sc-f+ 9) (defconstant +sc-g+ 10) (defconstant +sc-i+ 12)
 (defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
-(defconstant +sc-p+ 19) (defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
+(defconstant +sc-n+ 17) (defconstant +sc-p+ 19) (defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
 (defconstant +sc-v+ 25)
 (defconstant +sc-y+ 28)
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
@@ -245,7 +247,9 @@ or an error message."
                   (help nil)          ; T while the help overlay is shown
                   (console nil)       ; T while the `~` Lisp console is open
                   (con-input "")      ; the form being typed into the console
-                  (con-output nil))   ; lines from the last console evaluation
+                  (con-output nil)    ; lines from the last console evaluation
+                  (con-history nil)   ; previously entered forms, newest first
+                  (con-hist-pos -1))  ; position when browsing history (-1 = fresh line)
               (labels ((torch! () (setf goto-mode nil)
                          (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
                        (retitle ()
@@ -298,7 +302,8 @@ or an error message."
                                 (setf con-input
                                       (concatenate 'string con-input (ev-text ev)))))
                              ((= type +ev-keydown+)
-                              (let ((sc (ev-scancode ev)))
+                              (let ((sc (ev-scancode ev))
+                                    (ctrl (ev-ctrl-p ev)))
                                 (cond
                                   ;; Lisp console open: capture editing keys
                                   (console
@@ -307,16 +312,30 @@ or an error message."
                                       (setf console nil)
                                       (sdl2-ffi.functions:sdl-stop-text-input))
                                      ((or (= sc +sc-return+) (= sc +sc-kp-enter+))
+                                      (when (plusp (length (string-trim " " con-input)))
+                                        (push con-input con-history))   ; record in history
                                       (setf con-output (console-eval con-input state)
-                                            con-input ""))
+                                            con-input "" con-hist-pos -1))
                                      ((= sc +sc-backspace+)
                                       (when (plusp (length con-input))
                                         (setf con-input
-                                              (subseq con-input 0 (1- (length con-input))))))))
+                                              (subseq con-input 0 (1- (length con-input))))))
+                                     ;; history: Up / C-p = older, Down / C-n = newer
+                                     ((or (= sc +sc-up+) (and ctrl (= sc +sc-p+)))
+                                      (when con-history
+                                        (setf con-hist-pos
+                                              (min (1+ con-hist-pos) (1- (length con-history)))
+                                              con-input (nth con-hist-pos con-history))))
+                                     ((or (= sc +sc-down+) (and ctrl (= sc +sc-n+)))
+                                      (if (> con-hist-pos 0)
+                                          (setf con-hist-pos (1- con-hist-pos)
+                                                con-input (nth con-hist-pos con-history))
+                                          (setf con-hist-pos -1 con-input "")))))
                                   ;; `~` opens the console
                                   ((= sc +sc-grave+)
                                    (setf console t con-input ""
-                                         con-output '("Lisp console -- *state* is the game; Enter evals, Esc closes"))
+                                         con-output '("Lisp console -- *state* is the game"
+                                                      "Enter evals, Up/C-p & Down/C-n history, Esc closes"))
                                    (sdl2-ffi.functions:sdl-start-text-input))
                                   ;; help overlay up: any key dismisses it
                                   (help (setf help nil))
