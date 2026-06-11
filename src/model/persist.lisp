@@ -105,6 +105,7 @@ the entity lists on load."
     (list :format :civ-save :version +save-version+
           :turn (gs-turn state) :year (gs-year state)
           :id-counter (gs-id-counter state) :phase (gs-phase state)
+          :warming (gs-warming state)
           :random (gs-random state)
           :map (list :width (map-width map) :height (map-height map)
                      :tiles (map 'list #'tile->list (map-tiles map)))
@@ -126,6 +127,7 @@ the entity lists on load."
                  :map map
                  :id-counter (getf form :id-counter)
                  :random (getf form :random)
+                 :warming (or (getf form :warming) 0)
                  :phase (getf form :phase))))
     (loop for spec in (getf mspec :tiles) for i from 0
           do (restore-tile (svref (map-tiles map) i) spec))

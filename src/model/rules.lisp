@@ -350,6 +350,40 @@ nearby tile this turn."
         (when (and (plusp chance) (< (gs-rand state 100) chance))
           (pollute-random-tile state city))))))
 
+(defparameter *warming-shift*
+  '((:grassland . :plains) (:plains . :desert) (:forest . :plains))
+  "How global warming degrades land terrain: hotter and drier.")
+(defparameter *warming-threshold*
+  3 "Polluted tiles tolerated before global warming becomes a risk.")
+
+(defun count-pollution (state)
+  "Number of polluted tiles across the whole map."
+  (let ((n 0))
+    (do-tiles (x y tile (gs-map state)) (declare (ignore x y))
+      (when (tile-pollution tile) (incf n)))
+    n))
+
+(defun degrade-one-tile (state)
+  "Convert a random eligible land tile to its warmer terrain (see
+*WARMING-SHIFT*).  Returns T if a tile changed."
+  (let ((cands '()))
+    (do-tiles (x y tile (gs-map state)) (declare (ignore x y))
+      (when (assoc (tile-terrain tile) *warming-shift*) (push tile cands)))
+    (when cands
+      (let ((tile (nth (gs-rand state (length cands)) cands)))
+        (setf (tile-terrain tile) (cdr (assoc (tile-terrain tile) *warming-shift*)))
+        t))))
+
+(defun process-global-warming (state)
+  "Accumulated pollution may trigger global warming, which degrades land terrain
+across the map.  The more polluted tiles, the likelier and worse each event."
+  (let ((poll (count-pollution state)))
+    (when (> poll *warming-threshold*)
+      (let ((chance (min 90 (* (- poll *warming-threshold*) 15))))
+        (when (< (gs-rand state 100) chance)
+          (incf (gs-warming state))
+          (dotimes (i (min poll 3)) (degrade-one-tile state)))))))
+
 (defun process-city (state city)
   (city-auto-work state city)
   (multiple-value-bind (food shields trade) (city-yields state city)
@@ -551,6 +585,7 @@ units -> advance clock.  (A full game would interleave per-player movement and
 combat phases here.)"
   (run-ai-players state)
   (process-cities state)
+  (process-global-warming state); accumulated pollution may degrade terrain
   (process-economy state)       ; charge improvement upkeep (sell on bankruptcy)
   (process-revolution state)    ; end anarchy; adopt the chosen government
   (process-research state)

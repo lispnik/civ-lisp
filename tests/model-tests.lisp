@@ -783,6 +783,27 @@ shield special) so the city keeps producing instead of starving."
     (is-false (tile-pollution tile))                 ; cleaned after 3 turns
     (is-false (unit-work u))))
 
+(test global-warming
+  ;; heavy pollution degrades land terrain over time
+  (let* ((s (bare-state 8 8 :terrain :grassland)))
+    ;; pollute well past the threshold
+    (dolist (xy '((0 0)(1 0)(2 0)(3 0)(4 0)(5 0)(0 1)(1 1)))
+      (setf (tile-pollution (tile-at (gs-map s) (first xy) (second xy))) t))
+    (is (= 0 (gs-warming s)))
+    (dotimes (i 30) (civ-model::process-global-warming s))
+    (is (plusp (gs-warming s)))                 ; warming events occurred
+    ;; some grassland has degraded to plains/desert
+    (is (plusp (let ((n 0))
+                 (do-tiles (x y tile (gs-map s)) (declare (ignore x y))
+                   (unless (member (tile-terrain tile) '(:grassland :ocean)) (incf n)))
+                 n)))))
+
+(test no-warming-below-threshold
+  (let* ((s (bare-state 8 8 :terrain :grassland)))
+    (setf (tile-pollution (tile-at (gs-map s) 0 0)) t)   ; 1 polluted (<= threshold)
+    (dotimes (i 30) (civ-model::process-global-warming s))
+    (is (= 0 (gs-warming s)))))
+
 ;;; --- save / load -----------------------------------------------------------
 
 (test save-load-roundtrip

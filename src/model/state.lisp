@@ -16,6 +16,7 @@
   (cities (make-hash-table :test 'eql))   ; id -> city
   (id-counter 1 :type fixnum)              ; monotonic id allocator
   (random (make-random-state nil))         ; seeded per game
+  (warming 0 :type fixnum)                 ; number of global-warming events so far
   (phase :start :type keyword))
 
 (defun gs-next-id (state)
