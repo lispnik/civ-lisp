@@ -500,6 +500,39 @@ celebration banner."
                (line label i (if ok 255 120) (if ok 255 120) 120))
       (line foot (1+ (length lines)) 160 160 160))))
 
+(defparameter *help-lines*
+  '("CONTROLS"
+    "Arrows / Numpad  move (numpad = 8-way)"
+    "Tab  next unit      W  wait"
+    "B  found city       F  fortify"
+    "R / I / M  road / irrigate / mine"
+    "G then click  go to a tile"
+    "V  revolution     ,/.  luxury -/+"
+    "Enter  end turn"
+    "S / L  save / load game"
+    "Left-click  select unit or city"
+    "?  toggle this help     Esc  close / quit")
+  "Lines shown in the help overlay (first line is the title).")
+
+(defun draw-help (painter state)
+  "A keybinding cheat-sheet overlay, centred on the map."
+  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+         (map (civm:gs-map state))
+         (h (gfont-height font))
+         (pw (+ 8 (reduce #'max *help-lines* :key (lambda (s) (text-width font s)))))
+         (ph (+ 8 (* (length *help-lines*) (1+ h))))
+         (px (max 0 (floor (- (* (civm:map-width map) *tile*) pw) 2)))
+         (py (max 0 (floor (- (* (civm:map-height map) *tile*) ph) 2))))
+    (sdl2:set-render-draw-color ren 0 0 0 235)
+    (set-rect (painter-dst painter) px py pw ph)
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (sdl2:set-render-draw-color ren 220 220 220 255)
+    (sdl2:render-draw-rect ren (painter-dst painter))
+    (loop for line in *help-lines* for i from 0
+          do (draw-text painter font line (+ px 4) (+ py 4 (* i (1+ h)))
+                        (if (zerop i) 255 220) (if (zerop i) 230 220)
+                        (if (zerop i) 120 220)))))
+
 (defun gov-hud-text (state)
   "Government + rate readout for the HUD, noting a pending revolution."
   (let ((p (human-player state)))
@@ -511,7 +544,7 @@ celebration banner."
               (let ((tgt (civm:player-gov-target p)))
                 (and tgt (civm:government-def tgt :name)))))))
 
-(defun render-game (painter state selected-id &key (fog t) build-city gov-menu)
+(defun render-game (painter state selected-id &key (fog t) build-city gov-menu help)
   "Draw STATE from the human player's perspective.  With FOG, unexplored tiles
 are black, explored-but-unseen tiles are dimmed, and units/cities are shown
 only on currently-visible tiles."
@@ -575,4 +608,7 @@ only on currently-visible tiles."
             (sdl2:render-fill-rect ren (painter-dst painter))
             (draw-text painter font l1 1 1 255 255 255)
             (when l2 (draw-text painter font l2 1 (+ 1 (1+ fh)) 200 220 255)))))
+      ;; help overlay, drawn last so it sits on top of everything
+      (when (and help (painter-font painter))
+        (draw-help painter state))
       (sdl2:render-present ren))))

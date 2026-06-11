@@ -79,7 +79,12 @@ and AI cities (Akkad, Uruk) have grown alongside.*
 | , / . | shift the **luxury** rate down / up (trades against science) |
 | Enter | end turn |
 | S / L | **save** / **load** the game (single quicksave slot) |
+| ? | toggle the **help** overlay (a keybinding cheat-sheet) |
 | Esc | close a menu / cancel a pending Go; otherwise quit |
+
+Pressing `?` brings up an in-window cheat-sheet of every key:
+
+![help overlay](docs/help.png)
 
 The map is covered by **fog of war**: unexplored tiles are black, tiles you've
 seen but can't currently see are dimmed, and enemy units/cities show only while

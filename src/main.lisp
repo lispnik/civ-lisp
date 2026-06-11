@@ -10,6 +10,7 @@
 ;;;;   R / I / M : build road / irrigate / mine (settlers)
 ;;;;   G  : goto (then click)         Enter : end turn
 ;;;;   V  : revolution (pick a government)   , / . : luxury rate down / up
+;;;;   ?  : toggle the help overlay
 ;;;;   S / L : save / load game       Esc / close : quit
 
 (in-package #:civ-lisp)
@@ -53,6 +54,7 @@
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
 (defconstant +sc-tab+ 43)
 (defconstant +sc-comma+ 54) (defconstant +sc-period+ 55)   ; luxury down / up
+(defconstant +sc-slash+ 56)             ; '/' (Shift+/ = '?'): toggle help
 (defconstant +sc-right+ 79) (defconstant +sc-left+ 80)
 (defconstant +sc-down+ 81) (defconstant +sc-up+ 82)
 (defconstant +sc-kp-enter+ 88)          ; numpad Enter
@@ -191,7 +193,8 @@ fortified units and city garrisons, so a click can wake them."
             (let ((ev (autowrap:alloc 'sdl2-ffi:sdl-event))
                   (running t)
                   (build-city nil)    ; city id whose build menu is open
-                  (gov-menu nil))     ; T while the revolution menu is open
+                  (gov-menu nil)      ; T while the revolution menu is open
+                  (help nil))         ; T while the help overlay is shown
               (labels ((torch! () (setf goto-mode nil)
                          (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
                        (retitle ()
@@ -241,6 +244,8 @@ fortified units and city garrisons, so a click can wake them."
                              ((= type +ev-keydown+)
                               (let ((sc (ev-scancode ev)))
                                 (cond
+                                  ;; help overlay up: any key dismisses it
+                                  (help (setf help nil))
                                   ;; government menu open: number picks a government
                                   (gov-menu
                                    (cond
@@ -297,6 +302,7 @@ fortified units and city garrisons, so a click can wake them."
                                   ((= sc +sc-v+) (setf gov-menu t))    ; revolution menu
                                   ((= sc +sc-comma+) (lux! -10))       ; luxury down
                                   ((= sc +sc-period+) (lux! 10))       ; luxury up
+                                  ((= sc +sc-slash+) (setf help t))    ; ? : help
                                   ((= sc +sc-s+)
                                    (civm:save-game state *save-path*)
                                    (sdl2:set-window-title win "civ-lisp — game saved"))
@@ -325,6 +331,8 @@ fortified units and city garrisons, so a click can wake them."
                               (let ((tx (floor (ev-mouse-x ev) (* *tile* scale)))
                                     (ty (floor (ev-mouse-y ev) (* *tile* scale))))
                                 (cond
+                                  ;; help overlay up: a click dismisses it
+                                  (help (setf help nil))
                                   ;; government menu open: click a row to pick it
                                   (gov-menu
                                    (let ((g (gov-menu-pick painter state
@@ -362,7 +370,7 @@ fortified units and city garrisons, so a click can wake them."
                                                    :fortified)
                                            (try (list :wake :unit u))))))))))))
                        (render-game painter state selected
-                                    :build-city build-city :gov-menu gov-menu)
+                                    :build-city build-city :gov-menu gov-menu :help help)
                        (sdl2:delay 16))
                   ;; cleanup
                   (sdl2:destroy-texture (painter-sprites painter))
