@@ -11,9 +11,11 @@ extracted from the DOS game *Sid Meier's Civilization* (the sibling
 
 ![civ-lisp rendering a game with edge-blended terrain](docs/screenshot.png)
 
-*A game after 40 turns: edge-blended terrain (TER257), rivers and resource
-specials (SP257), the human city/units (blue borders) and an AI opponent that
-has expanded into several cities and units (red borders).*
+*A developed realm: the player's cities **Rome** (walled) and **Ostia**, linked
+by a **railroad** and ringed with **irrigated** farmland and **mined** hills; a
+**fort** garrisons the southern approach, and the rival **Veii** (red borders)
+looms east with cavalry. Edge-blended terrain (TER257), rivers and resource
+specials (SP257); blue/red borders mark each civilization.*
 
 ![cities close-up](docs/cities.png)
 
