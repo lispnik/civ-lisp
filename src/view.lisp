@@ -55,6 +55,7 @@
 (defparameter +city-walls-sprite+ '(13 . 7)) ; SP257 col 13, row 7 (tile_007_013): walls overlay
 (defparameter +irrigation-sprite+ '(4 . 2))  ; SP257 col 4, row 2 (tile_002_004): irrigation overlay
 (defparameter +mine-sprite+ '(5 . 2))         ; SP257 col 5, row 2 (tile_002_005): mine overlay
+(defparameter +pollution-sprite+ '(6 . 2))    ; SP257 col 6, row 2 (tile_002_006): pollution blight
 
 (defun unit-sprite (type)
   (or (cdr (assoc type *unit-sprites*)) +default-unit-sprite+))
@@ -249,7 +250,11 @@ neighbour; an isolated road gets a small central stub."
       (blit p (painter-sprites p) (* (river-mask map x y) *tile*) +river-row+
             *tile* *tile* px py))
     (when (civm:tile-special tile)
-      (draw-special p terr px py))))
+      (draw-special p terr px py))
+    ;; pollution blight sits on top of everything else on the tile
+    (when (civm:tile-pollution tile)
+      (blit p (painter-sprites p) (* (car +pollution-sprite+) *tile*)
+            (* (cdr +pollution-sprite+) *tile*) *tile* *tile* px py))))
 
 ;;; --- the frame -------------------------------------------------------------
 

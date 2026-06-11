@@ -87,14 +87,15 @@ the entity lists on load."
   (list (tile-terrain tile)
         (and (tile-river tile) t) (and (tile-special tile) t)
         (and (tile-road tile) t) (and (tile-irrigation tile) t)
-        (and (tile-mine tile) t)))
+        (and (tile-mine tile) t) (and (tile-pollution tile) t)))
 
 (defun restore-tile (tile spec)
-  (destructuring-bind (terrain river special road irrigation mine) spec
+  (destructuring-bind (terrain river special road irrigation mine
+                       &optional pollution) spec
     (setf (tile-terrain tile) terrain
           (tile-river tile) river (tile-special tile) special
           (tile-road tile) road (tile-irrigation tile) irrigation
-          (tile-mine tile) mine)))
+          (tile-mine tile) mine (tile-pollution tile) pollution)))
 
 ;;; --- whole game ------------------------------------------------------------
 

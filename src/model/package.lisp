@@ -12,7 +12,8 @@
    ;; map / tiles
    #:tile #:make-tile #:tile-terrain #:tile-feature #:tile-resource
    #:tile-river #:tile-special
-   #:tile-road #:tile-irrigation #:tile-mine #:tile-owner #:tile-city #:tile-units
+   #:tile-road #:tile-irrigation #:tile-mine #:tile-pollution
+   #:tile-owner #:tile-city #:tile-units
    #:game-map #:map-width #:map-height #:map-tiles
    #:tile-at #:in-bounds-p #:neighbors #:do-tiles
    ;; entities

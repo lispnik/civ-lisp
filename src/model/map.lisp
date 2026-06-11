@@ -12,6 +12,7 @@
   (road nil)
   (irrigation nil)
   (mine nil)
+  (pollution nil)             ; a pollution blight sits on this tile
   ;; occupancy
   (owner nil)                 ; player id or NIL
   (city nil)                  ; city id or NIL (a city sits on this tile)
