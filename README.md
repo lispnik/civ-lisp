@@ -180,6 +180,14 @@ sbcl --dynamic-space-size 4096 --non-interactive --load run.lisp
 A 640×480 window opens with the torch image as the cursor (drawn centred so you
 can see it). Close the window or press **Escape** to quit.
 
+### Live coding (Emacs / SLY)
+
+Press **`~`** in the window for an in-game Lisp console (it binds `*state*` to
+the live game), or attach a full REPL from Emacs: evaluate `(civ-lisp:start-slynk)`
+— from the `~` console or before `(civ-lisp:main)` — then **`M-x sly-connect`**
+to `localhost` port `4005`. The server runs in its own thread, so you can
+inspect and reshape the running game while it plays.
+
 ## Global 2× scaling
 
 The original Civilization assets are tiny on a modern display, so the whole app

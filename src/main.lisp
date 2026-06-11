@@ -178,6 +178,26 @@ fortified units and city garrisons, so a click can wake them."
 (defun year-string (year)
   (if (minusp year) (format nil "~D BC" (- year)) (format nil "AD ~D" year)))
 
+;;; --- Slynk (connect from Emacs) --------------------------------------------
+
+(defvar *slynk-port* nil "Port of the running Slynk server, or NIL.")
+
+(defun start-slynk (&optional (port 4005))
+  "Load Slynk (if needed) and start a server on PORT so you can attach to the
+running game from Emacs: M-x sly-connect, host localhost, port PORT.  Safe to
+call from the `~` console -- e.g. (start-slynk).  Returns the port."
+  (if *slynk-port*
+      (format t "~&Slynk already listening on port ~D~%" *slynk-port*)
+      (progn
+        (handler-case (asdf:load-system :slynk)
+          (error (e)
+            (error "couldn't load Slynk (~A); is SLY/Slynk on your asdf path?" e)))
+        (uiop:symbol-call :slynk :create-server :port port :dont-close t)
+        (setf *slynk-port* port)
+        (format t "~&Slynk listening on ~D -- M-x sly-connect RET localhost RET ~D RET~%"
+                port port)))
+  *slynk-port*)
+
 ;;; --- `~` Lisp console ------------------------------------------------------
 
 (defvar *state* nil
