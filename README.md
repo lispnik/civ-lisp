@@ -27,6 +27,20 @@ defended; text uses a font extracted from the game's `FONTS.CV`.*
 *Fog of war from the human's view: black = unexplored, dim = explored but out of
 sight, bright = currently visible. A scout's trail is dimmed behind it.*
 
+### Selecting a unit
+
+Selecting a unit opens a Civ1-style info box in the bottom-left: the owner and
+unit type, attack/defense, moves left and HP, the city it garrisons (if any),
+and the terrain under it with its yields and defensive bonus. Below that is a
+row of **every unit sharing the square** — the selected one outlined in cyan,
+the rest in their owner's colour.
+
+![selected-unit info box](docs/unit-panel.png)
+
+*A wounded Legion (HP 6) selected inside Rome, stacked with a Warriors and a
+Phalanx; the info box shows its stats, the city and grassland terrain, and the
+three-unit garrison with the Legion highlighted.*
+
 ### Building a wonder
 
 Selecting a friendly city opens its **build menu**: every unit, improvement and
@@ -65,8 +79,9 @@ and AI cities (Akkad, Uruk) have grown alongside.*
 
 The map is covered by **fog of war**: unexplored tiles are black, tiles you've
 seen but can't currently see are dimmed, and enemy units/cities show only while
-in sight of one of your units or cities. The selected unit shows a small stats
-panel (type, attack/defense, moves left, HP, terrain) in the bottom-left.
+in sight of one of your units or cities. The selected unit shows an info box in
+the bottom-left (owner, type, attack/defense, moves, HP, city, terrain, and the
+units sharing its square) — see [Selecting a unit](#selecting-a-unit) above.
 
 Terrain uses the original **edge-blending** scheme (CivOne's algorithm): a land
 tile is a generic base plus a TER257 overlay chosen by a bitmask of which
