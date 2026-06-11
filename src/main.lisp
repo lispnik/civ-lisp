@@ -8,7 +8,7 @@
 ;;;;   arrows / numpad : move selected unit (numpad moves diagonally too)
 ;;;;   B  : found city (settlers)     F : fortify
 ;;;;   R / I / M / T : road (then railroad) / irrigate / mine / fort
-;;;;   P : clean pollution
+;;;;   C : clear forest      P : clean pollution
 ;;;;   G  : goto (then click)         Enter : end turn
 ;;;;   V  : revolution (pick a government)   , / . : luxury rate down / up
 ;;;;   ?  : toggle the help overlay
@@ -48,7 +48,7 @@
 (defconstant +ev-mousebuttondown+ #x401)
 
 ;; SDL scancodes for the keys we use
-(defconstant +sc-a+ 4) (defconstant +sc-b+ 5) (defconstant +sc-d+ 7)
+(defconstant +sc-a+ 4) (defconstant +sc-b+ 5) (defconstant +sc-c+ 6) (defconstant +sc-d+ 7)
 (defconstant +sc-f+ 9) (defconstant +sc-g+ 10) (defconstant +sc-i+ 12)
 (defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
 (defconstant +sc-p+ 19) (defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
@@ -314,6 +314,7 @@ fortified units and city garrisons, so a click can wake them."
                                   ((= sc +sc-i+) (terra :irrigate))
                                   ((= sc +sc-m+) (terra :mine))
                                   ((= sc +sc-t+) (terra :build-fort))
+                                  ((= sc +sc-c+) (terra :clear-forest))
                                   ((= sc +sc-p+) (terra :clean-pollution))
                                   ((= sc +sc-v+) (setf gov-menu t))    ; revolution menu
                                   ((= sc +sc-comma+) (lux! -10))       ; luxury down

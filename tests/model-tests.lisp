@@ -573,6 +573,18 @@
     (dotimes (i 3) (end-turn s))
     (is-true (tile-railroad (tile-at (gs-map s) 2 2)))))
 
+(test clear-forest
+  (let* ((s (bare-state 6 6 :terrain :forest))
+         (u (add-unit s :settlers 1 2 2))
+         (g (add-unit s :settlers 1 4 4)))
+    ;; only works on forest
+    (setf (tile-terrain (tile-at (gs-map s) 4 4)) :grassland)
+    (signals command-error (apply-command s (list :clear-forest :unit (unit-id g))))
+    (apply-command s (list :clear-forest :unit (unit-id u)))
+    (is (eq :clear-forest (unit-work u)))
+    (dotimes (i 3) (end-turn s))
+    (is (eq :plains (tile-terrain (tile-at (gs-map s) 2 2))))))   ; forest -> plains
+
 (test fort-requires-tech-and-boosts-defense
   (let* ((s (bare-state 6 6 :terrain :grassland))
          (u (add-unit s :settlers 1 2 2))
