@@ -78,11 +78,14 @@
 ;;; --- new game --------------------------------------------------------------
 
 (defun make-new-game (&key (width 20) (height 15) (players '("You" "Rival"))
-                           (seed 0))
+                           (seed 0) barbarians)
   "Build a fresh GAME-STATE: a small map, the given players, each with a
-starting settlers + warriors unit.  SEED makes the game reproducible."
-  (let* ((map (make-game-map width height :terrain :grassland))
-         (pvec (make-array (length players)))
+starting settlers + warriors unit.  SEED makes the game reproducible.  With
+BARBARIANS, append a unit-less barbarian player that spawns roaming raiders."
+  (let* ((nciv (length players))
+         (all (if barbarians (append players (list "Barbarians")) players))
+         (map (make-game-map width height :terrain :grassland))
+         (pvec (make-array (length all)))
          (state (%make-game-state
                  :map map :players pvec
                  :random (sb-ext:seed-random-state seed))))
@@ -109,19 +112,20 @@ starting settlers + warriors unit.  SEED makes the game reproducible."
       (when (zerop (gs-rand state 16))
         (setf (tile-special tile) t)))
     ;; players + their starting units, spread across the map
-    (loop for name in players
+    (loop for name in all
           for i from 0
-          for px = (max 1 (min (- width 2)
-                               (* (1+ i) (floor width (1+ (length players))))))
+          for barb = (and barbarians (= i nciv))   ; the appended barbarian player
+          for px = (max 1 (min (- width 2) (* (1+ i) (floor width (1+ nciv)))))
           for py = (floor height 2)
           for p = (make-player :id (1+ i) :name name
-                               :kind (if (zerop i) :human :ai)
-                               :color (1+ i))
+                               :kind (cond (barb :barbarian) ((zerop i) :human) (t :ai))
+                               :color (if barb 8 (1+ i)))
           do (setf (svref pvec i) p)
-             ;; a grassland start on a river -- a capital site with baseline trade
-             (setf (tile-terrain (tile-at map px py)) :grassland)
-             (setf (tile-river (tile-at map px py)) t)
-             (register-unit state :type :settlers :owner (player-id p) :x px :y py)
-             (register-unit state :type :warriors :owner (player-id p) :x px :y py))
+             (unless barb           ; barbarians have no capital and no start units
+               ;; a grassland start on a river -- a capital site with baseline trade
+               (setf (tile-terrain (tile-at map px py)) :grassland)
+               (setf (tile-river (tile-at map px py)) t)
+               (register-unit state :type :settlers :owner (player-id p) :x px :y py)
+               (register-unit state :type :warriors :owner (player-id p) :x px :y py)))
     (update-visibility state)        ; reveal each player's starting surroundings
     state))

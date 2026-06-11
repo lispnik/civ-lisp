@@ -113,8 +113,36 @@
     (dolist (c (player-city-list state pid))
       (ai-city-production state player c))))
 
+(defparameter *barbarian-spawn-chance* 8
+  "Percent chance per turn a new barbarian raider appears.")
+
+(defun barbarian-player (state)
+  (find :barbarian (gs-players state) :key #'player-kind))
+
+(defun spawn-barbarian (state barb)
+  "Place a barbarian raider on a random empty, non-city land tile."
+  (let ((map (gs-map state)) (cands '()))
+    (do-tiles (x y tile map)
+      (when (and (not (eq (tile-terrain tile) :ocean))
+                 (null (tile-units tile)) (not (tile-city tile)))
+        (push (list x y) cands)))
+    (when cands
+      (destructuring-bind (x y) (nth (gs-rand state (length cands)) cands)
+        (register-unit state :type (if (zerop (gs-rand state 2)) :legion :warriors)
+                       :owner (player-id barb) :x x :y y)))))
+
+(defun barbarians-take-turn (state barb)
+  "Barbarians (always at war with everyone) spawn raiders and attack/roam."
+  (when (< (gs-rand state 100) *barbarian-spawn-chance*)
+    (spawn-barbarian state barb))
+  (dolist (u (player-unit-list state (player-id barb)))
+    (when (unit-by-id state (unit-id u))
+      (ai-military state u))))            ; attack an adjacent enemy, else wander
+
 (defun run-ai-players (state)
   "Run AI for every non-human player.  Called from END-TURN."
   (loop for p across (gs-players state)
         when (eq (player-kind p) :ai)
-          do (ai-take-turn state p)))
+          do (ai-take-turn state p))
+  (let ((barb (barbarian-player state)))
+    (when barb (barbarians-take-turn state barb))))

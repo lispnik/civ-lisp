@@ -897,6 +897,26 @@ shield special) so the city keeps producing instead of starving."
     ;; each civ starts with its own colour and a couple of units
     (is (= 8 (hash-table-count (gs-units s))))))   ; 4 civs x (settler+warriors)
 
+(test barbarians-always-at-war
+  (let* ((s (make-new-game :seed 2 :players '("You" "Rival") :barbarians t))
+         (barb (loop for p across (gs-players s)
+                     when (eq (player-kind p) :barbarian) return (player-id p))))
+    (is-true barb)
+    (is-true (at-war-p s 1 barb))                ; barbarians are at war with all
+    (is-true (at-war-p s 2 barb))
+    (is (eq :war (relation s 1 barb)))
+    ;; you can't sue barbarians for peace
+    (signals command-error (apply-command s (list :make-peace :player 1 :against barb)))))
+
+(test barbarians-spawn-raiders
+  (let ((s (make-new-game :seed 2 :players '("You" "Rival") :barbarians t))
+        (barb nil))
+    (setf barb (loop for p across (gs-players s)
+                     when (eq (player-kind p) :barbarian) return (player-id p)))
+    (dotimes (i 40) (end-turn s))
+    (is (plusp (loop for u being the hash-values of (gs-units s)
+                     count (= (unit-owner u) barb))))))   ; raiders appeared
+
 ;;; --- save / load -----------------------------------------------------------
 
 (test save-load-roundtrip

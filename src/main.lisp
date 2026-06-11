@@ -175,7 +175,7 @@ fortified units and city garrisons, so a click can wake them."
   "Open a window, start a new game, and render/drive it until quit."
   (sdl2:with-init (:video)
     (sdl2-image:init '(:png))
-    (let* ((state (civm:make-new-game :seed seed :players players))
+    (let* ((state (civm:make-new-game :seed seed :players players :barbarians t))
            (map (civm:gs-map state))
            (lw (* (civm:map-width map) *tile*))
            (lh (* (civm:map-height map) *tile*))
