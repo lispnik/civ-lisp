@@ -266,31 +266,65 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
   (evenp (floor (sdl2-ffi.functions:sdl-get-ticks) 500)))
 
 (defun draw-unit-panel (painter state u)
-  "A small stats panel for the selected unit, anchored bottom-left."
+  "A Civ1-style info box for the selected unit, anchored bottom-left: owner and
+unit type, attack/defense, moves/HP, the city (if any) and terrain under it,
+plus a row of every unit sharing the square (the selected one outlined cyan)."
   (let* ((font (painter-font painter))
          (ren (painter-ren painter))
          (h (gfont-height font))
-         (tile (civm:tile-at (civm:gs-map state) (civm:unit-x u) (civm:unit-y u)))
-         (lines (list (string-capitalize (symbol-name (civm:unit-type u)))
-                      (format nil "Atk ~D  Def ~D"
-                              (civm:unit-def (civm:unit-type u) :attack 0)
-                              (civm:unit-def (civm:unit-type u) :defense 0))
-                      (format nil "Move ~D  HP ~D"
-                              (civm:unit-moves-left u) (civm:unit-hp u))
-                      (string-capitalize (symbol-name (civm:tile-terrain tile)))))
-         (pw (+ 4 (reduce #'max lines :key (lambda (s) (text-width font s)))))
-         (ph (+ 3 (* (length lines) (1+ h))))
-         (py (- (* (civm:map-height (civm:gs-map state)) *tile*) ph)))
+         (map (civm:gs-map state))
+         (tile (civm:tile-at map (civm:unit-x u) (civm:unit-y u)))
+         (terr (civm:tile-terrain tile))
+         (type (civm:unit-type u))
+         (owner (civm:player-by-id state (civm:unit-owner u)))
+         (cid (civm:tile-city tile))
+         (city (and cid (civm:city-by-id state cid)))
+         (units (remove nil (mapcar (lambda (id) (civm:unit-by-id state id))
+                                    (civm:tile-units tile))))
+         (lines (remove nil
+                        (list (and owner (civm:player-name owner))
+                              (string-capitalize (symbol-name type))
+                              (format nil "Atk ~D  Def ~D"
+                                      (civm:unit-def type :attack 0)
+                                      (civm:unit-def type :defense 0))
+                              (format nil "Moves: ~D  HP ~D"
+                                      (civm:unit-moves-left u) (civm:unit-hp u))
+                              (and city (civm:city-name city))
+                              (format nil "(~A)" (string-capitalize (symbol-name terr)))
+                              (format nil "F~D S~D T~D  Def+~D%"
+                                      (civm:terrain-def terr :food 0)
+                                      (civm:terrain-def terr :shields 0)
+                                      (civm:terrain-def terr :trade 0)
+                                      (civm:terrain-def terr :defense 0)))))
+         (text-h (* (length lines) (1+ h)))
+         (row-w (if units (+ 2 (* (length units) (1+ *tile*))) 0))
+         (pw (+ 4 (max (reduce #'max lines :key (lambda (s) (text-width font s))) row-w)))
+         (ph (+ 4 text-h (if units (+ 2 *tile*) 0)))
+         (py (- (* (civm:map-height map) *tile*) ph)))
+    ;; panel background + owner-coloured accent line along the top
     (sdl2:set-render-draw-color ren 0 0 0 200)
     (set-rect (painter-dst painter) 0 py pw ph)
     (sdl2:render-fill-rect ren (painter-dst painter))
-    ;; owner-coloured accent line at the top of the panel
     (destructuring-bind (r g b) (owner-color state (civm:unit-owner u))
       (sdl2:set-render-draw-color ren r g b 255))
     (set-rect (painter-dst painter) 0 py pw 1)
     (sdl2:render-fill-rect ren (painter-dst painter))
+    ;; text lines
     (loop for line in lines for i from 0
-          do (draw-text painter font line 2 (+ py 2 (* i (1+ h))) 255 255 255))))
+          do (draw-text painter font line 2 (+ py 2 (* i (1+ h))) 255 255 255))
+    ;; the units stacked on this square; the selected one gets a cyan outline
+    (loop with sy = (+ py 2 text-h)
+          for ou in units for i from 0
+          for sx = (+ 2 (* i (1+ *tile*)))
+          for spr = (unit-sprite (civm:unit-type ou))
+          do (draw-sprite painter (car spr) (cdr spr) sx sy)
+             (destructuring-bind (r g b)
+                 (if (eql (civm:unit-id ou) (civm:unit-id u))
+                     '(0 240 240)
+                     (owner-color state (civm:unit-owner ou)))
+               (sdl2:set-render-draw-color ren r g b 255))
+             (set-rect (painter-dst painter) sx sy *tile* *tile*)
+             (sdl2:render-draw-rect ren (painter-dst painter)))))
 
 ;;; --- build menu ------------------------------------------------------------
 
