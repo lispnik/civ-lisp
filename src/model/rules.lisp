@@ -25,6 +25,9 @@ or the republic/democracy +1 trade on any tile already producing trade."
         (let ((bonus (cdr (assoc tt *special-bonus*))))
           (when bonus
             (incf f (first bonus)) (incf s (second bonus)) (incf tr (third bonus)))))
+      ;; pollution halves a tile's output until it is cleaned
+      (when (tile-pollution tile)
+        (setf f (floor f 2) s (floor s 2) tr (floor tr 2)))
       (when gov
         (when (government-def gov :tile-penalty)     ; despotism / anarchy
           (when (>= f 3) (decf f))
@@ -316,6 +319,37 @@ happy, none unhappy, size >= 3."
 aqueduct (Civ1), unbounded with one."
   (if (member :aqueduct (city-buildings city)) most-positive-fixnum 8))
 
+(defun city-pollution-chance (shields buildings)
+  "Percent chance (per turn) a city emits pollution, from its SHIELDS, raised by
+dirty factories/plants and lowered by clean infrastructure."
+  (let ((p shields))
+    (when (member :factory buildings)     (incf p (floor p 2)))   ; +50%
+    (when (member :power-plant buildings) (incf p (floor p 2)))   ; +50%
+    (when (member :mass-transit buildings)    (setf p (floor p 2)))
+    (when (member :recycling-center buildings)(setf p (floor p 2)))
+    (when (member :hydro-plant buildings)     (setf p (floor p 2)))
+    (when (member :nuclear-plant buildings)   (setf p (floor p 2)))
+    (max 0 p)))
+
+(defun pollute-random-tile (state city)
+  "Blight a random eligible tile in CITY's work radius with pollution."
+  (let* ((map (gs-map state))
+         (cands (loop for (x y tile) in (neighbors map (city-x city) (city-y city))
+                      unless (or (tile-pollution tile) (tile-city tile)
+                                 (eq (tile-terrain tile) :ocean))
+                        collect tile)))
+    (when cands
+      (setf (tile-pollution (nth (gs-rand state (length cands)) cands)) t))))
+
+(defun maybe-pollute (state city shields)
+  "Once a civilization has Industrialization, a high-output city may pollute a
+nearby tile this turn."
+  (let ((owner (player-by-id state (city-owner city))))
+    (when (and owner (player-has-tech-p owner :industrialization))
+      (let ((chance (city-pollution-chance shields (city-buildings city))))
+        (when (and (plusp chance) (< (gs-rand state 100) chance))
+          (pollute-random-tile state city))))))
+
 (defun process-city (state city)
   (city-auto-work state city)
   (multiple-value-bind (food shields trade) (city-yields state city)
@@ -374,7 +408,9 @@ aqueduct (Civ1), unbounded with one."
                  (setf sci (floor (* sci 3) 2)))
                (incf (player-gold p) (floor (* trade (player-tax-rate p)) 100))
                (when (government-def (player-government p) :science)
-                 (incf (player-beakers p) sci))))))))))
+                 (incf (player-beakers p) sci))))
+           ;; dirty industry may blight a nearby tile with pollution
+           (maybe-pollute state city shields)))))))
 
 (defun process-cities (state)
   (maphash (lambda (id c) (declare (ignore id)) (process-city state c))
@@ -455,7 +491,9 @@ turn).  Run after REFRESH-UNITS so a busy unit's restored moves are taken back."
        (decf (unit-work-left u))
        (if (<= (unit-work-left u) 0)
            (let ((tile (tile-at (gs-map state) (unit-x u) (unit-y u))))
-             (setf (tile-improvement tile (terraform-def (unit-work u) :flag)) t)
+             (if (eq (unit-work u) :clean-pollution)
+                 (setf (tile-pollution tile) nil)             ; cleanup clears the blight
+                 (setf (tile-improvement tile (terraform-def (unit-work u) :flag)) t))
              (setf (unit-work u) nil (unit-work-left u) 0))
            (setf (unit-moves-left u) 0))))      ; still busy
    (gs-units state)))

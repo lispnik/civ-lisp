@@ -726,6 +726,63 @@
     (civ-model::process-city s c)
     (is (= 9 (city-size c)))))              ; an aqueduct lifts the cap
 
+;;; --- pollution -------------------------------------------------------------
+
+(test pollution-halves-yield
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (tile (tile-at (gs-map s) 3 3)))
+    (setf (tile-irrigation tile) t)                  ; grassland 2 food +1 = 3
+    (is (= 3 (nth-value 0 (tile-yield tile))))
+    (setf (tile-pollution tile) t)
+    (is (= 1 (nth-value 0 (tile-yield tile))))))     ; halved (floor 3/2)
+
+(defun setup-industrial-city (s c)
+  "Surround C with sustainable, high-output land (irrigated grassland with a
+shield special) so the city keeps producing instead of starving."
+  (dolist (xy '((3 3)(4 3)(5 3)(3 4)(5 4)(3 5)(4 5)(5 5)))
+    (let ((tl (tile-at (gs-map s) (first xy) (second xy))))
+      (setf (tile-terrain tl) :grassland (tile-irrigation tl) t (tile-special tl) t)))
+  (setf (city-size c) 8))
+
+(test pollution-generation
+  ;; an industrialized, dirty, high-shield city blights nearby tiles
+  (let* ((s (bare-state 8 8 :terrain :grassland))
+         (c (civ-model::register-city s :name "Smog" :owner 1 :x 4 :y 4))
+         (p (player-by-id s 1)))
+    (setup-industrial-city s c)
+    (setf (gethash :industrialization (player-techs p)) t
+          (city-buildings c) '(:factory :power-plant :temple :colosseum :cathedral))
+    (is-false (city-disorder-p s c))
+    (dotimes (i 50) (civ-model::process-city s c))
+    (is (plusp (loop for (x y tl) in (neighbors (gs-map s) 4 4)
+                     count (tile-pollution tl))))))
+
+(test no-pollution-before-industrialization
+  (let* ((s (bare-state 8 8 :terrain :grassland))
+         (c (civ-model::register-city s :name "Clean" :owner 1 :x 4 :y 4)))
+    (setup-industrial-city s c)
+    (setf (city-buildings c) '(:factory :power-plant :temple :colosseum :cathedral))
+    (dotimes (i 50) (civ-model::process-city s c))
+    (is (zerop (loop for (x y tl) in (neighbors (gs-map s) 4 4)
+                     count (tile-pollution tl))))))    ; no industrialization -> no pollution
+
+(test clean-pollution
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (tile (tile-at (gs-map s) 3 3))
+         (u (add-unit s :settlers 1 3 3)))
+    (setf (tile-pollution tile) t)
+    ;; only a settler on a polluted tile can clean
+    (let ((w (add-unit s :warriors 1 1 1)))
+      (signals command-error (apply-command s (list :clean-pollution :unit (unit-id w)))))
+    (apply-command s (list :clean-pollution :unit (unit-id u)))
+    (is (eq :clean-pollution (unit-work u)))
+    (is (= 0 (unit-moves-left u)))                   ; busy
+    (end-turn s) (end-turn s)
+    (is-true (tile-pollution tile))                  ; still working
+    (end-turn s)
+    (is-false (tile-pollution tile))                 ; cleaned after 3 turns
+    (is-false (unit-work u))))
+
 ;;; --- save / load -----------------------------------------------------------
 
 (test save-load-roundtrip

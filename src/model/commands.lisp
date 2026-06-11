@@ -29,6 +29,7 @@ on an illegal move."
     (:wake           (cmd-wake state command))
     (:goto           (cmd-goto state command))
     ((:build-road :irrigate :mine) (cmd-terraform state command))
+    (:clean-pollution (cmd-clean-pollution state command))
     (:set-rates      (cmd-set-rates state command))
     (:set-government (cmd-set-government state command))
     (:end-turn       (end-turn state)))
@@ -146,6 +147,23 @@ position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
                     (unit-orders u) :idle)          ; moving breaks fortify
               (decf (unit-moves-left u) (max 1 (min cost (unit-moves-left u))))
               u))))))
+
+(defparameter *clean-pollution-turns* 3
+  "Turns a settler spends cleaning a polluted tile.")
+
+(defun cmd-clean-pollution (state command)
+  "Order a settler standing on a polluted tile to clean it (takes several turns)."
+  (let* ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit")))
+         (tile (tile-at (gs-map state) (unit-x u) (unit-y u))))
+    (unless (member :terraform (unit-def (unit-type u) :abilities))
+      (fail "~(~A~) cannot clean pollution" (unit-type u)))
+    (unless (tile-pollution tile) (fail "no pollution to clean here"))
+    (when (<= (unit-moves-left u) 0) (fail "unit has no moves left"))
+    (setf (unit-work u) :clean-pollution
+          (unit-work-left u) *clean-pollution-turns*
+          (unit-orders u) :idle
+          (unit-moves-left u) 0)
+    u))
 
 (defun cmd-set-rates (state command)
   "Set a player's tax/luxury/science split (percent of trade).  They must sum to
