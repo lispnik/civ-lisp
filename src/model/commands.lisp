@@ -33,6 +33,8 @@ on an illegal move."
     (:clean-pollution (cmd-clean-pollution state command))
     (:set-rates      (cmd-set-rates state command))
     (:set-government (cmd-set-government state command))
+    (:declare-war    (cmd-declare-war state command))
+    (:make-peace     (cmd-make-peace state command))
     (:end-turn       (end-turn state)))
   state)
 
@@ -111,26 +113,31 @@ position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
     (when (<= (unit-moves-left u) 0) (fail "unit has no moves left"))
     (let* ((dest (tile-at map nx ny))
            (sea-dest (eq (tile-terrain dest) :ocean))
-           (enemies (tile-enemies state dest (unit-owner u))))
+           (foreign (tile-enemies state dest (unit-owner u)))
+           (hostiles (tile-hostiles state dest (unit-owner u))))
       ;; terrain domain: land units can't enter ocean; sea units can't land;
       ;; air units go anywhere.  (rivers are land terrain, so land units cross them)
       (ecase (unit-def (unit-type u) :domain :land)
         (:sea (unless sea-dest (fail "naval unit can't move onto land")))
         (:land (when sea-dest (fail "land unit can't move into the water")))
         (:air nil))
-      (if enemies
+      ;; can't enter a tile held by a civilization you're only at peace with
+      (when (and foreign (not hostiles))
+        (fail "at peace with ~(~A~); declare war first"
+              (player-name (player-by-id state (unit-owner (first foreign))))))
+      (if hostiles
           ;; attack: fight the strongest defender, advance if the tile clears
           (progn
             (when (zerop (attack-strength u))
               (fail "~(~A~) cannot attack" (unit-type u)))
-            (let* ((defender (first (sort enemies #'>
+            (let* ((defender (first (sort hostiles #'>
                                           :key (lambda (e) (defense-strength state e)))))
                    (result (resolve-combat state u defender)))
               (when (eq result :attacker)
                 (clear-work u)                      ; attacking breaks terraform
                 (setf (unit-moves-left u) 0
                       (unit-orders u) :idle)        ; attacking breaks fortify
-                (unless (tile-enemies state dest (unit-owner u))
+                (unless (tile-hostiles state dest (unit-owner u))
                   (let ((old (tile-at map (unit-x u) (unit-y u))))
                     (setf (tile-units old) (remove (unit-id u) (tile-units old)))
                     (push (unit-id u) (tile-units dest))
@@ -171,6 +178,24 @@ position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
           (unit-orders u) :idle
           (unit-moves-left u) 0)
     u))
+
+(defun cmd-declare-war (state command)
+  "Player :PLAYER declares war on player :AGAINST."
+  (let* ((args (rest command))
+         (a (getf args :player 1)) (b (getf args :against)))
+    (unless (and (player-by-id state a) (player-by-id state b)) (fail "no such player"))
+    (when (= a b) (fail "can't declare war on yourself"))
+    (setf (relation state a b) :war)
+    state))
+
+(defun cmd-make-peace (state command)
+  "Player :PLAYER makes peace with player :AGAINST (mutual, accepted at once)."
+  (let* ((args (rest command))
+         (a (getf args :player 1)) (b (getf args :against)))
+    (unless (and (player-by-id state a) (player-by-id state b)) (fail "no such player"))
+    (when (barbarian-id-p state b) (fail "barbarians never make peace"))
+    (setf (relation state a b) :peace)
+    state))
 
 (defun cmd-set-rates (state command)
   "Set a player's tax/luxury/science split (percent of trade).  They must sum to

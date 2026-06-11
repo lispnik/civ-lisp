@@ -101,8 +101,9 @@ connects to other rivers and flows into the sea)."
 ;;; --- colours ---------------------------------------------------------------
 
 (defparameter *player-colors*
-  '((1 80 150 235) (2 220 70 70) (3 90 200 120) (4 230 200 80))
-  "Player color index -> (r g b).")
+  '((1 80 150 235) (2 220 70 70) (3 90 200 120) (4 230 200 80)
+    (5 200 110 220) (6 230 150 60) (7 70 200 210) (8 40 40 50))
+  "Player color index -> (r g b).  Index 8 (dark) is used for barbarians.")
 
 (defun owner-color (state owner-id)
   (let ((p (and owner-id (civm:player-by-id state owner-id))))
@@ -584,7 +585,8 @@ celebration banner."
     "R / I / M  road (then rail) / irrigate / mine"
     "T  fort   C  clear forest   P  clean pollution"
     "G then click  go to a tile"
-    "V  revolution     ,/.  luxury -/+"
+    "V  revolution     Y  diplomacy"
+    ",/.  luxury -/+"
     "Enter  end turn"
     "S / L  save / load game"
     "Left-click  select unit or city"
@@ -621,7 +623,53 @@ celebration banner."
               (let ((tgt (civm:player-gov-target p)))
                 (and tgt (civm:government-def tgt :name)))))))
 
-(defun render-game (painter state selected-id &key (fog t) build-city gov-menu help)
+;;; --- diplomacy menu --------------------------------------------------------
+
+(defun diplo-menu-lines (state)
+  "(index other-id label) for each rival civilization the human can treat with."
+  (let ((me (civm:player-id (human-player state))))
+    (loop for p across (civm:gs-players state)
+          for oid = (civm:player-id p)
+          when (/= oid me)
+            collect (let ((war (civm:at-war-p state me oid)))
+                      (list nil oid
+                            (format nil "~A ~A -> ~A" (civm:player-name p)
+                                    (if war "[WAR]" "[peace]")
+                                    (if war "make peace" "declare war"))))
+              into rows
+          finally (return (loop for r in rows for i from 1
+                                collect (list i (second r) (third r)))))))
+
+(defun diplo-menu-pick (painter state ly)
+  (let ((row (floor (- ly (+ *menu-y* 2)) (1+ (gfont-height (painter-font painter)))))
+        (lines (diplo-menu-lines state)))
+    (when (and (>= row 1) (<= row (length lines)))
+      (second (nth (1- row) lines)))))
+
+(defun draw-diplo-menu (painter state)
+  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+         (h (gfont-height font))
+         (lines (diplo-menu-lines state))
+         (title "Diplomacy:")
+         (texts (cons title (mapcar #'third lines)))
+         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
+         (ph (+ 4 (* (length texts) (1+ h)))))
+    (sdl2:set-render-draw-color ren 0 0 0 230)
+    (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (sdl2:set-render-draw-color ren 220 220 220 255)
+    (sdl2:render-draw-rect ren (painter-dst painter))
+    (flet ((line (text row r g b)
+             (draw-text painter font text (+ *menu-x* 2)
+                        (+ *menu-y* 2 (* row (1+ h))) r g b)))
+      (line title 0 255 230 120)
+      (loop for (i oid label) in lines
+            do (progn oid)
+               (destructuring-bind (r g b) (owner-color state oid)
+                 (line label i r g b))))))
+
+(defun render-game (painter state selected-id &key (fog t) build-city gov-menu
+                                                   diplo-menu help)
   "Draw STATE from the human player's perspective.  With FOG, unexplored tiles
 are black, explored-but-unseen tiles are dimmed, and units/cities are shown
 only on currently-visible tiles."
@@ -665,9 +713,11 @@ only on currently-visible tiles."
         ;; stats panel for the selected unit (hidden while the build menu is up)
         (when (and sel (not build-city) (painter-font painter))
           (draw-unit-panel painter state sel)))
-      ;; build menu / government menu overlay (mutually exclusive)
+      ;; build / government / diplomacy menu overlay (mutually exclusive)
       (cond ((and gov-menu (painter-font painter))
              (draw-gov-menu painter state))
+            ((and diplo-menu (painter-font painter))
+             (draw-diplo-menu painter state))
             ((and build-city (painter-font painter))
              (let ((c (civm:city-by-id state build-city)))
                (when c (draw-build-menu painter state c)))))

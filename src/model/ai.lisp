@@ -38,12 +38,23 @@
                         :dx (car d) :dy (cdr d)))))
 
 (defun adjacent-enemy (state unit)
-  "An enemy unit on a tile bordering UNIT, or NIL."
+  "A unit OWNER is at war with on a tile bordering UNIT, or NIL."
   (loop for (x y tile) in (neighbors (gs-map state) (unit-x unit) (unit-y unit))
         do (loop for id in (tile-units tile)
                  for e = (unit-by-id state id)
-                 when (and e (/= (unit-owner e) (unit-owner unit)))
+                 when (and e (at-war-p state (unit-owner e) (unit-owner unit)))
                    do (return-from adjacent-enemy e))))
+
+(defun ai-diplomacy (state player)
+  "Occasionally an AI declares war on a civilization it is at peace with."
+  (let ((pid (player-id player)))
+    (loop for other across (gs-players state)
+          for oid = (player-id other)
+          when (and (/= oid pid)
+                    (not (eq (player-kind other) :barbarian))
+                    (eq (relation state pid oid) :peace)
+                    (< (gs-rand state 100) 2))      ; 2% per peace-partner per turn
+            do (setf (relation state pid oid) :war))))
 
 (defun ai-military (state unit)
   "Attack an adjacent enemy; else garrison (fortify) in an own city; else explore."
@@ -90,6 +101,7 @@
 
 (defun ai-take-turn (state player)
   "Issue this AI PLAYER's commands for the current turn."
+  (ai-diplomacy state player)
   (let ((pid (player-id player)))
     ;; units: settlers settle/seek; everyone else explores
     (dolist (u (player-unit-list state pid))

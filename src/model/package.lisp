@@ -30,6 +30,8 @@
    #:game-state #:gs-turn #:gs-year #:gs-map #:gs-players #:gs-units #:gs-cities
    #:make-new-game #:player-by-id #:unit-by-id #:city-by-id
    #:gs-random #:gs-rand #:gs-phase #:gs-warming #:player-has-tech-p
+   ;; diplomacy
+   #:gs-relations #:relation #:at-war-p #:barbarian-id-p
    ;; fog of war
    #:player-seen #:update-visibility #:visible-set #:seen-p
    ;; rules

@@ -53,6 +53,7 @@
 (defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
 (defconstant +sc-p+ 19) (defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
 (defconstant +sc-v+ 25)
+(defconstant +sc-y+ 28)
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
 (defconstant +sc-tab+ 43)
 (defconstant +sc-comma+ 54) (defconstant +sc-period+ 55)   ; luxury down / up
@@ -166,11 +167,15 @@ fortified units and city garrisons, so a click can wake them."
 
 ;;; --- main loop -------------------------------------------------------------
 
-(defun run (&key (scale *scale*) (seed 0) (cursor-image *cursor-image*))
+(defparameter *civilizations* '("You" "Rome" "Egypt" "Zulu")
+  "The civilizations in a new game; the first is the human player.")
+
+(defun run (&key (scale *scale*) (seed 0) (cursor-image *cursor-image*)
+                 (players *civilizations*))
   "Open a window, start a new game, and render/drive it until quit."
   (sdl2:with-init (:video)
     (sdl2-image:init '(:png))
-    (let* ((state (civm:make-new-game :seed seed))
+    (let* ((state (civm:make-new-game :seed seed :players players))
            (map (civm:gs-map state))
            (lw (* (civm:map-width map) *tile*))
            (lh (* (civm:map-height map) *tile*))
@@ -196,6 +201,7 @@ fortified units and city garrisons, so a click can wake them."
                   (running t)
                   (build-city nil)    ; city id whose build menu is open
                   (gov-menu nil)      ; T while the revolution menu is open
+                  (diplo-menu nil)    ; T while the diplomacy menu is open
                   (help nil))         ; T while the help overlay is shown
               (labels ((torch! () (setf goto-mode nil)
                          (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
@@ -259,6 +265,19 @@ fortified units and city garrisons, so a click can wake them."
                                                      :to (second pick)))))
                                       (setf gov-menu nil) (retitle))
                                      ((= sc +sc-escape+) (setf gov-menu nil))))
+                                  ;; diplomacy menu open: number toggles war/peace
+                                  (diplo-menu
+                                   (cond
+                                     ((and (>= sc +sc-1+) (<= sc (+ +sc-1+ 8)))
+                                      (let* ((me (first (human-player-ids state)))
+                                             (pick (nth (- sc +sc-1+) (diplo-menu-lines state)))
+                                             (oid (and pick (second pick))))
+                                        (when oid
+                                          (try (list (if (civm:at-war-p state me oid)
+                                                         :make-peace :declare-war)
+                                                     :player me :against oid))))
+                                      (setf diplo-menu nil))
+                                     ((= sc +sc-escape+) (setf diplo-menu nil))))
                                   ;; build menu open: number picks a unit, Esc closes
                                   (build-city
                                    (cond
@@ -317,6 +336,7 @@ fortified units and city garrisons, so a click can wake them."
                                   ((= sc +sc-c+) (terra :clear-forest))
                                   ((= sc +sc-p+) (terra :clean-pollution))
                                   ((= sc +sc-v+) (setf gov-menu t))    ; revolution menu
+                                  ((= sc +sc-y+) (setf diplo-menu t))  ; diplomacy menu
                                   ((= sc +sc-comma+) (lux! -10))       ; luxury down
                                   ((= sc +sc-period+) (lux! 10))       ; luxury up
                                   ((= sc +sc-slash+) (setf help t))    ; ? : help
@@ -359,6 +379,16 @@ fortified units and city garrisons, so a click can wake them."
                                                   :player (first (human-player-ids state))
                                                   :to g))))
                                    (setf gov-menu nil) (retitle))
+                                  ;; diplomacy menu open: click a civ to toggle war/peace
+                                  (diplo-menu
+                                   (let* ((me (first (human-player-ids state)))
+                                          (oid (diplo-menu-pick painter state
+                                                                (floor (ev-mouse-y ev) scale))))
+                                     (when oid
+                                       (try (list (if (civm:at-war-p state me oid)
+                                                      :make-peace :declare-war)
+                                                  :player me :against oid))))
+                                   (setf diplo-menu nil))
                                   ;; build menu open: a click on a line picks it,
                                   ;; anywhere else closes the menu
                                   (build-city
@@ -387,7 +417,8 @@ fortified units and city garrisons, so a click can wake them."
                                                    :fortified)
                                            (try (list :wake :unit u))))))))))))
                        (render-game painter state selected
-                                    :build-city build-city :gov-menu gov-menu :help help)
+                                    :build-city build-city :gov-menu gov-menu
+                                    :diplo-menu diplo-menu :help help)
                        (sdl2:delay 16))
                   ;; cleanup
                   (sdl2:destroy-texture (painter-sprites painter))

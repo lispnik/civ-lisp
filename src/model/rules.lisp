@@ -129,13 +129,13 @@ The city centre is worked for free and, per Civ1, always yields at least
   (remhash (unit-id unit) (gs-units state)))
 
 (defun enemy-adjacent-p (state x y owner)
-  "T if a tile bordering (X,Y) holds a unit not owned by OWNER -- i.e. (X,Y)
-lies in an enemy zone of control."
+  "T if a tile bordering (X,Y) holds a unit of a civilization OWNER is at war
+with -- i.e. (X,Y) lies in an enemy zone of control."
   (loop for cell in (neighbors (gs-map state) x y)
         for tile = (third cell)
         thereis (loop for id in (tile-units tile)
                       for un = (unit-by-id state id)
-                      thereis (and un (/= (unit-owner un) owner)))))
+                      thereis (and un (at-war-p state (unit-owner un) owner)))))
 
 (defun city-defended-p (state city)
   "T if a combat unit (attack > 0) is garrisoned on CITY's tile."
@@ -147,10 +147,16 @@ lies in an enemy zone of control."
                (tile-units tile)))))
 
 (defun tile-enemies (state tile owner)
-  "Units on TILE not belonging to OWNER."
+  "Units on TILE not belonging to OWNER (any other civilization)."
   (loop for id in (tile-units tile)
         for u = (unit-by-id state id)
         when (and u (/= (unit-owner u) owner)) collect u))
+
+(defun tile-hostiles (state tile owner)
+  "Units on TILE belonging to a civilization OWNER is at war with."
+  (loop for id in (tile-units tile)
+        for u = (unit-by-id state id)
+        when (and u (at-war-p state (unit-owner u) owner)) collect u))
 
 (defun resolve-combat (state attacker defender)
   "Fight ATTACKER vs DEFENDER to the death using a Civ1-style round loop:

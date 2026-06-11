@@ -272,6 +272,7 @@
   (let* ((s (bare-state 6 6 :seed 1))
          (a (add-unit s :legion 1 2 2))
          (d (add-unit s :warriors 2 3 2)))
+    (setf (civ-model::relation s 1 2) :war)
     (apply-command s (list :move-unit :unit (unit-id a) :dx 1 :dy 0))
     (is (null (unit-by-id s (unit-id d))))      ; defender destroyed
     (is (= 3 (unit-x a)))))                     ; attacker advanced onto the tile
@@ -336,12 +337,14 @@
 
 (test zoc-predicate
   (let ((s (bare-state 6 6)))
+    (setf (civ-model::relation s 1 2) :war)
     (add-unit s :warriors 2 3 2)
     (is-true (enemy-adjacent-p s 2 2 1))
     (is-false (enemy-adjacent-p s 0 0 1))))
 
 (test zoc-blocks-slip
   (let ((s (bare-state 6 6)))
+    (setf (civ-model::relation s 1 2) :war)
     (add-unit s :warriors 2 3 1)
     (add-unit s :warriors 2 3 3)
     (let ((u (add-unit s :legion 1 3 2)))
@@ -350,6 +353,7 @@
 
 (test zoc-attack-allowed
   (let ((s (bare-state 6 6 :seed 1)))
+    (setf (civ-model::relation s 1 2) :war)
     (add-unit s :warriors 2 3 1)
     (let ((d (add-unit s :warriors 2 3 3))
           (u (add-unit s :legion 1 3 2)))
@@ -358,6 +362,7 @@
 
 (test zoc-friendly-tile-exempt
   (let ((s (bare-state 6 6)))
+    (setf (civ-model::relation s 1 2) :war)
     (add-unit s :warriors 2 3 1)
     (add-unit s :warriors 2 3 3)
     (add-unit s :warriors 1 4 2)                ; friendly at destination
@@ -859,6 +864,38 @@ shield special) so the city keeps producing instead of starving."
     (setf (tile-pollution (tile-at (gs-map s) 0 0)) t)   ; 1 polluted (<= threshold)
     (dotimes (i 30) (civ-model::process-global-warming s))
     (is (= 0 (gs-warming s)))))
+
+;;; --- diplomacy -------------------------------------------------------------
+
+(test relations-default-peace
+  (let ((s (bare-state 6 6)))
+    (is (eq :peace (relation s 1 2)))
+    (is-false (at-war-p s 1 2))
+    (apply-command s (list :declare-war :player 1 :against 2))
+    (is (eq :war (relation s 1 2)))
+    (is-true (at-war-p s 1 2))
+    (is-true (at-war-p s 2 1))               ; symmetric
+    (apply-command s (list :make-peace :player 1 :against 2))
+    (is-false (at-war-p s 1 2))))
+
+(test peace-blocks-attack-war-allows-it
+  (let* ((s (bare-state 6 6 :seed 1))
+         (a (add-unit s :legion 1 2 2))
+         (d (add-unit s :warriors 2 3 2)))
+    ;; at peace: moving into their tile is refused, defender survives
+    (signals command-error (apply-command s (list :move-unit :unit (unit-id a) :dx 1 :dy 0)))
+    (is-true (unit-by-id s (unit-id d)))
+    ;; declare war, now the attack goes through
+    (apply-command s (list :declare-war :player 1 :against 2))
+    (apply-command s (list :move-unit :unit (unit-id a) :dx 1 :dy 0))
+    (is (null (unit-by-id s (unit-id d))))))
+
+(test more-than-two-civilizations
+  (let ((s (make-new-game :seed 3 :players '("A" "B" "C" "D"))))
+    (is (= 4 (length (gs-players s))))
+    (is (eq :peace (relation s 1 4)))
+    ;; each civ starts with its own colour and a couple of units
+    (is (= 8 (hash-table-count (gs-units s))))))   ; 4 civs x (settler+warriors)
 
 ;;; --- save / load -----------------------------------------------------------
 

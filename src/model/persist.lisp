@@ -108,6 +108,8 @@ the entity lists on load."
           :turn (gs-turn state) :year (gs-year state)
           :id-counter (gs-id-counter state) :phase (gs-phase state)
           :warming (gs-warming state)
+          :relations (loop for k being the hash-keys of (gs-relations state)
+                             using (hash-value v) collect (cons k v))
           :random (gs-random state)
           :map (list :width (map-width map) :height (map-height map)
                      :tiles (map 'list #'tile->list (map-tiles map)))
@@ -133,6 +135,8 @@ the entity lists on load."
                  :phase (getf form :phase))))
     (loop for spec in (getf mspec :tiles) for i from 0
           do (restore-tile (svref (map-tiles map) i) spec))
+    (loop for (k . v) in (getf form :relations)
+          do (setf (gethash k (gs-relations state)) v))
     (setf (gs-players state)
           (coerce (mapcar #'list->player (getf form :players)) 'simple-vector))
     (dolist (ul (getf form :units))

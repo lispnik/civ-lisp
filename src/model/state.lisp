@@ -17,6 +17,7 @@
   (id-counter 1 :type fixnum)              ; monotonic id allocator
   (random (make-random-state nil))         ; seeded per game
   (warming 0 :type fixnum)                 ; number of global-warming events so far
+  (relations (make-hash-table :test 'eql)) ; player-pair key -> :war (absent = :peace)
   (phase :start :type keyword))
 
 (defun gs-next-id (state)
@@ -32,6 +33,26 @@
 
 (defun player-by-id (state id)
   (find id (gs-players state) :key #'player-id))
+
+;;; --- diplomacy (relations are symmetric; default is peace) -----------------
+
+(defun rel-key (a b) (if (<= a b) (+ (* a 256) b) (+ (* b 256) a)))
+
+(defun barbarian-id-p (state id)
+  (let ((p (player-by-id state id)))
+    (and p (eq (player-kind p) :barbarian))))
+
+(defun relation (state a b)
+  "Diplomatic relation between players A and B (:war or :peace)."
+  (cond ((= a b) :peace)
+        ((or (barbarian-id-p state a) (barbarian-id-p state b)) :war) ; barbarians: always
+        (t (gethash (rel-key a b) (gs-relations state) :peace))))
+
+(defun (setf relation) (value state a b)
+  (setf (gethash (rel-key a b) (gs-relations state)) value))
+
+(defun at-war-p (state a b)
+  (and (/= a b) (eq (relation state a b) :war)))
 (defun unit-by-id (state id) (gethash id (gs-units state)))
 (defun city-by-id (state id) (gethash id (gs-cities state)))
 
