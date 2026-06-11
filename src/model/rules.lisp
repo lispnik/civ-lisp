@@ -113,14 +113,15 @@ The city centre is worked for free and, per Civ1, always yields at least
   (let* ((tile (tile-at (gs-map state) (unit-x unit) (unit-y unit)))
          (base (unit-def (unit-type unit) :defense 0))
          (terr (/ (terrain-def (tile-terrain tile) :defense 0) 100))
-         (fort (if (eq (unit-orders unit) :fortified) 1/2 0))
+         (dug-in (if (eq (unit-orders unit) :fortified) 1/2 0))
+         (fortress (if (tile-fort tile) 1 0))            ; a field fort +100%
          (cityobj (and (tile-city tile) (city-by-id state (tile-city tile))))
          (city (if cityobj 1/2 0))
          (walls (if (and cityobj (or (member :walls (city-buildings cityobj))
                                      (member :great-wall (city-buildings cityobj))))
                     1 0))                                ; city walls +100%
          (vet (if (unit-veteran unit) 1/2 0)))           ; veteran +50%
-    (max 1 (round (* base (+ 1 terr fort city walls vet))))))
+    (max 1 (round (* base (+ 1 terr dug-in fortress city walls vet))))))
 
 (defun destroy-unit (state unit)
   (let ((tile (tile-at (gs-map state) (unit-x unit) (unit-y unit))))

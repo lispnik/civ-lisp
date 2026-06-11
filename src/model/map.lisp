@@ -13,6 +13,7 @@
   (railroad nil)              ; railroad (upgrades a road)
   (irrigation nil)
   (mine nil)
+  (fort nil)                  ; a field fort (defensive structure)
   (pollution nil)             ; a pollution blight sits on this tile
   ;; occupancy
   (owner nil)                 ; player id or NIL
@@ -60,14 +61,16 @@
     (:road (tile-road tile))
     (:railroad (tile-railroad tile))
     (:irrigation (tile-irrigation tile))
-    (:mine (tile-mine tile))))
+    (:mine (tile-mine tile))
+    (:fort (tile-fort tile))))
 
 (defun (setf tile-improvement) (value tile flag)
   (ecase flag
     (:road (setf (tile-road tile) value))
     (:railroad (setf (tile-railroad tile) value))
     (:irrigation (setf (tile-irrigation tile) value))
-    (:mine (setf (tile-mine tile) value))))
+    (:mine (setf (tile-mine tile) value))
+    (:fort (setf (tile-fort tile) value))))
 
 (defmacro do-tiles ((x y tile map) &body body)
   "Iterate X Y TILE over every tile of MAP."

@@ -221,7 +221,9 @@ CORRUPTION    percent of a city's trade lost; SCIENCE  whether research happens.
      (:irrigate   :flag :irrigation :verb "irrigation" :turns 4
                   :terrains (:grassland :plains :desert :hills))
      (:mine       :flag :mine       :verb "mine"        :turns 4
-                  :terrains (:hills :mountains :desert))))
+                  :terrains (:hills :mountains :desert))
+     (:build-fort :flag :fort       :verb "fort"        :turns 3 :requires :construction
+                  :terrains (:grassland :plains :forest :hills :mountains :desert))))
   "Settler terraform jobs -> the tile flag they set, how many turns they take,
 the terrains that allow them, and any tech (:requires) or prerequisite
 improvement (:needs) they depend on.")

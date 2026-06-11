@@ -56,6 +56,7 @@
 (defparameter +irrigation-sprite+ '(4 . 2))  ; SP257 col 4, row 2 (tile_002_004): irrigation overlay
 (defparameter +mine-sprite+ '(5 . 2))         ; SP257 col 5, row 2 (tile_002_005): mine overlay
 (defparameter +pollution-sprite+ '(6 . 2))    ; SP257 col 6, row 2 (tile_002_006): pollution blight
+(defparameter +fort-sprite+ '(14 . 7))         ; SP257 col 14, row 7 (tile_007_014): field fort
 
 (defun unit-sprite (type)
   (or (cdr (assoc type *unit-sprites*)) +default-unit-sprite+))
@@ -267,6 +268,9 @@ toward each neighbour LINK-FN accepts; an isolated track gets a small stub."
             *tile* *tile* px py))
     (when (civm:tile-special tile)
       (draw-special p terr px py))
+    (when (civm:tile-fort tile)
+      (blit p (painter-sprites p) (* (car +fort-sprite+) *tile*)
+            (* (cdr +fort-sprite+) *tile*) *tile* *tile* px py))
     ;; pollution blight sits on top of everything else on the tile
     (when (civm:tile-pollution tile)
       (blit p (painter-sprites p) (* (car +pollution-sprite+) *tile*)
@@ -578,7 +582,7 @@ celebration banner."
     "Tab  next unit      W  wait"
     "B  found city       F  fortify"
     "R / I / M  road (then rail) / irrigate / mine"
-    "P  clean pollution"
+    "T  build fort      P  clean pollution"
     "G then click  go to a tile"
     "V  revolution     ,/.  luxury -/+"
     "Enter  end turn"

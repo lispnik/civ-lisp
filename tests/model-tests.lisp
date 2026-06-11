@@ -573,6 +573,23 @@
     (dotimes (i 3) (end-turn s))
     (is-true (tile-railroad (tile-at (gs-map s) 2 2)))))
 
+(test fort-requires-tech-and-boosts-defense
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (u (add-unit s :settlers 1 2 2))
+         (p (player-by-id s 1)))
+    ;; needs Construction
+    (signals command-error (apply-command s (list :build-fort :unit (unit-id u))))
+    (setf (gethash :construction (player-techs p)) t)
+    (apply-command s (list :build-fort :unit (unit-id u)))
+    (is (eq :build-fort (unit-work u)))
+    (dotimes (i 3) (end-turn s))
+    (is-true (tile-fort (tile-at (gs-map s) 2 2)))
+    ;; a defender on the fort is twice as strong (+100%)
+    (let ((d (add-unit s :phalanx 1 3 3))
+          (f (add-unit s :phalanx 1 2 2)))           ; 2,2 has the fort
+      (is (= (* 2 (civ-model::defense-strength s d))
+             (civ-model::defense-strength s f))))))
+
 (test railroad-shield-bonus
   (let* ((s (bare-state 6 6 :terrain :hills))
          (tile (tile-at (gs-map s) 3 3)))
