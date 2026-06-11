@@ -41,7 +41,7 @@
   "civ-model unit type -> (col . row) in SP257.")
 (defparameter +default-unit-sprite+ '(1 . 10))
 (defparameter +city-sprite+ '(12 . 7))   ; SP257 col 12, row 7 (tile_007_012)
-(defparameter +city-walls-sprite+ '(12 . 4)) ; SP257 col 12, row 4: city-walls overlay
+(defparameter +city-walls-sprite+ '(13 . 7)) ; SP257 col 13, row 7 (tile_007_013): walls overlay
 
 (defun unit-sprite (type)
   (or (cdr (assoc type *unit-sprites*)) +default-unit-sprite+))
