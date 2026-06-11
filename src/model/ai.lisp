@@ -99,9 +99,27 @@
                 (t '(:unit :warriors)))))
     (ai-cmd state (list :set-production :city (city-id city) :item item))))
 
+(defun ai-try-trade (state player)
+  "Occasionally an AI swaps an advance with a peer it is at peace with, so tech
+spreads among the civilizations."
+  (when (< (gs-rand state 100) 5)
+    (let ((pid (player-id player)))
+      (loop for o across (gs-players state)
+            for oid = (player-id o)
+            when (and (/= oid pid) (eq (player-kind o) :ai)
+                      (eq (relation state pid oid) :peace))
+              do (let ((give (a-tech-other-lacks state player o))
+                       (want (a-tech-other-lacks state o player)))
+                   (when (and give want)
+                     (ai-cmd state (list :propose-trade :player pid :to oid
+                                         :give (list (list :tech give))
+                                         :want (list (list :tech want))))
+                     (return)))))))
+
 (defun ai-take-turn (state player)
   "Issue this AI PLAYER's commands for the current turn."
   (ai-diplomacy state player)
+  (ai-try-trade state player)
   (let ((pid (player-id player)))
     ;; units: settlers settle/seek; everyone else explores
     (dolist (u (player-unit-list state pid))

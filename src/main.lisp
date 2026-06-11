@@ -10,7 +10,7 @@
 ;;;;   R / I / M / T : road (then railroad) / irrigate / mine / fort
 ;;;;   C : clear forest      P : clean pollution
 ;;;;   G  : goto (then click)         Enter : end turn
-;;;;   V  : revolution (pick a government)   , / . : luxury rate down / up
+;;;;   V  : revolution    Y : diplomacy    E : trade    , / . : luxury rate
 ;;;;   ?  : toggle the help overlay
 ;;;;   S / L : save / load game       Esc / close : quit
 
@@ -49,6 +49,7 @@
 
 ;; SDL scancodes for the keys we use
 (defconstant +sc-a+ 4) (defconstant +sc-b+ 5) (defconstant +sc-c+ 6) (defconstant +sc-d+ 7)
+(defconstant +sc-e+ 8)
 (defconstant +sc-f+ 9) (defconstant +sc-g+ 10) (defconstant +sc-i+ 12)
 (defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
 (defconstant +sc-p+ 19) (defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
@@ -202,6 +203,7 @@ fortified units and city garrisons, so a click can wake them."
                   (build-city nil)    ; city id whose build menu is open
                   (gov-menu nil)      ; T while the revolution menu is open
                   (diplo-menu nil)    ; T while the diplomacy menu is open
+                  (trade-menu nil)    ; T while the trade menu is open
                   (help nil))         ; T while the help overlay is shown
               (labels ((torch! () (setf goto-mode nil)
                          (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
@@ -278,6 +280,22 @@ fortified units and city garrisons, so a click can wake them."
                                                      :player me :against oid))))
                                       (setf diplo-menu nil))
                                      ((= sc +sc-escape+) (setf diplo-menu nil))))
+                                  ;; trade menu open: number executes that civ's offer
+                                  (trade-menu
+                                   (cond
+                                     ((and (>= sc +sc-1+) (<= sc (+ +sc-1+ 8)))
+                                      (let* ((me (first (human-player-ids state)))
+                                             (pick (nth (- sc +sc-1+) (trade-menu-lines state)))
+                                             (oid (and pick (second pick)))
+                                             (deal (and pick (third pick))))
+                                        (when (and oid deal)
+                                          (let ((ok (try (list* :propose-trade
+                                                                :player me :to oid deal))))
+                                            (sdl2:set-window-title
+                                             win (if ok "civ-lisp — trade agreed"
+                                                     "civ-lisp — trade rejected")))))
+                                      (setf trade-menu nil))
+                                     ((= sc +sc-escape+) (setf trade-menu nil))))
                                   ;; build menu open: number picks a unit, Esc closes
                                   (build-city
                                    (cond
@@ -337,6 +355,7 @@ fortified units and city garrisons, so a click can wake them."
                                   ((= sc +sc-p+) (terra :clean-pollution))
                                   ((= sc +sc-v+) (setf gov-menu t))    ; revolution menu
                                   ((= sc +sc-y+) (setf diplo-menu t))  ; diplomacy menu
+                                  ((= sc +sc-e+) (setf trade-menu t))  ; trade menu
                                   ((= sc +sc-comma+) (lux! -10))       ; luxury down
                                   ((= sc +sc-period+) (lux! 10))       ; luxury up
                                   ((= sc +sc-slash+) (setf help t))    ; ? : help
@@ -389,6 +408,18 @@ fortified units and city garrisons, so a click can wake them."
                                                       :make-peace :declare-war)
                                                   :player me :against oid))))
                                    (setf diplo-menu nil))
+                                  ;; trade menu open: click a civ to execute its offer
+                                  (trade-menu
+                                   (let* ((me (first (human-player-ids state)))
+                                          (pick (trade-menu-pick painter state
+                                                                 (floor (ev-mouse-y ev) scale))))
+                                     (when pick
+                                       (let ((ok (try (list* :propose-trade :player me
+                                                             :to (second pick) (third pick)))))
+                                         (sdl2:set-window-title
+                                          win (if ok "civ-lisp — trade agreed"
+                                                  "civ-lisp — trade rejected")))))
+                                   (setf trade-menu nil))
                                   ;; build menu open: a click on a line picks it,
                                   ;; anywhere else closes the menu
                                   (build-city
@@ -418,7 +449,7 @@ fortified units and city garrisons, so a click can wake them."
                                            (try (list :wake :unit u))))))))))))
                        (render-game painter state selected
                                     :build-city build-city :gov-menu gov-menu
-                                    :diplo-menu diplo-menu :help help)
+                                    :diplo-menu diplo-menu :trade-menu trade-menu :help help)
                        (sdl2:delay 16))
                   ;; cleanup
                   (sdl2:destroy-texture (painter-sprites painter))

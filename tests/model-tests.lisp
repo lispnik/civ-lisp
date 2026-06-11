@@ -917,6 +917,56 @@ shield special) so the city keeps producing instead of starving."
     (is (plusp (loop for u being the hash-values of (gs-units s)
                      count (= (unit-owner u) barb))))))   ; raiders appeared
 
+(test trade-tech-for-gold
+  (let* ((s (bare-state 6 6))
+         (a (player-by-id s 1))    ; human buyer
+         (b (player-by-id s 2)))   ; AI seller
+    (setf (gethash :writing (player-techs b)) t   ; B knows Writing, A doesn't
+          (player-gold a) 300)
+    ;; A buys Writing from B for 250 gold
+    (apply-command s (list :propose-trade :player 1 :to 2
+                           :give '((:gold 250)) :want '((:tech :writing))))
+    (is-true (player-has-tech-p a :writing))       ; A learned it
+    (is-true (player-has-tech-p b :writing))       ; B still knows it (shared)
+    (is (= 50 (player-gold a)))
+    (is (= 250 (player-gold b)))))
+
+(test trade-rejected-when-lopsided
+  (let* ((s (bare-state 6 6))
+         (a (player-by-id s 1)) (b (player-by-id s 2)))
+    (setf (gethash :writing (player-techs b)) t (player-gold a) 300)
+    ;; offer only 10 gold for a 250-valued advance: the AI refuses
+    (signals command-error
+      (apply-command s (list :propose-trade :player 1 :to 2
+                             :give '((:gold 10)) :want '((:tech :writing)))))
+    (is-false (player-has-tech-p a :writing))
+    (is (= 300 (player-gold a)))))
+
+(test trade-tech-swap
+  (let* ((s (bare-state 6 6))
+         (a (player-by-id s 1)) (b (player-by-id s 2)))
+    (setf (gethash :pottery (player-techs a)) t      ; A has Pottery
+          (gethash :masonry (player-techs b)) t)      ; B has Masonry
+    (apply-command s (list :propose-trade :player 1 :to 2
+                           :give '((:tech :pottery)) :want '((:tech :masonry))))
+    (is-true (player-has-tech-p a :masonry))
+    (is-true (player-has-tech-p b :pottery))))
+
+(test trade-validation
+  (let* ((s (bare-state 6 6))
+         (a (player-by-id s 1)) (b (player-by-id s 2)))
+    (setf (gethash :writing (player-techs a)) t
+          (gethash :writing (player-techs b)) t)      ; both already have it
+    ;; can't sell a tech the buyer already owns
+    (signals command-error
+      (apply-command s (list :propose-trade :player 1 :to 2
+                             :give '((:tech :writing)) :want '((:gold 0)))))
+    ;; can't give gold you don't have
+    (is (= 0 (player-gold a)))
+    (signals command-error
+      (apply-command s (list :propose-trade :player 1 :to 2
+                             :give '((:gold 999)) :want nil)))))
+
 ;;; --- save / load -----------------------------------------------------------
 
 (test save-load-roundtrip

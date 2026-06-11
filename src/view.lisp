@@ -585,7 +585,7 @@ celebration banner."
     "R / I / M  road (then rail) / irrigate / mine"
     "T  fort   C  clear forest   P  clean pollution"
     "G then click  go to a tile"
-    "V  revolution     Y  diplomacy"
+    "V  revolution   Y  diplomacy   E  trade"
     ",/.  luxury -/+"
     "Enter  end turn"
     "S / L  save / load game"
@@ -668,8 +668,52 @@ celebration banner."
                (destructuring-bind (r g b) (owner-color state oid)
                  (line label i r g b))))))
 
+;;; --- trade menu ------------------------------------------------------------
+
+(defun trade-menu-lines (state)
+  "(index other-id deal label) for each rival the human can offer a trade."
+  (let ((me (civm:player-id (human-player state))))
+    (loop for p across (civm:gs-players state)
+          for oid = (civm:player-id p)
+          when (and (/= oid me) (not (civm:barbarian-id-p state oid)))
+            collect (let ((best (civm:best-trade-with state me oid)))
+                      (list oid (and best (cdr best))
+                            (format nil "~A: ~A" (civm:player-name p)
+                                    (if best (car best) "no deal"))))
+              into rows
+          finally (return (loop for r in rows for i from 1
+                                collect (list* i r))))))
+
+(defun trade-menu-pick (painter state ly)
+  (let ((row (floor (- ly (+ *menu-y* 2)) (1+ (gfont-height (painter-font painter)))))
+        (lines (trade-menu-lines state)))
+    (when (and (>= row 1) (<= row (length lines)))
+      (let ((entry (nth (1- row) lines)))   ; (i oid deal label)
+        (and (third entry) entry)))))
+
+(defun draw-trade-menu (painter state)
+  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+         (h (gfont-height font))
+         (lines (trade-menu-lines state))
+         (title "Trade (gold & tech):")
+         (texts (cons title (mapcar #'fourth lines)))
+         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
+         (ph (+ 4 (* (length texts) (1+ h)))))
+    (sdl2:set-render-draw-color ren 0 0 0 230)
+    (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (sdl2:set-render-draw-color ren 220 220 220 255)
+    (sdl2:render-draw-rect ren (painter-dst painter))
+    (flet ((line (text row r g b)
+             (draw-text painter font text (+ *menu-x* 2)
+                        (+ *menu-y* 2 (* row (1+ h))) r g b)))
+      (line title 0 255 230 120)
+      (loop for (i oid deal label) in lines
+            do (progn oid)
+               (line label i (if deal 230 130) (if deal 230 130) (if deal 150 130))))))
+
 (defun render-game (painter state selected-id &key (fog t) build-city gov-menu
-                                                   diplo-menu help)
+                                                   diplo-menu trade-menu help)
   "Draw STATE from the human player's perspective.  With FOG, unexplored tiles
 are black, explored-but-unseen tiles are dimmed, and units/cities are shown
 only on currently-visible tiles."
@@ -718,6 +762,8 @@ only on currently-visible tiles."
              (draw-gov-menu painter state))
             ((and diplo-menu (painter-font painter))
              (draw-diplo-menu painter state))
+            ((and trade-menu (painter-font painter))
+             (draw-trade-menu painter state))
             ((and build-city (painter-font painter))
              (let ((c (civm:city-by-id state build-city)))
                (when c (draw-build-menu painter state c)))))

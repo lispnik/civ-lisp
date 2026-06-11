@@ -35,6 +35,7 @@ on an illegal move."
     (:set-government (cmd-set-government state command))
     (:declare-war    (cmd-declare-war state command))
     (:make-peace     (cmd-make-peace state command))
+    (:propose-trade  (cmd-propose-trade state command))
     (:end-turn       (end-turn state)))
   state)
 
@@ -195,6 +196,90 @@ position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
     (unless (and (player-by-id state a) (player-by-id state b)) (fail "no such player"))
     (when (barbarian-id-p state b) (fail "barbarians never make peace"))
     (setf (relation state a b) :peace)
+    state))
+
+;;; --- trade (gold + tech) ---------------------------------------------------
+
+(defparameter *tech-trade-value* 250
+  "Gold-equivalent value of an advance when valuing a trade offer.")
+
+(defun item-value (item)
+  "Gold-equivalent worth of a trade item: (:gold N) or (:tech KEY)."
+  (ecase (first item)
+    (:gold (second item))
+    (:tech *tech-trade-value*)))
+
+(defun bundle-value (items)
+  (reduce #'+ items :key #'item-value :initial-value 0))
+
+(defun validate-bundle (state giver receiver items)
+  "Signal a COMMAND-ERROR unless GIVER can hand each of ITEMS to RECEIVER."
+  (declare (ignore state))
+  (dolist (it items)
+    (ecase (first it)
+      (:gold (when (> (second it) (player-gold giver))
+               (fail "~A can't afford ~D gold" (player-name giver) (second it))))
+      (:tech (let ((k (second it)))
+               (unless (player-has-tech-p giver k)
+                 (fail "~A doesn't have ~(~A~)" (player-name giver) k))
+               (when (player-has-tech-p receiver k)
+                 (fail "~A already has ~(~A~)" (player-name receiver) k)))))))
+
+(defun transfer-bundle (giver receiver items)
+  "Move/share each of ITEMS from GIVER to RECEIVER (tech is shared, not lost)."
+  (dolist (it items)
+    (ecase (first it)
+      (:gold (decf (player-gold giver) (second it))
+             (incf (player-gold receiver) (second it)))
+      (:tech (setf (gethash (second it) (player-techs receiver)) t)))))
+
+(defun a-tech-other-lacks (state haver lacker)
+  "An advance HAVER knows that LACKER does not (the lowest by name, for
+determinism), or NIL."
+  (declare (ignore state))
+  (first (sort (loop for k being the hash-keys of (player-techs haver)
+                     unless (player-has-tech-p lacker k) collect k)
+               #'string< :key #'symbol-name)))
+
+(defun best-trade-with (state me oid)
+  "A (label . deal) the human ME can profitably offer civ OID, or NIL.  DEAL is
+a (:give items :want items) plist.  Prefers a tech swap, then buying a tech for
+gold, then selling one."
+  (let* ((mine (player-by-id state me)) (them (player-by-id state oid))
+         (i-want (a-tech-other-lacks state them mine))    ; tech they have, I lack
+         (they-want (a-tech-other-lacks state mine them)));tech I have, they lack
+    (cond
+      ((and i-want they-want)
+       (cons (format nil "swap ~(~A~) for ~(~A~)" they-want i-want)
+             (list :give (list (list :tech they-want)) :want (list (list :tech i-want)))))
+      ((and i-want (>= (player-gold mine) *tech-trade-value*))
+       (cons (format nil "buy ~(~A~) (~Dg)" i-want *tech-trade-value*)
+             (list :give (list (list :gold *tech-trade-value*)) :want (list (list :tech i-want)))))
+      ((and they-want (>= (player-gold them) *tech-trade-value*))
+       (cons (format nil "sell ~(~A~) (~Dg)" they-want *tech-trade-value*)
+             (list :give (list (list :tech they-want)) :want (list (list :gold *tech-trade-value*)))))
+      (t nil))))
+
+(defun cmd-propose-trade (state command)
+  "Player :PLAYER offers :TO a deal: it hands over :GIVE and asks for :WANT (each
+a list of (:gold N)/(:tech KEY)).  An AI recipient accepts only if what it gains
+is worth at least what it gives up; on acceptance the exchange executes."
+  (let* ((args (rest command))
+         (a (player-by-id state (getf args :player 1)))
+         (b (player-by-id state (getf args :to)))
+         (give (getf args :give)) (want (getf args :want)))
+    (unless (and a b) (fail "no such player"))
+    (when (eq a b) (fail "can't trade with yourself"))
+    (when (or (eq (player-kind a) :barbarian) (eq (player-kind b) :barbarian))
+      (fail "barbarians don't trade"))
+    (validate-bundle state a b give)        ; A delivers GIVE to B
+    (validate-bundle state b a want)        ; B delivers WANT to A
+    ;; the AI recipient weighs what it receives (GIVE) against what it parts with (WANT)
+    (when (and (eq (player-kind b) :ai)
+               (< (bundle-value give) (bundle-value want)))
+      (fail "~A rejected the offer" (player-name b)))
+    (transfer-bundle a b give)
+    (transfer-bundle b a want)
     state))
 
 (defun cmd-set-rates (state command)

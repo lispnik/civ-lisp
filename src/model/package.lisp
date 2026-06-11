@@ -32,6 +32,7 @@
    #:gs-random #:gs-rand #:gs-phase #:gs-warming #:player-has-tech-p
    ;; diplomacy
    #:gs-relations #:relation #:at-war-p #:barbarian-id-p
+   #:best-trade-with #:*tech-trade-value*
    ;; fog of war
    #:player-seen #:update-visibility #:visible-set #:seen-p
    ;; rules
