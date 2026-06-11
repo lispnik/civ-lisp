@@ -41,6 +41,7 @@
   "civ-model unit type -> (col . row) in SP257.")
 (defparameter +default-unit-sprite+ '(1 . 10))
 (defparameter +city-sprite+ '(12 . 7))   ; SP257 col 12, row 7 (tile_007_012)
+(defparameter +city-walls-sprite+ '(12 . 4)) ; SP257 col 12, row 4: city-walls overlay
 
 (defun unit-sprite (type)
   (or (cdr (assoc type *unit-sprites*)) +default-unit-sprite+))
@@ -235,8 +236,8 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
       (set-rect (painter-dst painter) px py *tile* *tile*)
       (sdl2:render-fill-rect ren (painter-dst painter)))
     (draw-sprite painter (car +city-sprite+) (cdr +city-sprite+) px py)
-    (when (member :walls (civm:city-buildings city))
-      (draw-frame painter cx cy '(180 178 160) 1))          ; stone walls
+    (when (member :walls (civm:city-buildings city))         ; city-walls overlay
+      (draw-sprite painter (car +city-walls-sprite+) (cdr +city-walls-sprite+) px py))
     ;; a black border marks a city garrisoned by a military unit
     (when (civm:city-defended-p state city)
       (draw-border painter cx cy '(0 0 0)))
