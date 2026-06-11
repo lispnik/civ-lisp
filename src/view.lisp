@@ -425,9 +425,13 @@ only on currently-visible tiles."
                               (not (civm:tile-city (civm:tile-at map ux uy))))
                      (draw-unit painter state u))))
                (civm:gs-units state))
-      ;; the selected unit blinks on top of everything on its square
-      (let ((sel (and selected-id (civm:unit-by-id state selected-id))))
-        (when (and sel (visible (civm:unit-x sel) (civm:unit-y sel)) (blink-on-p))
+      ;; the selected unit blinks on top of everything on its square -- but a
+      ;; unit auto-travelling under a goto order is drawn solid (no blink), so
+      ;; you can watch it move across turns without it flickering out
+      (let* ((sel (and selected-id (civm:unit-by-id state selected-id)))
+             (traveling (and sel (eq (civm:unit-orders sel) :goto))))
+        (when (and sel (visible (civm:unit-x sel) (civm:unit-y sel))
+                   (or traveling (blink-on-p)))
           (draw-unit painter state sel)
           (draw-border painter (civm:unit-x sel) (civm:unit-y sel) '(255 240 60)))
         ;; stats panel for the selected unit (hidden while the build menu is up)
