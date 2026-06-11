@@ -558,6 +558,33 @@
     (is-false (unit-work u))                ; moving abandons the job
     (is-false (tile-road (tile-at (gs-map s) 2 2)))))
 
+(test railroad-requires-tech-and-road
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (u (add-unit s :settlers 1 2 2))
+         (p (player-by-id s 1)))
+    ;; no Railroad advance yet
+    (signals command-error (apply-command s (list :build-railroad :unit (unit-id u))))
+    (setf (gethash :rail-road (player-techs p)) t)
+    ;; tech but no underlying road
+    (signals command-error (apply-command s (list :build-railroad :unit (unit-id u))))
+    (setf (tile-road (tile-at (gs-map s) 2 2)) t)
+    (apply-command s (list :build-railroad :unit (unit-id u)))
+    (is (eq :build-railroad (unit-work u)))
+    (dotimes (i 3) (end-turn s))
+    (is-true (tile-railroad (tile-at (gs-map s) 2 2)))))
+
+(test railroad-shield-bonus
+  (let* ((s (bare-state 6 6 :terrain :hills))
+         (tile (tile-at (gs-map s) 3 3)))
+    (setf (tile-mine tile) t)                       ; hills + mine = 1 shield
+    (is (= 1 (nth-value 1 (tile-yield tile))))
+    (setf (tile-railroad tile) t)                   ; railroad: +1 shield
+    (is (= 2 (nth-value 1 (tile-yield tile))))
+    ;; no free shields where there were none
+    (let ((g (tile-at (gs-map s) 4 4)))
+      (setf (tile-railroad g) t)                    ; grassland: 0 shields
+      (is (= 0 (nth-value 1 (tile-yield g)))))))
+
 ;;; --- economy / upkeep ------------------------------------------------------
 
 (test improvement-upkeep

@@ -215,12 +215,16 @@ CORRUPTION    percent of a city's trade lost; SCIENCE  whether research happens.
   (%table
    '((:build-road :flag :road       :verb "road"       :turns 2
                   :terrains (:grassland :plains :forest :hills :mountains :desert))
+     (:build-railroad :flag :railroad :verb "railroad" :turns 3
+                  :requires :rail-road :needs :road
+                  :terrains (:grassland :plains :forest :hills :mountains :desert))
      (:irrigate   :flag :irrigation :verb "irrigation" :turns 4
                   :terrains (:grassland :plains :desert :hills))
      (:mine       :flag :mine       :verb "mine"        :turns 4
                   :terrains (:hills :mountains :desert))))
   "Settler terraform jobs -> the tile flag they set, how many turns they take,
-and which terrains allow them.")
+the terrains that allow them, and any tech (:requires) or prerequisite
+improvement (:needs) they depend on.")
 
 (declaim (inline def-get))
 (defun def-get (table key prop &optional default)

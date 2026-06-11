@@ -21,6 +21,7 @@ or the republic/democracy +1 trade on any tile already producing trade."
       (when (tile-mine tile) (incf s))
       (when (tile-road tile) (incf tr))
       (when (tile-river tile) (incf tr))             ; rivers add trade
+      (when (and (tile-railroad tile) (plusp s)) (incf s)) ; railroad: +1 shield
       (when (tile-special tile)
         (let ((bonus (cdr (assoc tt *special-bonus*))))
           (when bonus

@@ -10,6 +10,7 @@
   (special nil)               ; tile has its terrain's special resource
   ;; improvements
   (road nil)
+  (railroad nil)              ; railroad (upgrades a road)
   (irrigation nil)
   (mine nil)
   (pollution nil)             ; a pollution blight sits on this tile
@@ -54,15 +55,17 @@
         when tile collect (list nx ny tile)))
 
 (defun tile-improvement (tile flag)
-  "Read a terraform improvement FLAG (:road/:irrigation/:mine) on TILE."
+  "Read a terraform improvement FLAG (:road/:railroad/:irrigation/:mine) on TILE."
   (ecase flag
     (:road (tile-road tile))
+    (:railroad (tile-railroad tile))
     (:irrigation (tile-irrigation tile))
     (:mine (tile-mine tile))))
 
 (defun (setf tile-improvement) (value tile flag)
   (ecase flag
     (:road (setf (tile-road tile) value))
+    (:railroad (setf (tile-railroad tile) value))
     (:irrigation (setf (tile-irrigation tile) value))
     (:mine (setf (tile-mine tile) value))))
 

@@ -190,33 +190,48 @@ backgrounds, unlike the grassland shield sub-tile CivOne colour-keys."
   (blit p (painter-sprites p) (* (terrain-row terr) *tile*) +special-row+
         *tile* *tile* px py))
 
-;;; roads are drawn additively: SP257 row 3 holds eight directional segments
-;;; (one per neighbour), clockwise from north, OR'd together per connection.
+;;; roads/railroads are drawn additively: a directional segment toward each
+;;; connected neighbour, OR'd together.  SP257 row 3 cols 0-7 hold the road
+;;; segments (clockwise from north); row 6 cols 8-15 hold the railroad ones.
 (defparameter +road-row+ 3)
-(defparameter +road-dirs+
+(defparameter +railroad-row+ 6)
+(defparameter +track-dirs+
   '((0 -1 . 0) (1 -1 . 1) (1 0 . 2) (1 1 . 3)
     (0 1 . 4) (-1 1 . 5) (-1 0 . 6) (-1 -1 . 7))
-  "(dx dy . column) for each road segment in SP257 row 3.")
+  "(dx dy . k) per direction, clockwise from north; the segment for direction k
+is at sprite column (base + k).")
 
 (defun road-link-p (map x y)
-  "T if tile (X,Y) carries a road or a city (roads connect into cities)."
+  "T if tile (X,Y) carries a road/railroad or a city (roads connect into cities)."
   (let ((tl (civm:tile-at map x y)))
-    (and tl (or (civm:tile-road tl) (civm:tile-city tl)))))
+    (and tl (or (civm:tile-road tl) (civm:tile-railroad tl) (civm:tile-city tl)))))
 
-(defun draw-road (p map x y px py)
-  "Composite a road from the directional segments toward each connected
-neighbour; an isolated road gets a small central stub."
+(defun rail-link-p (map x y)
+  "T if tile (X,Y) carries a railroad or a city."
+  (let ((tl (civm:tile-at map x y)))
+    (and tl (or (civm:tile-railroad tl) (civm:tile-city tl)))))
+
+(defun draw-track (p map x y px py row base link-fn stub-rgb)
+  "Composite a road/rail from the directional segments (row ROW, columns BASE+k)
+toward each neighbour LINK-FN accepts; an isolated track gets a small stub."
   (let ((linked nil))
-    (dolist (d +road-dirs+)
-      (destructuring-bind (dx dy . col) d
-        (when (road-link-p map (+ x dx) (+ y dy))
+    (dolist (d +track-dirs+)
+      (destructuring-bind (dx dy . k) d
+        (when (funcall link-fn map (+ x dx) (+ y dy))
           (setf linked t)
-          (blit p (painter-sprites p) (* col *tile*) (* +road-row+ *tile*)
+          (blit p (painter-sprites p) (* (+ base k) *tile*) (* row *tile*)
                 *tile* *tile* px py))))
     (unless linked
-      (sdl2:set-render-draw-color (painter-ren p) 150 110 70 255)
+      (destructuring-bind (r g b) stub-rgb
+        (sdl2:set-render-draw-color (painter-ren p) r g b 255))
       (set-rect (painter-dst p) (+ px 6) (+ py 6) 4 4)
       (sdl2:render-fill-rect (painter-ren p) (painter-dst p)))))
+
+(defun draw-road (p map x y px py)
+  (draw-track p map x y px py +road-row+ 0 #'road-link-p '(150 110 70)))
+
+(defun draw-railroad (p map x y px py)
+  (draw-track p map x y px py +railroad-row+ 8 #'rail-link-p '(120 120 130)))
 
 (defun draw-terrain-tile (p state x y)
   (let* ((map (civm:gs-map state))
@@ -243,8 +258,9 @@ neighbour; an isolated road gets a small central stub."
     (when (civm:tile-mine tile)
       (blit p (painter-sprites p) (* (car +mine-sprite+) *tile*)
             (* (cdr +mine-sprite+) *tile*) *tile* *tile* px py))
-    (when (civm:tile-road tile)
-      (draw-road p map x y px py))
+    ;; a railroad supersedes the plain road graphic on its tile
+    (cond ((civm:tile-railroad tile) (draw-railroad p map x y px py))
+          ((civm:tile-road tile)     (draw-road p map x y px py)))
     ;; rivers (SP257 connection variants) then the special-resource icon
     (when (civm:tile-river tile)
       (blit p (painter-sprites p) (* (river-mask map x y) *tile*) +river-row+
@@ -561,7 +577,7 @@ celebration banner."
     "Arrows / Numpad  move (numpad = 8-way)"
     "Tab  next unit      W  wait"
     "B  found city       F  fortify"
-    "R / I / M  road / irrigate / mine"
+    "R / I / M  road (then rail) / irrigate / mine"
     "P  clean pollution"
     "G then click  go to a tile"
     "V  revolution     ,/.  luxury -/+"

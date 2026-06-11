@@ -7,7 +7,7 @@
 ;;;;
 ;;;;   arrows / numpad : move selected unit (numpad moves diagonally too)
 ;;;;   B  : found city (settlers)     F : fortify
-;;;;   R / I / M : build road / irrigate / mine (settlers)   P : clean pollution
+;;;;   R / I / M : build road (then railroad) / irrigate / mine   P : clean pollution
 ;;;;   G  : goto (then click)         Enter : end turn
 ;;;;   V  : revolution (pick a government)   , / . : luxury rate down / up
 ;;;;   ?  : toggle the help overlay
@@ -296,7 +296,19 @@ fortified units and city garrisons, so a click can wake them."
                                      (setf selected (first-human-unit state))))
                                   ((= sc +sc-f+)
                                    (when selected (try (list :fortify :unit selected))))
-                                  ((= sc +sc-r+) (terra :build-road))
+                                  ((= sc +sc-r+)
+                                   ;; R builds a road, or upgrades an existing
+                                   ;; road to a railroad once Railroad is known
+                                   (let* ((u (and selected (civm:unit-by-id state selected)))
+                                          (tl (and u (civm:tile-at (civm:gs-map state)
+                                                                   (civm:unit-x u) (civm:unit-y u))))
+                                          (p (civm:player-by-id
+                                              state (first (human-player-ids state)))))
+                                     (if (and tl (civm:tile-road tl)
+                                              (not (civm:tile-railroad tl))
+                                              (civm:player-has-tech-p p :rail-road))
+                                         (terra :build-railroad)
+                                         (terra :build-road))))
                                   ((= sc +sc-i+) (terra :irrigate))
                                   ((= sc +sc-m+) (terra :mine))
                                   ((= sc +sc-p+) (terra :clean-pollution))

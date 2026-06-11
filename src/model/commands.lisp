@@ -28,7 +28,7 @@ on an illegal move."
     (:fortify        (cmd-fortify state command))
     (:wake           (cmd-wake state command))
     (:goto           (cmd-goto state command))
-    ((:build-road :irrigate :mine) (cmd-terraform state command))
+    ((:build-road :build-railroad :irrigate :mine) (cmd-terraform state command))
     (:clean-pollution (cmd-clean-pollution state command))
     (:set-rates      (cmd-set-rates state command))
     (:set-government (cmd-set-government state command))
@@ -84,6 +84,12 @@ position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
       (fail "can't build ~A on ~(~A~)" (terraform-def job :verb) terr))
     (when (tile-improvement tile flag)
       (fail "~A already here" (terraform-def job :verb)))
+    (let ((req (terraform-def job :requires)))      ; tech gate (e.g. railroad)
+      (when (and req (not (player-has-tech-p (player-by-id state (unit-owner u)) req)))
+        (fail "~A requires the ~(~A~) advance" (terraform-def job :verb) req)))
+    (let ((needs (terraform-def job :needs)))        ; prerequisite improvement
+      (when (and needs (not (tile-improvement tile needs)))
+        (fail "~A needs a ~(~A~) first" (terraform-def job :verb) needs)))
     (when (<= (unit-moves-left u) 0) (fail "unit has no moves left"))
     (setf (unit-work u) job
           (unit-work-left u) (terraform-def job :turns)
