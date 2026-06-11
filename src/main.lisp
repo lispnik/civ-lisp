@@ -11,7 +11,7 @@
 ;;;;   C : clear forest      P : clean pollution
 ;;;;   G  : goto (then click)         Enter : end turn
 ;;;;   V  : revolution    Y : diplomacy    E : trade    , / . : luxury rate
-;;;;   ?  : toggle the help overlay
+;;;;   ?  : help overlay        ~ : Lisp console (evals a form; Esc closes)
 ;;;;   S / L : save / load game       Esc / close : quit
 
 (in-package #:civ-lisp)
@@ -43,8 +43,17 @@
 (defun ev-mouse-x (ev)  (cffi:mem-ref (autowrap:ptr ev) :int32 20))  ; button.x
 (defun ev-mouse-y (ev)  (cffi:mem-ref (autowrap:ptr ev) :int32 24))  ; button.y
 
+(defun ev-text (ev)
+  "The UTF-8 text of an SDL_TEXTINPUT event (text char[32] at byte offset 12)."
+  (let ((ptr (autowrap:ptr ev)))
+    (with-output-to-string (s)
+      (loop for i from 12 below 44
+            for b = (cffi:mem-ref ptr :uint8 i)
+            until (zerop b) do (write-char (code-char b) s)))))
+
 (defconstant +ev-quit+ #x100)
 (defconstant +ev-keydown+ #x300)
+(defconstant +ev-textinput+ #x303)
 (defconstant +ev-mousebuttondown+ #x401)
 
 ;; SDL scancodes for the keys we use
@@ -61,6 +70,7 @@
 (defconstant +sc-slash+ 56)             ; '/' (Shift+/ = '?'): toggle help
 (defconstant +sc-right+ 79) (defconstant +sc-left+ 80)
 (defconstant +sc-down+ 81) (defconstant +sc-up+ 82)
+(defconstant +sc-backspace+ 42) (defconstant +sc-grave+ 53)  ; backspace, `~` console
 (defconstant +sc-kp-enter+ 88)          ; numpad Enter
 ;; numpad 1-9 (8-way movement); SDL scancodes 89..97
 (defconstant +sc-kp-1+ 89) (defconstant +sc-kp-2+ 90) (defconstant +sc-kp-3+ 91)
@@ -166,6 +176,34 @@ fortified units and city garrisons, so a click can wake them."
 (defun year-string (year)
   (if (minusp year) (format nil "~D BC" (- year)) (format nil "AD ~D" year)))
 
+;;; --- `~` Lisp console ------------------------------------------------------
+
+(defvar *state* nil
+  "The live game state, bound while the `~` console evaluates a form so you can
+poke at the running game (e.g. (civm:gs-turn *state*)).")
+
+(defun split-lines (s)
+  (loop with start = 0
+        for i = (position #\Newline s :start start)
+        collect (subseq s start (or i (length s)))
+        while i do (setf start (1+ i))))
+
+(defun console-eval (input state)
+  "Read and evaluate INPUT (a Lisp form) with *STATE* bound to the game; return a
+list of display lines: the echoed input, any printed output, then the value(s),
+or an error message."
+  (let ((*state* state) (*package* (find-package :civ-lisp)))
+    (handler-case
+        (let* ((out (make-string-output-stream))
+               (form (read-from-string input))
+               (vals (multiple-value-list
+                      (let ((*standard-output* out)) (eval form))))
+               (printed (get-output-stream-string out)))
+          (append (list (format nil "> ~A" input))
+                  (when (plusp (length printed)) (split-lines printed))
+                  (or (mapcar #'prin1-to-string vals) (list "; no values"))))
+      (error (e) (list (format nil "> ~A" input) (format nil "ERROR: ~A" e))))))
+
 ;;; --- main loop -------------------------------------------------------------
 
 (defparameter *civilizations* '("You" "Rome" "Egypt" "Zulu")
@@ -204,7 +242,10 @@ fortified units and city garrisons, so a click can wake them."
                   (gov-menu nil)      ; T while the revolution menu is open
                   (diplo-menu nil)    ; T while the diplomacy menu is open
                   (trade-menu nil)    ; T while the trade menu is open
-                  (help nil))         ; T while the help overlay is shown
+                  (help nil)          ; T while the help overlay is shown
+                  (console nil)       ; T while the `~` Lisp console is open
+                  (con-input "")      ; the form being typed into the console
+                  (con-output nil))   ; lines from the last console evaluation
               (labels ((torch! () (setf goto-mode nil)
                          (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
                        (retitle ()
@@ -251,9 +292,32 @@ fortified units and city garrisons, so a click can wake them."
                          (let ((type (ev-type ev)))
                            (cond
                              ((= type +ev-quit+) (setf running nil))
+                             ;; typed text goes into the console input line
+                             ((= type +ev-textinput+)
+                              (when console
+                                (setf con-input
+                                      (concatenate 'string con-input (ev-text ev)))))
                              ((= type +ev-keydown+)
                               (let ((sc (ev-scancode ev)))
                                 (cond
+                                  ;; Lisp console open: capture editing keys
+                                  (console
+                                   (cond
+                                     ((= sc +sc-escape+)
+                                      (setf console nil)
+                                      (sdl2-ffi.functions:sdl-stop-text-input))
+                                     ((or (= sc +sc-return+) (= sc +sc-kp-enter+))
+                                      (setf con-output (console-eval con-input state)
+                                            con-input ""))
+                                     ((= sc +sc-backspace+)
+                                      (when (plusp (length con-input))
+                                        (setf con-input
+                                              (subseq con-input 0 (1- (length con-input))))))))
+                                  ;; `~` opens the console
+                                  ((= sc +sc-grave+)
+                                   (setf console t con-input ""
+                                         con-output '("Lisp console -- *state* is the game; Enter evals, Esc closes"))
+                                   (sdl2-ffi.functions:sdl-start-text-input))
                                   ;; help overlay up: any key dismisses it
                                   (help (setf help nil))
                                   ;; government menu open: number picks a government
@@ -449,7 +513,8 @@ fortified units and city garrisons, so a click can wake them."
                                            (try (list :wake :unit u))))))))))))
                        (render-game painter state selected
                                     :build-city build-city :gov-menu gov-menu
-                                    :diplo-menu diplo-menu :trade-menu trade-menu :help help)
+                                    :diplo-menu diplo-menu :trade-menu trade-menu :help help
+                                    :console (and console (cons con-input con-output)))
                        (sdl2:delay 16))
                   ;; cleanup
                   (sdl2:destroy-texture (painter-sprites painter))

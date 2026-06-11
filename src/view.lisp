@@ -590,7 +590,8 @@ celebration banner."
     "Enter  end turn"
     "S / L  save / load game"
     "Left-click  select unit or city"
-    "?  toggle this help     Esc  close / quit")
+    "~  Lisp console     ?  this help"
+    "Esc  close menu / quit")
   "Lines shown in the help overlay (first line is the title).")
 
 (defun draw-help (painter state)
@@ -611,6 +612,27 @@ celebration banner."
           do (draw-text painter font line (+ px 4) (+ py 4 (* i (1+ h)))
                         (if (zerop i) 255 220) (if (zerop i) 230 220)
                         (if (zerop i) 120 220)))))
+
+(defun draw-console (painter state input output)
+  "The `~` Lisp console: OUTPUT lines from the last eval, then the input line."
+  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+         (h (gfont-height font))
+         (clip (lambda (s) (if (> (length s) 52) (subseq s 0 52) s)))
+         (lines (append (mapcar clip output) (list (funcall clip (format nil "> ~A_" input)))))
+         (pw (* (civm:map-width (civm:gs-map state)) *tile*))
+         (ph (+ 4 (* (length lines) (1+ h)))))
+    (sdl2:set-render-draw-color ren 0 0 0 240)
+    (set-rect (painter-dst painter) 0 0 pw ph)
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (sdl2:set-render-draw-color ren 120 200 120 255)
+    (sdl2:render-draw-rect ren (painter-dst painter))
+    (loop for s in lines for i from 0
+          for prompt = (= i (1- (length lines)))
+          for err = (and (>= (length s) 5) (string= "ERROR" (subseq s 0 5)))
+          do (draw-text painter font s 2 (+ 2 (* i (1+ h)))
+                        (cond (err 255) (prompt 255) (t 180))
+                        (cond (err 120) (prompt 255) (t 230))
+                        (cond (err 120) (prompt 120) (t 180))))))
 
 (defun gov-hud-text (state)
   "Government + rate readout for the HUD, noting a pending revolution."
@@ -713,7 +735,7 @@ celebration banner."
                (line label i (if deal 230 130) (if deal 230 130) (if deal 150 130))))))
 
 (defun render-game (painter state selected-id &key (fog t) build-city gov-menu
-                                                   diplo-menu trade-menu help)
+                                                   diplo-menu trade-menu help console)
   "Draw STATE from the human player's perspective.  With FOG, unexplored tiles
 are black, explored-but-unseen tiles are dimmed, and units/cities are shown
 only on currently-visible tiles."
@@ -784,4 +806,7 @@ only on currently-visible tiles."
       ;; help overlay, drawn last so it sits on top of everything
       (when (and help (painter-font painter))
         (draw-help painter state))
+      ;; the `~` console sits on top of even the help overlay
+      (when (and console (painter-font painter))
+        (draw-console painter state (car console) (cdr console)))
       (sdl2:render-present ren))))
