@@ -404,14 +404,27 @@ plus a row of every unit sharing the square (the selected one outlined cyan)."
                         (name (string-capitalize (symbol-name key))))
                     (if (string= eff "") name (format nil "~A - ~A" name eff)))))
 
+(defun city-mood-lines (state city)
+  "Trailing status lines for the build menu: citizen mood and a disorder /
+celebration banner."
+  (multiple-value-bind (happy content unhappy)
+      (civm:city-happiness state city (nth-value 2 (civm:city-yields state city)))
+    (list* (format nil "Mood: ~D happy ~D content ~D unhappy" happy content unhappy)
+           (cond ((civm:city-disorder-p state city)   (list "** CIVIL DISORDER **"))
+                 ((civm:city-celebrating-p state city) (list "** CELEBRATING **"))
+                 (t nil)))))
+
 (defun draw-build-menu (painter state city)
   (let* ((font (painter-font painter)) (ren (painter-ren painter))
          (h (gfont-height font))
          (lines (build-menu-lines state city))
          (built (built-lines city))
+         (mood (city-mood-lines state city))
          (title (format nil "Build (~A):" (civm:city-name city)))
+         ;; layout rows (kept stable so mouse-picking maps to buildable items):
+         ;; title | buildable... | [Built: ...] | mood...
          (texts (append (list title) (mapcar #'third lines)
-                        (when built (cons "Built:" built))))
+                        (when built (cons "Built:" built)) mood))
          (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
          (ph (+ 4 (* (length texts) (1+ h)))))
     (sdl2:set-render-draw-color ren 0 0 0 230)
@@ -426,13 +439,79 @@ plus a row of every unit sharing the square (the selected one outlined cyan)."
       (loop for (i item label) in lines                        ; buildable
             do (let ((cur (equal (civm:city-production city) item)))
                  (line label i (if cur 120 255) 255 (if cur 120 255))))
-      (when built                                              ; already built
-        (let ((base (1+ (length lines))))
-          (line "Built:" base 180 180 180)
-          (loop for s in built for k from 1
-                do (line s (+ base k) 150 200 150)))))))
+      (let ((row 1))                                           ; below the buildables
+        (incf row (length lines))
+        (when built                                            ; already built
+          (line "Built:" row 180 180 180) (incf row)
+          (loop for s in built do (line s row 150 200 150) (incf row)))
+        (loop for s in mood for k from 0                       ; mood / banner
+              do (line s row
+                       (if (zerop k) 200 255)
+                       (if (zerop k) 200 120)
+                       (if (zerop k) 120 120))
+                 (incf row))))))
 
-(defun render-game (painter state selected-id &key (fog t) build-city)
+;;; --- government menu (revolution) ------------------------------------------
+
+(defparameter *gov-order* '(:despotism :monarchy :communism :republic :democracy))
+
+(defun gov-menu-lines (state)
+  "(index gov label available-p) for each selectable government."
+  (let ((p (human-player state)))
+    (loop for g in *gov-order* for i from 1
+          for ok = (civm:player-has-tech-p p (civm:government-def g :requires))
+          collect (list i g
+                        (format nil "~D ~A~A" i (civm:government-def g :name)
+                                (cond ((eq g (civm:player-government p)) " (current)")
+                                      ((not ok) " (locked)")
+                                      (t "")))
+                        ok))))
+
+(defun gov-menu-pick (painter state ly)
+  "Government at logical y LY in the menu, or NIL (locked/out of range)."
+  (let ((row (floor (- ly (+ *menu-y* 2)) (1+ (gfont-height (painter-font painter)))))
+        (lines (gov-menu-lines state)))
+    (when (and (>= row 1) (<= row (length lines)))
+      (let ((entry (nth (1- row) lines)))
+        (when (fourth entry) (second entry))))))
+
+(defun draw-gov-menu (painter state)
+  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+         (h (gfont-height font))
+         (p (human-player state))
+         (lines (gov-menu-lines state))
+         (title "Revolution! New government:")
+         (foot "Esc cancels — 1 turn of anarchy")
+         (texts (append (list title) (mapcar #'third lines) (list foot)))
+         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
+         (ph (+ 4 (* (length texts) (1+ h)))))
+    (declare (ignore p))
+    (sdl2:set-render-draw-color ren 0 0 0 230)
+    (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (sdl2:set-render-draw-color ren 220 220 220 255)
+    (sdl2:render-draw-rect ren (painter-dst painter))
+    (flet ((line (text row r g b)
+             (draw-text painter font text (+ *menu-x* 2)
+                        (+ *menu-y* 2 (* row (1+ h))) r g b)))
+      (line title 0 255 230 120)
+      (loop for (i g label ok) in lines
+            do (progn g)
+               (line label i (if ok 255 120) (if ok 255 120) 120))
+      (line foot (1+ (length lines)) 160 160 160))))
+
+(defun gov-hud-text (state)
+  "Government + rate readout for the HUD, noting a pending revolution."
+  (let ((p (human-player state)))
+    (when p
+      (format nil "~A  T~D/L~D/S~D~@[ ->~A~]"
+              (civm:government-def (civm:player-government p) :name)
+              (civm:player-tax-rate p) (civm:player-luxury-rate p)
+              (civm:player-science-rate p)
+              (let ((tgt (civm:player-gov-target p)))
+                (and tgt (civm:government-def tgt :name)))))))
+
+(defun render-game (painter state selected-id &key (fog t) build-city gov-menu)
   "Draw STATE from the human player's perspective.  With FOG, unexplored tiles
 are black, explored-but-unseen tiles are dimmed, and units/cities are shown
 only on currently-visible tiles."
@@ -476,18 +555,24 @@ only on currently-visible tiles."
         ;; stats panel for the selected unit (hidden while the build menu is up)
         (when (and sel (not build-city) (painter-font painter))
           (draw-unit-panel painter state sel)))
-      ;; build menu overlay
-      (when (and build-city (painter-font painter))
-        (let ((c (civm:city-by-id state build-city)))
-          (when c (draw-build-menu painter state c))))
-      ;; turn/year readout, top-left
+      ;; build menu / government menu overlay (mutually exclusive)
+      (cond ((and gov-menu (painter-font painter))
+             (draw-gov-menu painter state))
+            ((and build-city (painter-font painter))
+             (let ((c (civm:city-by-id state build-city)))
+               (when c (draw-build-menu painter state c)))))
+      ;; HUD, top-left: turn/year on one line, government/rates on the next
       (let ((font (painter-font painter)))
         (when font
-          (let* ((s (format nil "~A   TURN ~D"
-                            (year-text (civm:gs-year state)) (civm:gs-turn state)))
-                 (tw (text-width font s)))
+          (let* ((l1 (format nil "~A   TURN ~D"
+                             (year-text (civm:gs-year state)) (civm:gs-turn state)))
+                 (l2 (gov-hud-text state))
+                 (fh (gfont-height font))
+                 (tw (max (text-width font l1) (if l2 (text-width font l2) 0))))
             (sdl2:set-render-draw-color ren 0 0 0 190)
-            (set-rect (painter-dst painter) 0 0 (+ tw 2) (+ 2 (gfont-height font)))
+            (set-rect (painter-dst painter) 0 0 (+ tw 2)
+                      (+ 2 (if l2 (* 2 (1+ fh)) fh)))
             (sdl2:render-fill-rect ren (painter-dst painter))
-            (draw-text painter font s 1 1 255 255 255))))
+            (draw-text painter font l1 1 1 255 255 255)
+            (when l2 (draw-text painter font l2 1 (+ 1 (1+ fh)) 200 220 255)))))
       (sdl2:render-present ren))))

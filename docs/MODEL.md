@@ -26,7 +26,7 @@ networking and AI tractable.
 | `map.lisp`      | `tile`, `game-map`, `tile-at`, `neighbors`, `do-tiles` |
 | `entities.lisp` | `player`, `unit`, `city` structs (referenced by integer id) |
 | `state.lisp`    | `game-state` root + `make-new-game` |
-| `rules.lisp`    | yields, city growth/production, research, upkeep, terraform, the `end-turn` loop |
+| `rules.lisp`    | yields, city growth/production, research, upkeep, terraform, happiness/disorder, government, the `end-turn` loop |
 | `commands.lisp` | `apply-command` — the only sanctioned way to mutate state |
 | `ai.lisp`       | a simple AI opponent that issues commands (`run-ai-players`, called from `end-turn`) |
 | `pathfind.lisp` | A* pathfinding and the `:goto` order (`process-goto`, called from `end-turn`) |

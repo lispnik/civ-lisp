@@ -8,9 +8,11 @@
 
 ;;; --- tile & city yields (derived, not stored) ------------------------------
 
-(defun tile-yield (tile)
+(defun tile-yield (tile &optional gov)
   "Return (values food shields trade) for TILE incl. improvements,
-river (+1 trade) and its special resource."
+river (+1 trade) and its special resource.  When GOV is supplied, apply that
+government's tile effects: the despotic -1 penalty on any category yielding 3+,
+or the republic/democracy +1 trade on any tile already producing trade."
   (let ((tt (tile-terrain tile)))
     (let ((f (terrain-def tt :food 0))
           (s (terrain-def tt :shields 0))
@@ -23,7 +25,20 @@ river (+1 trade) and its special resource."
         (let ((bonus (cdr (assoc tt *special-bonus*))))
           (when bonus
             (incf f (first bonus)) (incf s (second bonus)) (incf tr (third bonus)))))
+      (when gov
+        (when (government-def gov :tile-penalty)     ; despotism / anarchy
+          (when (>= f 3) (decf f))
+          (when (>= s 3) (decf s))
+          (when (>= tr 3) (decf tr)))
+        (when (and (government-def gov :trade-bonus)  ; republic / democracy
+                   (plusp tr))
+          (incf tr)))
       (values f s tr))))
+
+(defun city-gov (state city)
+  "The government of CITY's owner (NIL if the city is unowned)."
+  (let ((p (player-by-id state (city-owner city))))
+    (and p (player-government p))))
 
 (defun city-auto-work (state city)
   "Assign the city's SIZE citizens to surrounding tiles.  First secure
@@ -32,13 +47,15 @@ fill the remaining slots preferring trade (so research progresses), then
 shields, then food.  The city centre is always worked for free."
   (let* ((map (gs-map state))
          (size (city-size city))
+         (gov (city-gov state city))
          ;; candidate tiles as (x y food shields trade)
          (cands (loop for (x y tile) in (neighbors map (city-x city) (city-y city))
-                      collect (multiple-value-bind (f s tr) (tile-yield tile)
+                      collect (multiple-value-bind (f s tr) (tile-yield tile gov)
                                 (list x y f s tr))))
          (chosen '()))
     (multiple-value-bind (cf cs ctr) (tile-yield (tile-at map (city-x city)
-                                                          (city-y city)))
+                                                          (city-y city))
+                                                 gov)
       (declare (ignore cs ctr))
       (let ((food cf) (need (* 2 size)))
         (flet ((take (key)
@@ -61,17 +78,22 @@ shields, then food.  The city centre is always worked for free."
 The city centre is worked for free and, per Civ1, always yields at least
 1 food / 1 shield / 1 trade so every city can grow, build and research."
   (let ((map (gs-map state)) (f 0) (s 0) (tr 0)
-        (b (city-buildings city)))
+        (b (city-buildings city))
+        (gov (city-gov state city)))
     (multiple-value-bind (cf cs ct)
-        (tile-yield (tile-at map (city-x city) (city-y city)))
+        (tile-yield (tile-at map (city-x city) (city-y city)) gov)
       (incf f (max 1 cf)) (incf s (max 1 cs)) (incf tr (max 1 ct)))
     (dolist (w (city-worked city))
-      (multiple-value-bind (a b c) (tile-yield (tile-at map (first w) (second w)))
+      (multiple-value-bind (a b c) (tile-yield (tile-at map (first w) (second w)) gov)
         (incf f a) (incf s b) (incf tr c)))
     ;; wonder yield effects (local to the city that built them)
     (when (member :hanging-gardens b) (incf f 1))           ; +1 food
     (when (member :pyramids b) (setf s (floor (* s 3) 2)))  ; +50% shields
     (when (member :colossus b) (setf tr (floor (* tr 3) 2))); +50% trade
+    ;; corruption: a government-dependent slice of trade is simply lost
+    (when gov
+      (let ((corrupt (government-def gov :corruption 0)))
+        (when (plusp corrupt) (decf tr (floor (* tr corrupt) 100)))))
     (values f s tr)))
 
 ;;; --- combat ----------------------------------------------------------------
@@ -148,6 +170,69 @@ remaining HP (it heals back over later turns)."
   (loop for c being the hash-values of (gs-cities state)
         thereis (member key (city-buildings c))))
 
+(defparameter *base-content*
+  4 "Citizens that are content for free in a city; the rest start unhappy.")
+
+(defun count-city-military (state city)
+  "Number of military (attack>0) units standing in CITY."
+  (let ((tile (tile-at (gs-map state) (city-x city) (city-y city))))
+    (count-if (lambda (id) (let ((u (unit-by-id state id)))
+                             (and u (plusp (unit-def (unit-type u) :attack 0)))))
+              (tile-units tile))))
+
+(defun city-happiness (state city trade)
+  "Classify CITY's citizens given its TRADE this turn.
+Returns (values happy content unhappy).  Citizens past *BASE-CONTENT* start
+unhappy; temples/colosseums/cathedrals and (in martial-law governments) military
+units quiet them; luxuries (2 arrows each) push unhappy->content->happy; a few
+wonders help globally."
+  (let* ((size (city-size city))
+         (owner (player-by-id state (city-owner city)))
+         (gov (and owner (player-government owner)))
+         (b (city-buildings city))
+         (content (min size *base-content*))
+         (unhappy (max 0 (- size *base-content*)))
+         (happy 0))
+    (flet ((calm (n)                       ; up to N unhappy -> content
+             (let ((k (min (max 0 n) unhappy))) (decf unhappy k) (incf content k)))
+           (cheer (n)                       ; up to N: unhappy->content, then content->happy
+             (dotimes (i (max 0 n))
+               (cond ((plusp unhappy) (decf unhappy) (incf content))
+                     ((plusp content) (decf content) (incf happy))))))
+      ;; happiness buildings
+      (when (member :temple b)
+        (calm (if (wonder-built-p state :oracle) 4 2)))
+      (when (member :colosseum b) (calm 3))
+      (when (or (member :cathedral b)
+                (wonder-built-p state :michelangelos-chapel))   ; chapel = cathedral everywhere
+        (calm 3))
+      ;; martial law: each military unit quiets one unhappy, up to the gov's cap
+      (let ((ml (and gov (government-def gov :martial-law 0))))
+        (when (and ml (plusp ml))
+          (calm (min ml (count-city-military state city)))))
+      ;; luxuries: every 2 luxury arrows make one citizen happier
+      (when owner
+        (cheer (floor (floor (* trade (player-luxury-rate owner)) 100) 2)))
+      ;; global-happiness wonders
+      (when (wonder-built-p state :hanging-gardens) (cheer 1))
+      (when (wonder-built-p state :cure-for-cancer) (cheer 1))
+      (when (wonder-built-p state :j-s-bachs-cathedral) (calm 2))
+      (when (member :shakespeares-theatre b) (calm unhappy))     ; no unhappy here
+      (values happy content unhappy))))
+
+(defun city-disorder-p (state city)
+  "T if CITY has more unhappy than happy citizens (civil disorder)."
+  (multiple-value-bind (h c u) (city-happiness state city (nth-value 2 (city-yields state city)))
+    (declare (ignore c))
+    (> u h)))
+
+(defun city-celebrating-p (state city)
+  "T if CITY is celebrating (\"We Love the King\"): at least half its citizens
+happy, none unhappy, size >= 3."
+  (multiple-value-bind (h c u) (city-happiness state city (nth-value 2 (city-yields state city)))
+    (declare (ignore c))
+    (and (>= (city-size city) 3) (zerop u) (>= h (ceiling (city-size city) 2)))))
+
 (defun production-cost (item)
   (ecase (first item)
     (:unit     (unit-def (second item) :cost 9999))
@@ -172,37 +257,64 @@ remaining HP (it heals back over later turns)."
           (when (member (first item) '(:building :wonder))
             (setf (city-production city) nil)))))))
 
+(defun celebration-trade-bonus (state city)
+  "Extra trade a celebrating republic/democracy city earns: +1 per worked tile
+(centre included) already producing trade."
+  (let* ((map (gs-map state))
+         (gov (city-gov state city)))
+    (if (and gov (government-def gov :trade-bonus))
+        (+ (if (plusp (nth-value 2 (tile-yield (tile-at map (city-x city)
+                                                        (city-y city)) gov))) 1 0)
+           (loop for w in (city-worked city)
+                 count (plusp (nth-value 2 (tile-yield (tile-at map (first w) (second w))
+                                                       gov)))))
+        0)))
+
 (defun process-city (state city)
   (city-auto-work state city)
   (multiple-value-bind (food shields trade) (city-yields state city)
-    ;; growth: each citizen eats 2 food
-    (let ((net (- food (* 2 (city-size city))))
-          (threshold (* 10 (1+ (city-size city)))))
-      (incf (city-food-box city) net)
-      (cond ((>= (city-food-box city) threshold)
-             (incf (city-size city))
-             ;; a granary keeps half the food box after growth
-             (setf (city-food-box city)
-                   (if (member :granary (city-buildings city)) (floor threshold 2) 0)))
-            ((minusp (city-food-box city))            ; starvation
-             (when (> (city-size city) 1) (decf (city-size city)))
-             (setf (city-food-box city) 0))))
-    ;; production
-    (incf (city-shield-box city) shields)
-    (city-try-complete state city)
-    ;; economy: trade splits into the owner's gold and science.  Science is
-    ;; accrued in fine (percent-trade) units so a city with only 1 trade still
-    ;; makes progress instead of flooring to zero (research-cost is scaled to
-    ;; match); gold keeps whole units.
-    (let ((p (player-by-id state (city-owner city))))
-      (when p
-        (let ((sci (* trade (player-science-rate p))))
-          (when (member :library (city-buildings city))       ; library +50%
-            (setf sci (floor (* sci 3) 2)))
-          (when (member :great-library (city-buildings city)) ; great library +50%
-            (setf sci (floor (* sci 3) 2)))
-          (incf (player-gold p)    (floor (* trade (player-tax-rate p)) 100))
-          (incf (player-beakers p) sci))))))
+    (multiple-value-bind (happy content unhappy) (city-happiness state city trade)
+      (declare (ignore content))
+      (let ((disorder (> unhappy happy))
+            (p (player-by-id state (city-owner city))))
+        (cond
+          (disorder
+           ;; civil disorder: no growth, no production, no economy this turn
+           nil)
+          (t
+           ;; growth: each citizen eats 2 food
+           (let ((net (- food (* 2 (city-size city))))
+                 (threshold (* 10 (1+ (city-size city)))))
+             (incf (city-food-box city) net)
+             (cond ((>= (city-food-box city) threshold)
+                    (incf (city-size city))
+                    ;; a granary keeps half the food box after growth
+                    (setf (city-food-box city)
+                          (if (member :granary (city-buildings city))
+                              (floor threshold 2) 0)))
+                   ((minusp (city-food-box city))            ; starvation
+                    (when (> (city-size city) 1) (decf (city-size city)))
+                    (setf (city-food-box city) 0))))
+           ;; production
+           (incf (city-shield-box city) shields)
+           (city-try-complete state city)
+           ;; a celebrating republic/democracy city earns bonus trade
+           (when (and (>= (city-size city) 3) (zerop unhappy)
+                      (>= happy (ceiling (city-size city) 2)))
+             (incf trade (celebration-trade-bonus state city)))
+           ;; economy: trade splits into the owner's gold and science.  Science is
+           ;; accrued in fine (percent-trade) units so a city with only 1 trade
+           ;; still makes progress instead of flooring to zero (research-cost is
+           ;; scaled to match); gold keeps whole units.  Anarchy does no research.
+           (when p
+             (let ((sci (* trade (player-science-rate p))))
+               (when (member :library (city-buildings city))       ; library +50%
+                 (setf sci (floor (* sci 3) 2)))
+               (when (member :great-library (city-buildings city)) ; great library +50%
+                 (setf sci (floor (* sci 3) 2)))
+               (incf (player-gold p) (floor (* trade (player-tax-rate p)) 100))
+               (when (government-def (player-government p) :science)
+                 (incf (player-beakers p) sci))))))))))
 
 (defun process-cities (state)
   (maphash (lambda (id c) (declare (ignore id)) (process-city state c))
@@ -232,6 +344,19 @@ same fine units as accrued science: 1000 = 10 'trade-turns' at 100% science."
         (setf (gethash tech (player-techs p)) t)
         (decf (player-beakers p) (research-cost p))
         (setf (player-researching p) (first (researchable-techs p)))))))
+
+(declaim (ftype (function (t) t) clamp-rates))   ; defined in commands.lisp
+
+(defun process-revolution (state)
+  "Count down each player's anarchy; when it ends, the chosen government takes
+power and the player's rates are clamped to its cap."
+  (loop for p across (gs-players state) do
+    (when (plusp (player-anarchy-left p))
+      (decf (player-anarchy-left p))
+      (when (and (zerop (player-anarchy-left p)) (player-gov-target p))
+        (setf (player-government p) (player-gov-target p)
+              (player-gov-target p) nil)
+        (clamp-rates p)))))
 
 ;;; --- the turn loop ---------------------------------------------------------
 
@@ -329,6 +454,7 @@ combat phases here.)"
   (run-ai-players state)
   (process-cities state)
   (process-economy state)       ; charge improvement upkeep (sell on bankruptcy)
+  (process-revolution state)    ; end anarchy; adopt the chosen government
   (process-research state)
   (heal-units state)            ; rested/garrisoned units recover HP
   (refresh-units state)

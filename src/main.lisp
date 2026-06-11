@@ -5,11 +5,12 @@
 ;;;; input is turned into civ-model COMMANDS -- the view never mutates the model
 ;;;; directly.
 ;;;;
-;;;;   arrows       : move selected unit        Tab   : cycle selected unit
-;;;;   B            : found city (settlers)     F     : fortify
-;;;;   R / I / M    : build road / irrigate / mine (settlers)
-;;;;   G            : goto (then click)         Enter : end turn
-;;;;   S / L        : save / load game          Esc / close : quit
+;;;;   arrows / numpad : move selected unit (numpad moves diagonally too)
+;;;;   B  : found city (settlers)     F : fortify
+;;;;   R / I / M : build road / irrigate / mine (settlers)
+;;;;   G  : goto (then click)         Enter : end turn
+;;;;   V  : revolution (pick a government)   , / . : luxury rate down / up
+;;;;   S / L : save / load game       Esc / close : quit
 
 (in-package #:civ-lisp)
 
@@ -48,11 +49,17 @@
 (defconstant +sc-a+ 4) (defconstant +sc-b+ 5) (defconstant +sc-d+ 7)
 (defconstant +sc-f+ 9) (defconstant +sc-g+ 10) (defconstant +sc-i+ 12)
 (defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
-(defconstant +sc-s+ 22)
+(defconstant +sc-s+ 22) (defconstant +sc-v+ 25)
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
-(defconstant +sc-tab+ 43) (defconstant +sc-right+ 79) (defconstant +sc-left+ 80)
+(defconstant +sc-tab+ 43)
+(defconstant +sc-comma+ 54) (defconstant +sc-period+ 55)   ; luxury down / up
+(defconstant +sc-right+ 79) (defconstant +sc-left+ 80)
 (defconstant +sc-down+ 81) (defconstant +sc-up+ 82)
 (defconstant +sc-kp-enter+ 88)          ; numpad Enter
+;; numpad 1-9 (8-way movement); SDL scancodes 89..97
+(defconstant +sc-kp-1+ 89) (defconstant +sc-kp-2+ 90) (defconstant +sc-kp-3+ 91)
+(defconstant +sc-kp-4+ 92) (defconstant +sc-kp-6+ 94)
+(defconstant +sc-kp-7+ 95) (defconstant +sc-kp-8+ 96) (defconstant +sc-kp-9+ 97)
 (defconstant +sc-1+ 30)                 ; '1'..'9' are 30..38
 
 (defparameter *save-path*
@@ -183,7 +190,8 @@ fortified units and city garrisons, so a click can wake them."
             (sdl2:raise-window win)        ; bring the window to the front / focus it
             (let ((ev (autowrap:alloc 'sdl2-ffi:sdl-event))
                   (running t)
-                  (build-city nil))   ; city id whose build menu is open
+                  (build-city nil)    ; city id whose build menu is open
+                  (gov-menu nil))     ; T while the revolution menu is open
               (labels ((torch! () (setf goto-mode nil)
                          (sdl2-ffi.functions:sdl-set-cursor torch-cursor))
                        (retitle ()
@@ -208,7 +216,20 @@ fortified units and city garrisons, so a click can wake them."
                          ;; so move the cursor on to the next active unit
                          (when selected
                            (try (list job :unit selected))
-                           (setf selected (next-human-unit state selected)))))
+                           (setf selected (next-human-unit state selected))))
+                       (lux! (delta)
+                         ;; shift DELTA percent between science and luxury
+                         (let* ((pid (first (human-player-ids state)))
+                                (p (civm:player-by-id state pid))
+                                (cap (civm:government-def
+                                      (civm:player-government p) :max-rate 100))
+                                (lux (max 0 (min cap (+ (civm:player-luxury-rate p) delta))))
+                                (sci (- 100 (civm:player-tax-rate p) lux)))
+                           (when (<= 0 sci cap)
+                             (try (list :set-rates :player pid
+                                        :tax (civm:player-tax-rate p)
+                                        :luxury lux :science sci))
+                             (retitle)))))
                 (retitle)
                 (unwind-protect
                      ;; manual poll loop, reading event fields at raw SDL offsets
@@ -220,6 +241,17 @@ fortified units and city garrisons, so a click can wake them."
                              ((= type +ev-keydown+)
                               (let ((sc (ev-scancode ev)))
                                 (cond
+                                  ;; government menu open: number picks a government
+                                  (gov-menu
+                                   (cond
+                                     ((and (>= sc +sc-1+) (<= sc (+ +sc-1+ 8)))
+                                      (let ((pick (nth (- sc +sc-1+) (gov-menu-lines state))))
+                                        (when (and pick (fourth pick))
+                                          (try (list :set-government
+                                                     :player (first (human-player-ids state))
+                                                     :to (second pick)))))
+                                      (setf gov-menu nil) (retitle))
+                                     ((= sc +sc-escape+) (setf gov-menu nil))))
                                   ;; build menu open: number picks a unit, Esc closes
                                   (build-city
                                    (cond
@@ -262,6 +294,9 @@ fortified units and city garrisons, so a click can wake them."
                                   ((= sc +sc-r+) (terra :build-road))
                                   ((= sc +sc-i+) (terra :irrigate))
                                   ((= sc +sc-m+) (terra :mine))
+                                  ((= sc +sc-v+) (setf gov-menu t))    ; revolution menu
+                                  ((= sc +sc-comma+) (lux! -10))       ; luxury down
+                                  ((= sc +sc-period+) (lux! 10))       ; luxury up
                                   ((= sc +sc-s+)
                                    (civm:save-game state *save-path*)
                                    (sdl2:set-window-title win "civ-lisp — game saved"))
@@ -276,11 +311,29 @@ fortified units and city garrisons, so a click can wake them."
                                   ((= sc +sc-up+) (step! 0 -1))
                                   ((= sc +sc-down+) (step! 0 1))
                                   ((= sc +sc-left+) (step! -1 0))
-                                  ((= sc +sc-right+) (step! 1 0)))))
+                                  ((= sc +sc-right+) (step! 1 0))
+                                  ;; numpad: 8-way movement (diagonals included)
+                                  ((= sc +sc-kp-8+) (step!  0 -1))
+                                  ((= sc +sc-kp-2+) (step!  0  1))
+                                  ((= sc +sc-kp-4+) (step! -1  0))
+                                  ((= sc +sc-kp-6+) (step!  1  0))
+                                  ((= sc +sc-kp-7+) (step! -1 -1))
+                                  ((= sc +sc-kp-9+) (step!  1 -1))
+                                  ((= sc +sc-kp-1+) (step! -1  1))
+                                  ((= sc +sc-kp-3+) (step!  1  1)))))
                              ((= type +ev-mousebuttondown+)
                               (let ((tx (floor (ev-mouse-x ev) (* *tile* scale)))
                                     (ty (floor (ev-mouse-y ev) (* *tile* scale))))
                                 (cond
+                                  ;; government menu open: click a row to pick it
+                                  (gov-menu
+                                   (let ((g (gov-menu-pick painter state
+                                                           (floor (ev-mouse-y ev) scale))))
+                                     (when g
+                                       (try (list :set-government
+                                                  :player (first (human-player-ids state))
+                                                  :to g))))
+                                   (setf gov-menu nil) (retitle))
                                   ;; build menu open: a click on a line picks it,
                                   ;; anywhere else closes the menu
                                   (build-city
@@ -308,7 +361,8 @@ fortified units and city garrisons, so a click can wake them."
                                                     (civm:unit-by-id state u))
                                                    :fortified)
                                            (try (list :wake :unit u))))))))))))
-                       (render-game painter state selected :build-city build-city)
+                       (render-game painter state selected
+                                    :build-city build-city :gov-menu gov-menu)
                        (sdl2:delay 16))
                   ;; cleanup
                   (sdl2:destroy-texture (painter-sprites painter))

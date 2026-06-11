@@ -6,9 +6,9 @@
   (:export
    ;; definitions (the data-driven rulebook)
    #:*terrain* #:*units* #:*buildings* #:*techs* #:*special-bonus* #:*wonders*
-   #:*terraform*
+   #:*terraform* #:*governments*
    #:terrain-def #:unit-def #:building-def #:tech-def #:wonder-def #:terraform-def
-   #:def-get
+   #:government-def #:def-get
    ;; map / tiles
    #:tile #:make-tile #:tile-terrain #:tile-feature #:tile-resource
    #:tile-river #:tile-special
@@ -19,6 +19,7 @@
    #:player #:make-player #:player-id #:player-name #:player-kind
    #:player-gold #:player-government #:player-techs #:player-researching #:player-beakers
    #:player-color #:player-tax-rate #:player-science-rate #:player-luxury-rate
+   #:player-gov-target #:player-anarchy-left
    #:unit #:unit-id #:unit-type #:unit-owner #:unit-x #:unit-y
    #:unit-hp #:unit-moves-left #:unit-orders #:unit-veteran
    #:unit-goto-x #:unit-goto-y #:unit-work #:unit-work-left
@@ -33,6 +34,7 @@
    ;; rules
    #:tile-yield #:city-yields #:end-turn #:resolve-combat #:heal-units
    #:enemy-adjacent-p #:city-defended-p #:wonder-built-p #:city-upkeep
+   #:city-happiness #:city-disorder-p #:city-celebrating-p #:count-city-military
    ;; persistence
    #:save-game #:load-game #:dump-game #:load-game-form
    ;; pathfinding / goto

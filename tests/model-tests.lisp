@@ -586,6 +586,96 @@
     (is (= 0 (player-gold p)))                           ; floored, never negative
     (is (< (length (city-buildings c)) 2))))             ; sold to stay solvent
 
+;;; --- government & happiness ------------------------------------------------
+
+(test tile-yield-government
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (tile (tile-at (gs-map s) 3 3)))
+    (setf (tile-irrigation tile) t (tile-special tile) t)   ; grassland food 2+1 = 3
+    (is (= 3 (nth-value 0 (tile-yield tile))))              ; no government
+    (is (= 2 (nth-value 0 (tile-yield tile :despotism))))   ; despotic -1 on 3+
+    (setf (tile-river tile) t)                              ; +1 trade
+    (is (= 1 (nth-value 2 (tile-yield tile))))
+    (is (= 2 (nth-value 2 (tile-yield tile :republic))))    ; republic +1 trade
+    (is (= 1 (nth-value 2 (tile-yield tile :monarchy))))))  ; monarchy: no bonus
+
+(test happiness-content-and-disorder
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 3)
+    (is (equal '(0 3 0) (multiple-value-list (city-happiness s c 0))))  ; all content
+    (is-false (city-disorder-p s c))
+    (setf (city-size c) 6)                                  ; past the content base
+    (multiple-value-bind (h cont u) (city-happiness s c 0)
+      (is (= 0 h)) (is (= 4 cont)) (is (= 2 u)))
+    (is-true (city-disorder-p s c))                         ; unhappy > happy
+    (setf (city-buildings c) '(:temple))                    ; a temple calms 2
+    (is-false (city-disorder-p s c))))
+
+(test martial-law
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (setf (city-size c) 6)
+    (add-unit s :warriors 1 2 2)
+    (add-unit s :phalanx 1 2 2)
+    (is (= 2 (count-city-military s c)))
+    (is (= 0 (nth-value 2 (city-happiness s c 0))))   ; despotism: 2 units calm 2 unhappy
+    (setf (player-government p) :democracy)            ; no martial law
+    (is (= 2 (nth-value 2 (city-happiness s c 0))))))
+
+(test luxuries-make-citizens-happy
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (setf (city-size c) 4)
+    (setf (player-luxury-rate p) 100 (player-tax-rate p) 0 (player-science-rate p) 0)
+    ;; 100 trade at 100% luxury -> 50 upgrades, all 4 content become happy
+    (is (= 4 (nth-value 0 (city-happiness s c 100))))))
+
+(test government-trade-advantage
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (setf (tile-river (tile-at (gs-map s) 2 2)) t
+          (tile-road  (tile-at (gs-map s) 2 2)) t)     ; trade at the centre
+    (setf (player-government p) :despotism)
+    (let ((despot (nth-value 2 (city-yields s c))))
+      (setf (player-government p) :democracy)          ; +trade bonus, no corruption
+      (is (> (nth-value 2 (city-yields s c)) despot)))))
+
+(test revolution-and-government-tech
+  (let* ((s (bare-state 6 6))
+         (p (player-by-id s 1)))
+    (setf (gethash :monarchy (player-techs p)) t)
+    (signals command-error                              ; lacks The Republic
+      (apply-command s (list :set-government :player 1 :to :republic)))
+    (apply-command s (list :set-government :player 1 :to :monarchy))
+    (is (eq :anarchy (player-government p)))            ; revolution: one turn of anarchy
+    (is (eq :monarchy (player-gov-target p)))
+    (end-turn s)
+    (is (eq :monarchy (player-government p)))           ; then the new government takes power
+    (is (= 0 (player-anarchy-left p)))))
+
+(test anarchy-halts-research
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (setf (tile-river (tile-at (gs-map s) 2 2)) t
+          (player-government p) :anarchy (player-beakers p) 0)
+    (civ-model::process-city s c)
+    (is (= 0 (player-beakers p)))))                     ; no science under anarchy
+
+(test set-rates-validation
+  (let* ((s (bare-state 6 6))
+         (p (player-by-id s 1)))
+    (signals command-error (apply-command s (list :set-rates :player 1 :tax 50 :luxury 50 :science 50)))
+    (signals command-error (apply-command s (list :set-rates :player 1 :tax 70 :luxury 0 :science 30)))
+    (signals command-error (apply-command s (list :set-rates :player 1 :tax -10 :luxury 60 :science 50)))
+    (apply-command s (list :set-rates :player 1 :tax 60 :luxury 0 :science 40))
+    (is (= 60 (player-tax-rate p)))
+    (is (= 40 (player-science-rate p)))))
+
 ;;; --- save / load -----------------------------------------------------------
 
 (test save-load-roundtrip
@@ -609,8 +699,11 @@
          (u (add-unit s :settlers 1 2 2))
          (p (player-by-id s 1)))
     (setf (gethash :pottery (player-techs p)) t
+          (gethash :monarchy (player-techs p)) t
           (player-gold p) 42)
     (apply-command s (list :build-road :unit (unit-id u)))   ; job in progress
+    (apply-command s (list :set-government :player 1 :to :monarchy)) ; revolution pending
+    (apply-command s (list :set-rates :player 1 :tax 50 :luxury 10 :science 40))
     (civ-model::register-city s :name "Rome" :owner 1 :x 4 :y 4)
     (uiop:with-temporary-file (:pathname path :type "lisp")
       (save-game s path)
@@ -621,6 +714,10 @@
         (is (= (unit-work-left u) (unit-work-left u2)))
         (is-true (player-has-tech-p p2 :pottery))
         (is (= 42 (player-gold p2)))
+        (is (eq :anarchy (player-government p2)))         ; revolution preserved
+        (is (eq :monarchy (player-gov-target p2)))
+        (is (= 1 (player-anarchy-left p2)))
+        (is (= 10 (player-luxury-rate p2)))
         (is-true (city-named s2 "Rome"))
         ;; tile occupancy is rebuilt from the entity lists
         (is (member (unit-id u2) (tile-units (tile-at (gs-map s2) 2 2))))

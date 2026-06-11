@@ -73,8 +73,13 @@
         (ai-move-random state unit))))
 
 (defun ai-city-production (state player city)
-  "Expand while small, then build a library (if able) or defenders."
+  "Keep cities content, expand while small, then build a library or defenders."
   (let ((item (cond
+                ;; a growing city needs a temple to stave off disorder
+                ((and (>= (city-size city) 4)
+                      (player-has-tech-p player :ceremonial-burial)
+                      (not (member :temple (city-buildings city))))
+                 '(:building :temple))
                 ((< (length (player-city-list state (player-id player))) 3)
                  '(:unit :settlers))
                 ((and (player-has-tech-p player :writing)

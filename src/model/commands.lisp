@@ -29,6 +29,8 @@ on an illegal move."
     (:wake           (cmd-wake state command))
     (:goto           (cmd-goto state command))
     ((:build-road :irrigate :mine) (cmd-terraform state command))
+    (:set-rates      (cmd-set-rates state command))
+    (:set-government (cmd-set-government state command))
     (:end-turn       (end-turn state)))
   state)
 
@@ -144,6 +146,57 @@ position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
                     (unit-orders u) :idle)          ; moving breaks fortify
               (decf (unit-moves-left u) (max 1 (min cost (unit-moves-left u))))
               u))))))
+
+(defun cmd-set-rates (state command)
+  "Set a player's tax/luxury/science split (percent of trade).  They must sum to
+100 and none may exceed the current government's cap."
+  (let* ((args (rest command))
+         (p (or (player-by-id state (getf args :player 1)) (fail "no such player")))
+         (tax (getf args :tax)) (lux (getf args :luxury)) (sci (getf args :science))
+         (gov (player-government p))
+         (maxr (government-def gov :max-rate 100)))
+    (unless (and tax lux sci) (fail "set-rates needs :tax, :luxury and :science"))
+    (when (some #'minusp (list tax lux sci)) (fail "rates can't be negative"))
+    (unless (= 100 (+ tax lux sci)) (fail "rates must sum to 100"))
+    (when (> (max tax lux sci) maxr)
+      (fail "~A caps each rate at ~D%" (government-def gov :name) maxr))
+    (setf (player-tax-rate p) tax (player-luxury-rate p) lux (player-science-rate p) sci)
+    p))
+
+(defun clamp-rates (p)
+  "Force P's rates within the current government's cap and back to a 100 sum
+(used after a government change, which may tighten the cap)."
+  (let ((maxr (government-def (player-government p) :max-rate 100)))
+    (setf (player-tax-rate p)     (min (player-tax-rate p) maxr)
+          (player-science-rate p) (min (player-science-rate p) maxr)
+          (player-luxury-rate p)  (min (player-luxury-rate p) maxr))
+    (let ((short (- 100 (+ (player-tax-rate p) (player-science-rate p)
+                           (player-luxury-rate p)))))
+      ;; pour any shortfall into whichever rates still have room under the cap
+      (incf (player-tax-rate p) (min short (- maxr (player-tax-rate p))))
+      (setf short (- 100 (+ (player-tax-rate p) (player-science-rate p)
+                            (player-luxury-rate p))))
+      (incf (player-science-rate p) (min short (- maxr (player-science-rate p))))
+      (setf short (- 100 (+ (player-tax-rate p) (player-science-rate p)
+                            (player-luxury-rate p))))
+      (incf (player-luxury-rate p) short))))
+
+(defun cmd-set-government (state command)
+  "Start a revolution: the player spends one turn in anarchy, then adopts
+government :TO (which must be unlocked by an advance)."
+  (let* ((args (rest command))
+         (p (or (player-by-id state (getf args :player 1)) (fail "no such player")))
+         (to (getf args :to)))
+    (unless (gethash to *governments*) (fail "unknown government ~A" to))
+    (when (eq to :anarchy) (fail "can't deliberately choose anarchy"))
+    (when (eq to (player-government p)) (fail "already a ~(~A~)" to))
+    (let ((req (government-def to :requires)))
+      (unless (player-has-tech-p p req) (fail "~(~A~) requires the ~(~A~) advance" to req)))
+    (setf (player-government p) :anarchy
+          (player-gov-target p) to
+          (player-anarchy-left p) 1)
+    (clamp-rates p)
+    p))
 
 (defun cmd-found-city (state command)
   (let* ((args (rest command))

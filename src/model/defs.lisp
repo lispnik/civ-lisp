@@ -190,6 +190,27 @@ and display name.  Sourced from the CC0 CivOne advance data.")
     (:ocean     2 0 0))  ; fish
   "Yield bonus per terrain's special resource.")
 
+(defparameter *governments*
+  (%table
+   '((:anarchy   :name "Anarchy"   :requires nil          :max-rate 60 :martial-law 0
+                 :tile-penalty t   :trade-bonus nil :corruption 60 :science nil)
+     (:despotism :name "Despotism" :requires nil          :max-rate 60 :martial-law 3
+                 :tile-penalty t   :trade-bonus nil :corruption 40 :science t)
+     (:monarchy  :name "Monarchy"  :requires :monarchy    :max-rate 70 :martial-law 3
+                 :tile-penalty nil :trade-bonus nil :corruption 25 :science t)
+     (:communism :name "Communism" :requires :communism   :max-rate 80 :martial-law 3
+                 :tile-penalty nil :trade-bonus nil :corruption 15 :science t)
+     (:republic  :name "Republic"  :requires :the-republic :max-rate 80 :martial-law 0
+                 :tile-penalty nil :trade-bonus t   :corruption 25 :science t)
+     (:democracy :name "Democracy" :requires :democracy   :max-rate 90 :martial-law 0
+                 :tile-penalty nil :trade-bonus t   :corruption 0  :science t)))
+  "Governments -> the advance that unlocks them and their effects:
+MAX-RATE   cap on any single tax/luxury/science rate;
+MARTIAL-LAW how many military units in a city quiet an unhappy citizen each;
+TILE-PENALTY  the despotic -1 to any tile yielding 3+ of a category;
+TRADE-BONUS   +1 trade on every tile already producing trade (republic/democracy);
+CORRUPTION    percent of a city's trade lost; SCIENCE  whether research happens.")
+
 (defparameter *terraform*
   (%table
    '((:build-road :flag :road       :verb "road"       :turns 2
@@ -213,3 +234,4 @@ and which terrains allow them.")
 (defun wonder-def    (key prop &optional d) (def-get *wonders* key prop d))
 (defun tech-def      (key prop &optional d) (def-get *techs* key prop d))
 (defun terraform-def (key prop &optional d) (def-get *terraform* key prop d))
+(defun government-def (key prop &optional d) (def-get *governments* key prop d))

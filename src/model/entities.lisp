@@ -12,6 +12,8 @@
   (color 1 :type fixnum)
   (gold 0 :type fixnum)
   (government :despotism :type keyword)
+  (gov-target nil)                ; government to adopt when a revolution ends
+  (anarchy-left 0 :type fixnum)   ; turns of anarchy remaining in a revolution
   ;; tax/science/luxury split (percent of trade), must sum to 100
   (tax-rate 50) (science-rate 50) (luxury-rate 0)
   (techs (make-hash-table :test 'eq))   ; researched advances (set: key -> t)

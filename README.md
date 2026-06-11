@@ -68,16 +68,18 @@ and AI cities (Akkad, Uruk) have grown alongside.*
 |-----|--------|
 | left-click | select a unit (wakes a fortified one), or open a friendly city's **build menu** |
 | 1–9 / click | in the build menu, choose a unit, improvement, or wonder (`*`) to build; Esc closes |
-| arrow keys | move the selected unit |
+| arrow keys / numpad | move the selected unit — the **numpad moves diagonally** too (1/3/7/9) |
 | Tab | cycle to the next active unit (skips fortified / out-of-moves) |
 | W | wait — send the unit to the end of this turn's cycle |
 | B | found a city (with a settlers unit) |
 | F | fortify the selected unit (defense + faster healing) |
 | R / I / M | with a settlers unit: build **road** / **irrigation** / **mine** on its tile (takes several turns) |
 | G, then left-click | send the selected unit to a tile (auto-paths each turn); the cursor becomes the **Go** arrow |
+| V | start a **revolution** — pick a new government from the menu |
+| , / . | shift the **luxury** rate down / up (trades against science) |
 | Enter | end turn |
 | S / L | **save** / **load** the game (single quicksave slot) |
-| Esc | cancel a pending Go (restores the torch cursor); otherwise quit |
+| Esc | close a menu / cancel a pending Go; otherwise quit |
 
 The map is covered by **fog of war**: unexplored tiles are black, tiles you've
 seen but can't currently see are dimmed, and enemy units/cities show only while
@@ -93,6 +95,19 @@ player who can't pay sells off improvements (priciest first) until solvent.
 Press `S` to **save** and `L` to **load** — because the whole `civ-model` state
 is flat, serializable data (the RNG included), a loaded game continues rolling
 identically, so save/load is fully deterministic.
+
+Each city's citizens are **happy / content / unhappy**: a few are content for
+free and the rest start unhappy, quieted by temples, colosseums and cathedrals,
+by **luxuries** (`.`/`,` adjust the rate), by military garrisons under
+martial-law governments, and by a handful of wonders. If a city has more unhappy
+than happy citizens it falls into **civil disorder** (no production, trade or
+growth); get at least half happy and it **celebrates**. The city menu shows the
+mood and flags both states. Your **government** (`V` to start a revolution —
+one turn of anarchy, then the new regime) sets the rules: despotism docks busy
+tiles and bridles the economy, a republic or democracy adds trade but bans
+martial law, and corruption, rate caps and martial-law limits all vary by
+government. The advance tree unlocks Monarchy, Communism, The Republic and
+Democracy.
 
 Terrain uses the original **edge-blending** scheme (CivOne's algorithm): a land
 tile is a generic base plus a TER257 overlay chosen by a bitmask of which
