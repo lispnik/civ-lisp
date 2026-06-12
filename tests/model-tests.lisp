@@ -1199,6 +1199,52 @@ shield special) so the city keeps producing instead of starving."
       (civ-model::add-route s (city-id a) (city-id b))
       (is (= (1+ t0) (nth-value 2 (civ-model::city-yields s a)))))))   ; +1 trade
 
+;;; --- victory ---------------------------------------------------------------
+
+(test conquest-victory
+  ;; with one civ wiped out (no cities, no units), the survivor wins
+  (let* ((s (bare-state 6 6)))
+    (add-unit s :warriors 1 1 1)
+    (civ-model::register-city s :name "Rome" :owner 1 :x 2 :y 2)
+    ;; player 2 has nothing -> eliminated
+    (civ-model::process-victory s)
+    (is (eql 1 (gs-winner s)))
+    (is (eq :conquest (gs-victory s)))))
+
+(test no-conquest-while-rivals-survive
+  (let* ((s (bare-state 6 6)))
+    (add-unit s :warriors 1 1 1)
+    (add-unit s :warriors 2 4 4)            ; rival still has a unit
+    (civ-model::process-victory s)
+    (is-false (gs-winner s))))
+
+(test spaceship-part-requires-apollo-and-tech
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "Rome" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (signals command-error (apply-command s (list :set-production :city (city-id c)
+                                                  :item '(:spaceship))))   ; no Apollo yet
+    (push :apollo-program (city-buildings c))               ; Apollo now built
+    (signals command-error (apply-command s (list :set-production :city (city-id c)
+                                                  :item '(:spaceship))))   ; still no space-flight
+    (setf (gethash :space-flight (player-techs p)) t)
+    (apply-command s (list :set-production :city (city-id c) :item '(:spaceship)))
+    (is (equal '(:spaceship) (civ-model::city-production c)))))
+
+(test space-race-victory
+  (let* ((s (bare-state 6 6))
+         (p (player-by-id s 1)))
+    (civ-model::register-city s :name "Rome" :owner 1 :x 2 :y 2)   ; keep player 1 alive
+    (add-unit s :warriors 2 4 4)                                    ; keep player 2 alive (no conquest)
+    (setf (player-spaceship p) civ-model::*spaceship-parts*)        ; ship complete
+    (civ-model::process-victory s)                                  ; launches
+    (is (plusp (player-landing p)))
+    (is-false (gs-winner s))                                        ; still in flight
+    (setf (gs-turn s) (+ (player-landing p) 1))                     ; arrival time passes
+    (civ-model::process-victory s)
+    (is (eql 1 (gs-winner s)))
+    (is (eq :space (gs-victory s)))))
+
 ;;; --- save / load -----------------------------------------------------------
 
 (test save-load-roundtrip
