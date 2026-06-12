@@ -36,6 +36,8 @@ on an illegal move."
     (:declare-war    (cmd-declare-war state command))
     (:make-peace     (cmd-make-peace state command))
     (:propose-trade  (cmd-propose-trade state command))
+    (:steal-tech     (cmd-steal-tech state command))
+    (:sabotage       (cmd-sabotage state command))
     (:end-turn       (end-turn state)))
   state)
 
@@ -72,6 +74,55 @@ until it next moves."
     (setf (unit-orders u) :idle (unit-goto-x u) nil (unit-goto-y u) nil)
     (clear-work u)
     u))
+
+;;; --- diplomat espionage ----------------------------------------------------
+
+(defun adjacent-enemy-city (state unit)
+  "An enemy city on UNIT's own tile or a neighbouring tile, or NIL."
+  (let ((map (gs-map state)) (owner (unit-owner unit)))
+    (flet ((enemy-city-at (x y)
+             (let* ((tile (tile-at map x y)) (cid (and tile (tile-city tile)))
+                    (c (and cid (city-by-id state cid))))
+               (and c (/= (city-owner c) owner) c))))
+      (or (enemy-city-at (unit-x unit) (unit-y unit))
+          (loop for (x y tile) in (neighbors map (unit-x unit) (unit-y unit))
+                do (progn tile)
+                thereis (enemy-city-at x y))))))
+
+(defun espionage-target (state command)
+  "Validate an espionage order: returns (values diplomat enemy-city)."
+  (let ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit"))))
+    (unless (member :espionage (unit-def (unit-type u) :abilities))
+      (fail "~(~A~) cannot perform espionage" (unit-type u)))
+    (values u (or (adjacent-enemy-city state u)
+                  (fail "no enemy city next to the diplomat")))))
+
+(defun cmd-steal-tech (state command)
+  "A diplomat steals an advance the adjacent enemy city's owner has and we lack,
+then is spent."
+  (multiple-value-bind (u c) (espionage-target state command)
+    (let* ((thief (player-by-id state (unit-owner u)))
+           (victim (player-by-id state (city-owner c)))
+           (tech (a-tech-other-lacks state victim thief)))
+      (unless tech (fail "~A has no advance worth stealing" (player-name victim)))
+      (setf (gethash tech (player-techs thief)) t)
+      (destroy-unit state u)               ; the diplomat is consumed
+      tech)))
+
+(defun cmd-sabotage (state command)
+  "A diplomat wrecks the adjacent enemy city's priciest improvement (or, if it
+has none, its current production), then is spent."
+  (multiple-value-bind (u c) (espionage-target state command)
+    (let ((target (first (sort (remove-if-not
+                                (lambda (b) (and (gethash b *buildings*)
+                                                 (not (eq b :palace))))
+                                (copy-list (city-buildings c)))
+                               #'> :key (lambda (b) (building-def b :cost 0))))))
+      (if target
+          (setf (city-buildings c) (remove target (city-buildings c)))
+          (setf (city-shield-box c) 0))     ; nothing built: wreck the production
+      (destroy-unit state u)
+      (or target :production))))
 
 (defun cmd-terraform (state command)
   "Order a settler to begin a terraform job (:build-road/:irrigate/:mine) on the

@@ -30,7 +30,7 @@
      (:cavalry     :attack 2 :defense 1 :move 2 :cost 20 :requires :horseback-riding :domain :land)
      (:legion      :attack 3 :defense 1 :move 1 :cost 20 :requires :iron-working :domain :land)
      (:phalanx     :attack 1 :defense 2 :move 1 :cost 20 :requires :bronze-working :domain :land)
-     (:diplomat    :attack 0 :defense 0 :move 2 :cost 30 :requires :writing :domain :land)
+     (:diplomat    :attack 0 :defense 0 :move 2 :cost 30 :requires :writing :domain :land :abilities (:espionage))
      (:musketeers  :attack 2 :defense 3 :move 1 :cost 30 :requires :gunpowder :domain :land)
      (:riflemen    :attack 3 :defense 5 :move 1 :cost 30 :requires :conscription :domain :land)
      (:cannon      :attack 8 :defense 1 :move 1 :cost 40 :requires :metallurgy :domain :land)

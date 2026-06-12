@@ -1009,6 +1009,45 @@ shield special) so the city keeps producing instead of starving."
       (apply-command s (list :propose-trade :player 1 :to 2
                              :give '((:gold 999)) :want nil)))))
 
+;;; --- diplomat espionage ----------------------------------------------------
+
+(test diplomat-steals-tech
+  (let* ((s (bare-state 6 6))
+         (dip (add-unit s :diplomat 1 3 2))         ; adjacent to the enemy city
+         (v (player-by-id s 2)) (me (player-by-id s 1)))
+    (civ-model::register-city s :name "Babylon" :owner 2 :x 3 :y 3)
+    (setf (gethash :writing (player-techs v)) t)    ; victim has Writing, I don't
+    (is-false (player-has-tech-p me :writing))
+    (apply-command s (list :steal-tech :unit (unit-id dip)))
+    (is-true (player-has-tech-p me :writing))        ; stolen
+    (is-false (unit-by-id s (unit-id dip)))))         ; the diplomat is spent
+
+(test diplomat-sabotages-building
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "Babylon" :owner 2 :x 3 :y 3))
+         (dip (add-unit s :diplomat 1 3 2)))
+    (setf (city-buildings c) '(:library :barracks))  ; library (80) costlier than barracks (40)
+    (apply-command s (list :sabotage :unit (unit-id dip)))
+    (is-false (member :library (city-buildings c)))   ; the priciest is wrecked
+    (is-true (member :barracks (city-buildings c)))
+    (is-false (unit-by-id s (unit-id dip)))))
+
+(test sabotage-wrecks-production-when-no-buildings
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "Ur" :owner 2 :x 3 :y 3))
+         (dip (add-unit s :diplomat 1 3 2)))
+    (setf (city-shield-box c) 40 (city-buildings c) nil)
+    (apply-command s (list :sabotage :unit (unit-id dip)))
+    (is (= 0 (city-shield-box c)))))
+
+(test espionage-needs-a-diplomat-and-a-target
+  (let* ((s (bare-state 6 6))
+         (w (add-unit s :warriors 1 3 2))            ; not a diplomat
+         (dip (add-unit s :diplomat 1 0 0)))          ; nowhere near a city
+    (civ-model::register-city s :name "Babylon" :owner 2 :x 3 :y 3)
+    (signals command-error (apply-command s (list :steal-tech :unit (unit-id w))))
+    (signals command-error (apply-command s (list :sabotage :unit (unit-id dip))))))
+
 ;;; --- save / load -----------------------------------------------------------
 
 (test save-load-roundtrip

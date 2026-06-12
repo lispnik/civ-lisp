@@ -11,6 +11,7 @@
 ;;;;   C : clear forest      P : clean pollution
 ;;;;   G  : goto (then click)         Enter : end turn
 ;;;;   V  : revolution    Y : diplomacy    E : trade    , / . : luxury rate
+;;;;   Z / X : diplomat steal tech / sabotage an adjacent enemy city
 ;;;;   ?  : help overlay        ~ : Lisp console (evals a form; Esc closes)
 ;;;;   K  : start/stop the Slynk server (connect from Emacs with M-x sly-connect)
 ;;;;   S / L : save / load game       Esc / close : quit
@@ -66,7 +67,7 @@
 (defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
 (defconstant +sc-n+ 17) (defconstant +sc-p+ 19) (defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
 (defconstant +sc-v+ 25)
-(defconstant +sc-y+ 28)
+(defconstant +sc-x+ 27) (defconstant +sc-y+ 28) (defconstant +sc-z+ 29)
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
 (defconstant +sc-tab+ 43)
 (defconstant +sc-comma+ 54) (defconstant +sc-period+ 55)   ; luxury down / up
@@ -478,6 +479,20 @@ or an error message."
                                   ((= sc +sc-v+) (setf gov-menu t))    ; revolution menu
                                   ((= sc +sc-y+) (setf diplo-menu t))  ; diplomacy menu
                                   ((= sc +sc-e+) (setf trade-menu t))  ; trade menu
+                                  ((= sc +sc-z+)                       ; diplomat: steal tech
+                                   (when selected
+                                     (let ((ok (try (list :steal-tech :unit selected))))
+                                       (sdl2:set-window-title
+                                        win (if ok "civ-lisp — advance stolen!"
+                                                "civ-lisp — no enemy city to spy"))
+                                       (when ok (setf selected (next-human-unit state selected))))))
+                                  ((= sc +sc-x+)                       ; diplomat: sabotage
+                                   (when selected
+                                     (let ((ok (try (list :sabotage :unit selected))))
+                                       (sdl2:set-window-title
+                                        win (if ok "civ-lisp — sabotage!"
+                                                "civ-lisp — no enemy city to sabotage"))
+                                       (when ok (setf selected (next-human-unit state selected))))))
                                   ((= sc +sc-k+)                       ; toggle Slynk server
                                    (handler-case
                                        (if *slynk-port*
