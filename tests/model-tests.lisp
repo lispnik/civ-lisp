@@ -663,6 +663,70 @@
       (is-false (unit-by-id s (unit-id u)))
       (is (= box0 (city-shield-box c))))))               ; their city gains nothing
 
+;;; --- naval transport -------------------------------------------------------
+
+(test land-unit-boards-an-adjacent-transport
+  (let ((s (bare-state 8 8)))
+    (terrain! s 4 4 :ocean)                         ; a sea tile
+    (add-unit s :transport 1 4 4)                   ; transport waiting on it
+    (let ((w (add-unit s :warriors 1 3 4)))         ; warrior on the shore beside it
+      (apply-command s (list :move-unit :unit (unit-id w) :dx 1 :dy 0))
+      (is (= 4 (unit-x w)))                          ; boarded: now on the sea tile
+      (is (= 4 (unit-y w)))
+      (is (member (unit-id w) (tile-units (tile-at (gs-map s) 4 4)))))))
+
+(test land-unit-cannot-swim-without-a-transport
+  (let ((s (bare-state 8 8)))
+    (terrain! s 4 4 :ocean)
+    (let ((w (add-unit s :warriors 1 3 4)))
+      (signals command-error
+        (apply-command s (list :move-unit :unit (unit-id w) :dx 1 :dy 0))))))
+
+(test transport-capacity-is-enforced
+  ;; a trireme carries 2; a third land unit can't board
+  (let ((s (bare-state 8 8)))
+    (terrain! s 4 4 :ocean)
+    (add-unit s :trireme 1 4 4)                     ; capacity 2
+    (let ((a (add-unit s :warriors 1 3 4))
+          (b (add-unit s :warriors 1 5 4))
+          (c (add-unit s :warriors 1 4 3)))
+      (apply-command s (list :move-unit :unit (unit-id a) :dx 1 :dy 0))   ; (3,4)->(4,4)
+      (apply-command s (list :move-unit :unit (unit-id b) :dx -1 :dy 0))  ; (5,4)->(4,4)
+      (signals command-error                                              ; full
+        (apply-command s (list :move-unit :unit (unit-id c) :dx 0 :dy 1)))))) ; (4,3)->(4,4)
+
+(test a-transport-carries-its-cargo
+  (let ((s (bare-state 8 8)))
+    (terrain! s 4 4 :ocean) (terrain! s 5 4 :ocean)  ; a short sea lane
+    (let ((tr (add-unit s :transport 1 4 4))
+          (w (add-unit s :warriors 1 3 4)))
+      (apply-command s (list :move-unit :unit (unit-id w) :dx 1 :dy 0))   ; board at (4,4)
+      (apply-command s (list :move-unit :unit (unit-id tr) :dx 1 :dy 0))  ; sail east
+      (is (= 5 (unit-x w)))                          ; cargo came along
+      (is (= 4 (unit-y w)))
+      (is (member (unit-id w) (tile-units (tile-at (gs-map s) 5 4))))
+      (is-false (member (unit-id w) (tile-units (tile-at (gs-map s) 4 4)))))))
+
+(test cargo-unloads-onto-land
+  (let ((s (bare-state 8 8)))
+    (terrain! s 4 4 :ocean)
+    (add-unit s :transport 1 4 4)
+    (let ((w (add-unit s :warriors 1 3 4)))
+      (apply-command s (list :move-unit :unit (unit-id w) :dx 1 :dy 0))   ; board (4,4)
+      (setf (unit-moves-left w) 1)                                        ; fresh moves
+      (apply-command s (list :move-unit :unit (unit-id w) :dx 1 :dy 0))   ; step ashore (5,4)
+      (is (= 5 (unit-x w)))
+      (is (eq :grassland (tile-terrain (tile-at (gs-map s) 5 4)))))))
+
+(test sinking-a-transport-drowns-its-cargo
+  (let ((s (bare-state 8 8)))
+    (terrain! s 4 4 :ocean)
+    (let ((tr (add-unit s :transport 1 4 4))
+          (w (add-unit s :warriors 1 3 4)))
+      (apply-command s (list :move-unit :unit (unit-id w) :dx 1 :dy 0))   ; board
+      (civ-model::destroy-unit s tr)                                      ; the ship is sunk
+      (is-false (unit-by-id s (unit-id w))))))                            ; cargo lost with it
+
 (test ai-expands
   ;; the AI should found and expand to several cities on its own
   (let ((s (make-new-game :seed 7)))

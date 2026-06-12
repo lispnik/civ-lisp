@@ -137,10 +137,29 @@ The city centre is worked for free and, per Civ1, always yields at least
          (vet (if (unit-veteran unit) 1/2 0)))           ; veteran +50%
     (max 1 (round (* base (+ 1 terr dug-in fortress city walls vet))))))
 
+(declaim (ftype (function (t t) t) destroy-unit))  ; mutually recursive below
+(defun drown-stranded-cargo (state tile)
+  "Destroy land units on an ocean TILE that the remaining ships can no longer
+carry (e.g. after a transport is sunk)."
+  (let ((cap (loop for id in (tile-units tile)
+                   for p = (unit-by-id state id)
+                   when (and p (eq (unit-def (unit-type p) :carries) :land))
+                     sum (unit-def (unit-type p) :capacity 0)))
+        (cargo (loop for id in (tile-units tile)
+                     for p = (unit-by-id state id)
+                     when (and p (eq (unit-def (unit-type p) :domain) :land))
+                       collect p)))
+    (loop while (> (length cargo) cap)
+          do (destroy-unit state (pop cargo)))))
+
 (defun destroy-unit (state unit)
   (let ((tile (tile-at (gs-map state) (unit-x unit) (unit-y unit))))
-    (when tile (setf (tile-units tile) (remove (unit-id unit) (tile-units tile)))))
-  (remhash (unit-id unit) (gs-units state)))
+    (when tile (setf (tile-units tile) (remove (unit-id unit) (tile-units tile))))
+    (remhash (unit-id unit) (gs-units state))
+    ;; sinking a transport at sea drowns any cargo it can no longer hold
+    (when (and tile (eq (tile-terrain tile) :ocean)
+               (eq (unit-def (unit-type unit) :carries) :land))
+      (drown-stranded-cargo state tile))))
 
 (defun enemy-adjacent-p (state x y owner)
   "T if a tile bordering (X,Y) holds a unit of a civilization OWNER is at war

@@ -168,6 +168,15 @@ onto the cleared tile. Damage carries between fights, so units **heal** between
 turns when they stay put — fully in a city, faster when **fortified** (`F`).
 Adjacent enemy units exert a **zone of control**.
 
+**Naval transport.** Land units can't swim, but they can ride ships. Move a land
+unit onto an adjacent sea tile holding one of your **transport-capable** ships
+(trireme 2, sail 3, frigate 4, transport 8) to **board** it; the ship then
+carries its cargo wherever it sails. Move a passenger back onto land to
+**disembark**, or straight onto an adjacent enemy coastal tile for an
+**amphibious assault**. A ship only takes on cargo up to its capacity, and a
+ship **sunk** at sea drowns everyone aboard. (Carriers carry air units, which
+matters once air units gain range.)
+
 **Diplomacy & trade.** Relations are war or peace per pair (`Y` to declare war /
 sue for peace); `E` opens a **trade** menu to swap advances or buy/sell them for
 gold, and the AIs trade among themselves too. **Diplomats** (`Z`/`X`/`D`) run

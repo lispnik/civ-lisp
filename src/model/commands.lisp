@@ -451,6 +451,40 @@ GS-MESSAGE for the UI to report."
               (format nil "~A disbanded." name)))
     u))
 
+;;; --- naval transport -------------------------------------------------------
+
+(defun sea-transport-room-p (state tile owner)
+  "T if OWNER has a land-carrying ship on TILE with spare room for one more land
+unit (current land passengers < total transport capacity there)."
+  (let ((cap 0) (load 0))
+    (dolist (id (tile-units tile))
+      (let ((p (unit-by-id state id)))
+        (when p
+          (cond ((and (= (unit-owner p) owner)
+                      (eq (unit-def (unit-type p) :carries) :land))
+                 (incf cap (unit-def (unit-type p) :capacity 0)))
+                ((eq (unit-def (unit-type p) :domain) :land)
+                 (incf load))))))            ; land units already aboard
+    (> cap load)))
+
+(defun carry-passengers (state old transport)
+  "TRANSPORT has just moved to its new tile; bring up to its capacity of the land
+units left on OLD along with it (cargo rides for free)."
+  (when (eq (unit-def (unit-type transport) :carries) :land)
+    (let ((cap (unit-def (unit-type transport) :capacity 0))
+          (dest (tile-at (gs-map state) (unit-x transport) (unit-y transport)))
+          (moved 0))
+      (dolist (id (copy-list (tile-units old)))
+        (let ((p (unit-by-id state id)))
+          (when (and p (< moved cap)
+                     (eq (unit-def (unit-type p) :domain) :land))
+            (setf (tile-units old) (remove id (tile-units old)))
+            (push id (tile-units dest))
+            (setf (unit-x p) (unit-x transport) (unit-y p) (unit-y transport))
+            (incf moved)
+            (reveal-around (player-seen (player-by-id state (unit-owner p)))
+                           state (unit-x p) (unit-y p))))))))
+
 (defun cmd-move-unit (state command)
   (let* ((args (rest command))
          (u (or (unit-by-id state (getf args :unit)) (fail "no such unit")))
@@ -470,7 +504,11 @@ GS-MESSAGE for the UI to report."
       ;; air units go anywhere.  (rivers are land terrain, so land units cross them)
       (ecase (unit-def (unit-type u) :domain :land)
         (:sea (unless sea-dest (fail "naval unit can't move onto land")))
-        (:land (when sea-dest (fail "land unit can't move into the water")))
+        ;; land units may enter the water only to board a friendly transport
+        ;; with room; moving back onto land disembarks them
+        (:land (when (and sea-dest
+                          (not (sea-transport-room-p state dest (unit-owner u))))
+                 (fail "land unit can't move into the water")))
         (:air nil))
       ;; can't enter a tile held by a civilization you're only at peace with
       (when (and foreign (not hostiles))
@@ -514,6 +552,9 @@ GS-MESSAGE for the UI to report."
                     (unit-orders u) :idle)          ; moving breaks fortify
               (reveal-around (player-seen (player-by-id state (unit-owner u)))
                              state nx ny)            ; clear fog around the new tile
+              ;; a ship that moved brings its embarked cargo along
+              (when (plusp (unit-def (unit-type u) :capacity 0))
+                (carry-passengers state old u))
               (decf (unit-moves-left u) (max 1 (min cost (unit-moves-left u))))
               ;; stepping onto a tribal hut springs its surprise
               (when (and (tile-hut dest) (not (barbarian-id-p state (unit-owner u))))
