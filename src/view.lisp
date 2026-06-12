@@ -587,7 +587,7 @@ celebration banner."
     ",/.  luxury -/+"
     "Enter  end turn"
     "S / L  save / load game"
-    "Left-click  select unit or city"
+    "Left-click  select unit/city; empty: recenter"
     "~  Lisp console   K  Slynk server   ?  help"
     "Esc  close menu / quit")
   "Lines shown in the help overlay (first line is the title).")

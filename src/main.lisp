@@ -575,14 +575,22 @@ or an error message."
                                   ((human-city-at state tx ty)
                                    (setf build-city (human-city-at state tx ty)))
                                   ;; otherwise: select the unit/garrison on that
-                                  ;; tile, waking it if it was fortified
+                                  ;; tile (waking a fortified one), or -- on empty
+                                  ;; ground -- recentre the view there (deselecting,
+                                  ;; so the camera stays put instead of snapping back)
                                   (t (let ((u (human-unit-at state tx ty)))
-                                       (when u
-                                         (setf selected u)
-                                         (when (eq (civm:unit-orders
-                                                    (civm:unit-by-id state u))
-                                                   :fortified)
-                                           (try (list :wake :unit u))))))))))))
+                                       (if u
+                                           (progn
+                                             (setf selected u)
+                                             (when (eq (civm:unit-orders
+                                                        (civm:unit-by-id state u))
+                                                       :fortified)
+                                               (try (list :wake :unit u))))
+                                           (setf selected nil
+                                                 cam-x (civm:wrap-x (civm:gs-map state)
+                                                        (- tx (floor *view-cols* 2)))
+                                                 cam-y (clamp-cam-y state
+                                                        (- ty (floor *view-rows* 2)))))))))))))
                        ;; keep the camera centred on the selected unit (it
                        ;; follows as you move/cycle; the map scrolls and wraps)
                        (let ((u (and selected (civm:unit-by-id state selected))))

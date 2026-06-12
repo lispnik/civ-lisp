@@ -68,7 +68,7 @@ and AI cities (Akkad, Uruk) have grown alongside.*
 
 | key | action |
 |-----|--------|
-| left-click | select a unit (wakes a fortified one), or open a friendly city's **build menu** |
+| left-click | select a unit (wakes a fortified one), open a friendly city's **build menu**, or — on empty ground — **recenter** the view there |
 | 1–9 / click | in the build menu, choose a unit, improvement, or wonder (`*`) to build; Esc closes |
 | arrow keys / numpad | move the selected unit — the **numpad moves diagonally** too (1/3/7/9) |
 | Tab | cycle to the next active unit (skips fortified / out-of-moves) |
