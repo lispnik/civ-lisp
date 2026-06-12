@@ -42,6 +42,8 @@ on an illegal move."
     (:investigate    (cmd-investigate state command))
     (:incite-revolt  (cmd-incite-revolt state command))
     (:bribe-unit     (cmd-bribe-unit state command))
+    (:help-wonder    (cmd-help-wonder state command))
+    (:trade-route    (cmd-trade-route state command))
     (:end-turn       (end-turn state)))
   state)
 
@@ -246,6 +248,67 @@ the victim goes to war."
       (destroy-unit state u)
       (setf (relation state (player-id briber) vid) :war)
       target)))
+
+;;; --- caravan (trade routes, help build wonder) -----------------------------
+
+(defun adjacent-city-if (state unit pred)
+  "First city on UNIT's tile or a neighbour satisfying PRED, or NIL."
+  (let ((map (gs-map state)))
+    (flet ((city-at (x y)
+             (let* ((tl (tile-at map x y)) (cid (and tl (tile-city tl)))
+                    (c (and cid (city-by-id state cid))))
+               (and c (funcall pred c) c))))
+      (or (city-at (unit-x unit) (unit-y unit))
+          (loop for (x y tile) in (neighbors map (unit-x unit) (unit-y unit))
+                do (progn tile) thereis (city-at x y))))))
+
+(defun nearest-own-city-other (state pid x y exclude-id)
+  "PID's city nearest (X,Y) other than EXCLUDE-ID, or NIL."
+  (let (best bestd)
+    (maphash (lambda (id c) (declare (ignore id))
+               (when (and (= (city-owner c) pid) (/= (city-id c) exclude-id))
+                 (let ((d (max (map-dx (gs-map state) (city-x c) x) (abs (- (city-y c) y)))))
+                   (when (or (null bestd) (< d bestd)) (setf best c bestd d)))))
+             (gs-cities state))
+    best))
+
+(defun cmd-help-wonder (state command)
+  "A caravan in/next to one of your cities that is building a wonder adds its
+shields to that wonder, then is spent."
+  (let ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit"))))
+    (unless (member :caravan (unit-def (unit-type u) :abilities))
+      (fail "~(~A~) cannot help build a wonder" (unit-type u)))
+    (let ((c (or (adjacent-city-if state u (lambda (c) (= (city-owner c) (unit-owner u))))
+                 (fail "no city of yours next to the caravan"))))
+      (unless (eq (first (city-production c)) :wonder)
+        (fail "~A is not building a wonder" (city-name c)))
+      (incf (city-shield-box c) (unit-def (unit-type u) :cost 50))
+      (destroy-unit state u)
+      c)))
+
+(defun cmd-trade-route (state command)
+  "A caravan next to a city opens a trade route between that city and its owner's
+nearest other city, paying a one-time gold windfall (and recurring trade)."
+  (let ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit"))))
+    (unless (member :caravan (unit-def (unit-type u) :abilities))
+      (fail "~(~A~) cannot establish a trade route" (unit-type u)))
+    (let* ((dest (or (adjacent-city-if state u (constantly t))
+                     (fail "no city next to the caravan")))
+           (oid (unit-owner u))
+           (origin (or (nearest-own-city-other state oid (unit-x u) (unit-y u) (city-id dest))
+                       (fail "you have no other city to trade from"))))
+      (when (route-exists-p state (city-id origin) (city-id dest))
+        (fail "a trade route already links ~A and ~A" (city-name origin) (city-name dest)))
+      (when (or (>= (city-route-count state (city-id origin)) 3)
+                (>= (city-route-count state (city-id dest)) 3))
+        (fail "a city already has three trade routes"))
+      (add-route state (city-id origin) (city-id dest))
+      (let ((revenue (* 3 (+ (+ (map-dx (gs-map state) (city-x origin) (city-x dest))
+                                (abs (- (city-y origin) (city-y dest))))
+                             (city-size origin) (city-size dest)))))
+        (incf (player-gold (player-by-id state oid)) revenue))
+      (destroy-unit state u)
+      dest)))
 
 (defun cmd-terraform (state command)
   "Order a settler to begin a terraform job (:build-road/:irrigate/:mine) on the

@@ -41,7 +41,7 @@
      (:sail        :attack 1 :defense 1 :move 3 :cost 40 :requires :navigation :domain :sea)
      (:settlers    :attack 0 :defense 1 :move 1 :cost 40 :requires nil :domain :land :abilities (:found-city :terraform))
      (:trireme     :attack 1 :defense 0 :move 3 :cost 40 :requires :map-making :domain :sea)
-     (:caravan     :attack 0 :defense 1 :move 1 :cost 50 :requires :trade :domain :land)
+     (:caravan     :attack 0 :defense 1 :move 1 :cost 50 :requires :trade :domain :land :abilities (:caravan))
      (:mech-inf    :attack 6 :defense 6 :move 3 :cost 50 :requires :labor-union :domain :land)
      (:submarine   :attack 8 :defense 2 :move 3 :cost 50 :requires :mass-production :domain :sea)
      (:transport   :attack 0 :defense 3 :move 4 :cost 50 :requires :industrialization :domain :sea)

@@ -1152,6 +1152,53 @@ shield special) so the city keeps producing instead of starving."
     (is-false (unit-by-id s (unit-id dip)))               ; diplomat spent
     (is-true (at-war-p s 1 2))))
 
+;;; --- caravans (trade routes, help build wonder) ----------------------------
+
+(test caravan-helps-wonder
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "Rome" :owner 1 :x 3 :y 3))
+         (car (add-unit s :caravan 1 3 2)))
+    (setf (city-production c) '(:wonder :pyramids) (city-shield-box c) 10)
+    (apply-command s (list :help-wonder :unit (unit-id car)))
+    (is (= 60 (city-shield-box c)))                ; +50 (the caravan's cost)
+    (is-false (unit-by-id s (unit-id car)))))       ; caravan spent
+
+(test help-wonder-needs-a-wonder-in-your-city
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "Rome" :owner 1 :x 3 :y 3)))
+    (setf (city-production c) '(:unit :warriors))   ; not a wonder
+    (signals command-error
+      (apply-command s (list :help-wonder :unit (unit-id (add-unit s :caravan 1 3 2)))))
+    ;; an enemy city building a wonder is not yours -> refused
+    (let ((e (civ-model::register-city s :name "Babylon" :owner 2 :x 3 :y 5)))
+      (setf (city-production e) '(:wonder :pyramids))
+      (signals command-error
+        (apply-command s (list :help-wonder :unit (unit-id (add-unit s :caravan 1 3 4))))))))
+
+(test caravan-establishes-trade-route
+  (let* ((s (bare-state 12 8))
+         (origin (civ-model::register-city s :name "Rome" :owner 1 :x 1 :y 4))
+         (dest (civ-model::register-city s :name "Babylon" :owner 2 :x 8 :y 4))
+         (car (add-unit s :caravan 1 7 4))          ; adjacent to dest
+         (me (player-by-id s 1)))
+    (setf (player-gold me) 0)
+    (apply-command s (list :trade-route :unit (unit-id car)))
+    (is (plusp (player-gold me)))                   ; one-time revenue
+    (is-false (unit-by-id s (unit-id car)))          ; caravan spent
+    (is (= 1 (civ-model::city-route-count s (city-id dest))))
+    (is (= 1 (civ-model::city-route-count s (city-id origin))))
+    ;; the same pair can't be linked twice
+    (signals command-error
+      (apply-command s (list :trade-route :unit (unit-id (add-unit s :caravan 1 7 4)))))))
+
+(test trade-route-adds-trade
+  (let* ((s (bare-state 6 6))
+         (a (civ-model::register-city s :name "A" :owner 1 :x 1 :y 1))
+         (b (civ-model::register-city s :name "B" :owner 1 :x 4 :y 4)))
+    (let ((t0 (nth-value 2 (civ-model::city-yields s a))))
+      (civ-model::add-route s (city-id a) (city-id b))
+      (is (= (1+ t0) (nth-value 2 (civ-model::city-yields s a)))))))   ; +1 trade
+
 ;;; --- save / load -----------------------------------------------------------
 
 (test save-load-roundtrip

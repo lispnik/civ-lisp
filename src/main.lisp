@@ -12,6 +12,7 @@
 ;;;;   G  : goto (then click)         Enter : end turn
 ;;;;   V  : revolution    Y : diplomacy    E : trade    , / . : luxury rate
 ;;;;   Z / X : diplomat steal tech / sabotage   D : diplomat (spy) action menu
+;;;;   H / J : caravan help build wonder / establish a trade route
 ;;;;   ?  : help overlay        ~ : Lisp console (evals a form; Esc closes)
 ;;;;   K  : start/stop the Slynk server (connect from Emacs with M-x sly-connect)
 ;;;;   S / L : save / load game       Esc / close : quit
@@ -63,7 +64,8 @@
 ;; SDL scancodes for the keys we use
 (defconstant +sc-a+ 4) (defconstant +sc-b+ 5) (defconstant +sc-c+ 6) (defconstant +sc-d+ 7)
 (defconstant +sc-e+ 8) (defconstant +sc-k+ 14)
-(defconstant +sc-f+ 9) (defconstant +sc-g+ 10) (defconstant +sc-i+ 12)
+(defconstant +sc-f+ 9) (defconstant +sc-g+ 10) (defconstant +sc-h+ 11) (defconstant +sc-i+ 12)
+(defconstant +sc-j+ 13)
 (defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
 (defconstant +sc-n+ 17) (defconstant +sc-p+ 19) (defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
 (defconstant +sc-v+ 25)
@@ -520,6 +522,8 @@ or an error message."
                                   ((= sc +sc-e+) (setf trade-menu t))  ; trade menu
                                   ((= sc +sc-z+) (espionage! :steal-tech "advance stolen!"))
                                   ((= sc +sc-x+) (espionage! :sabotage "sabotage!"))
+                                  ((= sc +sc-h+) (espionage! :help-wonder "wonder boosted!"))
+                                  ((= sc +sc-j+) (espionage! :trade-route "trade route opened!"))
                                   ((= sc +sc-d+)               ; diplomat action menu
                                    (let ((u (and selected (civm:unit-by-id state selected))))
                                      (when (and u (eq (civm:unit-type u) :diplomat))

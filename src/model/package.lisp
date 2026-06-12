@@ -36,6 +36,8 @@
    ;; espionage
    #:gs-embassies #:has-embassy-p #:adjacent-enemy-city #:adjacent-enemy-unit
    #:city-report #:incite-cost
+   ;; trade routes / caravans
+   #:gs-routes #:route-exists-p #:city-route-count #:adjacent-city-if
    ;; fog of war
    #:player-seen #:update-visibility #:visible-set #:seen-p
    ;; rules

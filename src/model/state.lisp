@@ -20,6 +20,7 @@
   (relations (make-hash-table :test 'eql)) ; player-pair key -> :war (absent = :peace)
   (stolen (make-hash-table :test 'eql))    ; (thief*256+victim) -> t: a tech has been stolen
   (embassies (make-hash-table :test 'eql)) ; (observer*256+observed) -> t: an embassy exists
+  (routes '())                             ; list of (city-a . city-b) trade routes (a<=b)
   (phase :start :type keyword))
 
 (defun gs-next-id (state)

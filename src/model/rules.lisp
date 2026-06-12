@@ -44,6 +44,18 @@ or the republic/democracy +1 trade on any tile already producing trade."
   (let ((p (player-by-id state (city-owner city))))
     (and p (player-government p))))
 
+;;; --- trade routes (caravans) -----------------------------------------------
+
+(defun route-pair (a b) (if (<= a b) (cons a b) (cons b a)))
+(defun route-exists-p (state a b) (member (route-pair a b) (gs-routes state) :test #'equal))
+(defun add-route (state a b) (pushnew (route-pair a b) (gs-routes state) :test #'equal))
+
+(defun city-route-count (state cid)
+  "Active trade routes CID is in -- the other endpoint city must still exist."
+  (count-if (lambda (pr) (and (or (= (car pr) cid) (= (cdr pr) cid))
+                              (city-by-id state (car pr)) (city-by-id state (cdr pr))))
+            (gs-routes state)))
+
 (defun city-auto-work (state city)
   "Assign the city's SIZE citizens to surrounding tiles.  First secure
 subsistence (each citizen eats 2 food) by working the highest-food tiles, then
@@ -94,6 +106,8 @@ The city centre is worked for free and, per Civ1, always yields at least
     (when (member :hanging-gardens b) (incf f 1))           ; +1 food
     (when (member :pyramids b) (setf s (floor (* s 3) 2)))  ; +50% shields
     (when (member :colossus b) (setf tr (floor (* tr 3) 2))); +50% trade
+    ;; trade routes: +1 trade each, up to three
+    (incf tr (min 3 (city-route-count state (city-id city))))
     ;; corruption: a government-dependent slice of trade is simply lost
     (when gov
       (let ((corrupt (government-def gov :corruption 0)))
