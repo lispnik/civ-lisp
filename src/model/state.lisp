@@ -19,6 +19,7 @@
   (warming 0 :type fixnum)                 ; number of global-warming events so far
   (relations (make-hash-table :test 'eql)) ; player-pair key -> :war (absent = :peace)
   (stolen (make-hash-table :test 'eql))    ; (thief*256+victim) -> t: a tech has been stolen
+  (embassies (make-hash-table :test 'eql)) ; (observer*256+observed) -> t: an embassy exists
   (phase :start :type keyword))
 
 (defun gs-next-id (state)

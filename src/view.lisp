@@ -584,7 +584,7 @@ celebration banner."
     "T  fort   C  clear forest   P  clean pollution"
     "G then click  go to a tile"
     "V  revolution   Y  diplomacy   E  trade"
-    "Z / X  diplomat: steal tech / sabotage"
+    "Z / X  diplomat steal / sabotage   D  spy menu"
     ",/.  luxury -/+"
     "Enter  end turn"
     "S / L  save / load game"
@@ -733,8 +733,56 @@ celebration banner."
             do (progn oid)
                (line label i (if deal 230 130) (if deal 230 130) (if deal 150 130))))))
 
+;;; --- diplomat (spy) action menu --------------------------------------------
+
+(defparameter *diplomat-actions*
+  '((:steal-tech "Steal tech" :city) (:sabotage "Sabotage" :city)
+    (:investigate "Investigate" :city) (:establish-embassy "Establish embassy" :city)
+    (:incite-revolt "Incite revolt" :city) (:bribe-unit "Bribe unit" :unit))
+  "(command label target-kind) for the spy menu; :city or :unit must be adjacent.")
+
+(defun spy-menu-lines (state unit)
+  "(index command label enabled-p) for each diplomat action available to UNIT."
+  (loop for (cmd label need) in *diplomat-actions* for i from 1
+        for target = (if (eq need :unit) (civm:adjacent-enemy-unit state unit)
+                         (civm:adjacent-enemy-city state unit))
+        collect (list i cmd
+                      (format nil "~D ~A~A" i label
+                              (cond ((not target) " (no target)")
+                                    ((eq cmd :incite-revolt)
+                                     (format nil " ~Dg" (civm:incite-cost target)))
+                                    (t "")))
+                      (and target t))))
+
+(defun spy-menu-pick (painter state unit ly)
+  (let ((row (floor (- ly (+ *menu-y* 2)) (1+ (gfont-height (painter-font painter)))))
+        (lines (spy-menu-lines state unit)))
+    (when (and (>= row 1) (<= row (length lines)))
+      (let ((e (nth (1- row) lines)))
+        (when (fourth e) (second e))))))      ; the command, if enabled
+
+(defun draw-spy-menu (painter state unit)
+  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+         (h (gfont-height font))
+         (lines (spy-menu-lines state unit))
+         (title "Diplomat:")
+         (texts (cons title (mapcar #'third lines)))
+         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
+         (ph (+ 4 (* (length texts) (1+ h)))))
+    (sdl2:set-render-draw-color ren 0 0 0 230)
+    (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (sdl2:set-render-draw-color ren 220 220 220 255)
+    (sdl2:render-draw-rect ren (painter-dst painter))
+    (flet ((line (text row r g b)
+             (draw-text painter font text (+ *menu-x* 2)
+                        (+ *menu-y* 2 (* row (1+ h))) r g b)))
+      (line title 0 255 230 120)
+      (loop for (i cmd label ok) in lines
+            do (progn cmd) (line label i (if ok 235 130) (if ok 235 130) (if ok 150 130))))))
+
 (defun render-game (painter state selected-id
-                    &key (fog t) build-city gov-menu diplo-menu trade-menu help console
+                    &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu help console
                          (cam-x 0) (cam-y 0) (vw 20) (vh 15))
   "Draw STATE through a VW x VH-tile viewport whose top-left world tile is
 (CAM-X, CAM-Y); the map wraps east-west.  With FOG, unexplored tiles are black,
@@ -794,6 +842,9 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
              (draw-diplo-menu painter state))
             ((and trade-menu (painter-font painter))
              (draw-trade-menu painter state))
+            ((and spy-menu selected-id (painter-font painter))
+             (let ((u (civm:unit-by-id state selected-id)))
+               (when u (draw-spy-menu painter state u))))
             ((and build-city (painter-font painter))
              (let ((c (civm:city-by-id state build-city)))
                (when c (draw-build-menu painter state c)))))

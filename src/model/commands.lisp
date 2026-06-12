@@ -38,6 +38,10 @@ on an illegal move."
     (:propose-trade  (cmd-propose-trade state command))
     (:steal-tech     (cmd-steal-tech state command))
     (:sabotage       (cmd-sabotage state command))
+    (:establish-embassy (cmd-establish-embassy state command))
+    (:investigate    (cmd-investigate state command))
+    (:incite-revolt  (cmd-incite-revolt state command))
+    (:bribe-unit     (cmd-bribe-unit state command))
     (:end-turn       (end-turn state)))
   state)
 
@@ -154,6 +158,94 @@ spy; either way sabotage is an overt act and provokes war."
         (destroy-unit state u)
         (setf (relation state tid vid) :war)  ; sabotage is overt -> war
         (or target :production)))))
+
+(defun has-embassy-p (state observer observed)
+  "T if OBSERVER has an embassy with OBSERVED."
+  (gethash (+ (* observer 256) observed) (gs-embassies state)))
+
+(defun cmd-establish-embassy (state command)
+  "A diplomat establishes a permanent embassy with the adjacent city's owner --
+a benign act (no catch, no war) that opens that civilization's intelligence."
+  (multiple-value-bind (u c) (espionage-target state command)
+    (setf (gethash (+ (* (unit-owner u) 256) (city-owner c)) (gs-embassies state)) t)
+    (destroy-unit state u)
+    c))
+
+(defun city-report (state city)
+  "A human-readable intelligence summary of CITY (for INVESTIGATE)."
+  (format nil "~A sz~D (~A) ~Adef~Abuild ~A"
+          (city-name city) (city-size city)
+          (player-name (player-by-id state (city-owner city)))
+          (count-city-military state city)
+          (if (member :walls (city-buildings city)) " walls " " ")
+          (if (city-production city)
+              (format nil "~(~A~)" (second (city-production city))) "idle")))
+
+(defun cmd-investigate (state command)
+  "A diplomat inspects the adjacent enemy city (the caller reads CITY-REPORT),
+then is spent.  A peek, so no war."
+  (multiple-value-bind (u c) (espionage-target state command)
+    (destroy-unit state u)
+    c))
+
+(defun incite-cost (city)
+  (* (max 1 (city-size city)) 50))
+
+(defun cmd-incite-revolt (state command)
+  "Bribe an adjacent enemy city (and its garrison) to defect for gold; the
+diplomat is spent and the victim goes to war.  Capitals cannot be incited, and a
+defended city may catch the spy."
+  (multiple-value-bind (u c) (espionage-target state command)
+    (let* ((briber (player-by-id state (unit-owner u)))
+           (vid (city-owner c))
+           (cost (incite-cost c)))
+      (when (member :palace (city-buildings c))
+        (fail "a capital cannot be incited to revolt"))
+      (when (< (player-gold briber) cost)
+        (fail "inciting ~A costs ~D gold" (city-name c) cost))
+      (when (espionage-caught-p state c u)
+        (destroy-unit state u)
+        (setf (relation state (player-id briber) vid) :war)
+        (fail "your diplomat was caught -- war!"))
+      (decf (player-gold briber) cost)
+      (let ((tile (tile-at (gs-map state) (city-x c) (city-y c))))
+        (dolist (id (copy-list (tile-units tile)))      ; the garrison defects too
+          (let ((gu (unit-by-id state id)))
+            (when gu (setf (unit-owner gu) (player-id briber)))))
+        (setf (city-owner c) (player-id briber)
+              (tile-owner tile) (player-id briber)))
+      (destroy-unit state u)
+      (setf (relation state (player-id briber) vid) :war)
+      c)))
+
+(defun adjacent-enemy-unit (state unit)
+  "A lone enemy unit (not garrisoned in a city) on a tile adjacent to UNIT, or
+NIL."
+  (let ((map (gs-map state)) (owner (unit-owner unit)))
+    (loop for (x y tile) in (neighbors map (unit-x unit) (unit-y unit))
+          unless (tile-city tile)
+            do (loop for id in (tile-units tile)
+                     for e = (unit-by-id state id)
+                     when (and e (/= (unit-owner e) owner))
+                       do (return-from adjacent-enemy-unit e)))))
+
+(defun cmd-bribe-unit (state command)
+  "Bribe a lone adjacent enemy unit to defect for gold; the diplomat is spent and
+the victim goes to war."
+  (let ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit"))))
+    (unless (member :espionage (unit-def (unit-type u) :abilities))
+      (fail "~(~A~) cannot bribe" (unit-type u)))
+    (let* ((target (or (adjacent-enemy-unit state u) (fail "no lone enemy unit to bribe")))
+           (briber (player-by-id state (unit-owner u)))
+           (vid (unit-owner target))
+           (cost (* 2 (unit-def (unit-type target) :cost 10))))
+      (when (< (player-gold briber) cost)
+        (fail "bribing that ~(~A~) costs ~D gold" (unit-type target) cost))
+      (decf (player-gold briber) cost)
+      (setf (unit-owner target) (player-id briber))
+      (destroy-unit state u)
+      (setf (relation state (player-id briber) vid) :war)
+      target)))
 
 (defun cmd-terraform (state command)
   "Order a settler to begin a terraform job (:build-road/:irrigate/:mine) on the

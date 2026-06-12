@@ -11,7 +11,7 @@
 ;;;;   C : clear forest      P : clean pollution
 ;;;;   G  : goto (then click)         Enter : end turn
 ;;;;   V  : revolution    Y : diplomacy    E : trade    , / . : luxury rate
-;;;;   Z / X : diplomat steal tech / sabotage an adjacent enemy city
+;;;;   Z / X : diplomat steal tech / sabotage   D : diplomat (spy) action menu
 ;;;;   ?  : help overlay        ~ : Lisp console (evals a form; Esc closes)
 ;;;;   K  : start/stop the Slynk server (connect from Emacs with M-x sly-connect)
 ;;;;   S / L : save / load game       Esc / close : quit
@@ -284,6 +284,7 @@ or an error message."
                   (gov-menu nil)      ; T while the revolution menu is open
                   (diplo-menu nil)    ; T while the diplomacy menu is open
                   (trade-menu nil)    ; T while the trade menu is open
+                  (spy-menu nil)      ; T while the diplomat action menu is open
                   (help nil)          ; T while the help overlay is shown
                   (console nil)       ; T while the `~` Lisp console is open
                   (con-input "")      ; the form being typed into the console
@@ -341,7 +342,21 @@ or an error message."
                                (civm:command-error (e)
                                  (sdl2:set-window-title win (format nil "civ-lisp — ~A" e))
                                  (unless (civm:unit-by-id state u)   ; caught/consumed
-                                   (setf selected (next-human-unit state selected)))))))))
+                                   (setf selected (next-human-unit state selected))))))))
+                       (do-spy-action (cmd)
+                         ;; run a spy-menu action; investigate reports the city
+                         (if (eq cmd :investigate)
+                             (let* ((u (and selected (civm:unit-by-id state selected)))
+                                    (c (and u (civm:adjacent-enemy-city state u))))
+                               (espionage! :investigate
+                                           (if c (civm:city-report state c) "investigate")))
+                             (espionage! cmd (case cmd
+                                               (:steal-tech "advance stolen!")
+                                               (:sabotage "sabotage!")
+                                               (:establish-embassy "embassy established")
+                                               (:incite-revolt "city incited!")
+                                               (:bribe-unit "unit bribed!")
+                                               (t "done"))))))
                 (retitle)
                 (unwind-protect
                      ;; manual poll loop, reading event fields at raw SDL offsets
@@ -417,6 +432,16 @@ or an error message."
                                                      :player me :against oid))))
                                       (setf diplo-menu nil))
                                      ((= sc +sc-escape+) (setf diplo-menu nil))))
+                                  ;; spy menu open: number runs a diplomat action
+                                  (spy-menu
+                                   (cond
+                                     ((and (>= sc +sc-1+) (<= sc (+ +sc-1+ 8)))
+                                      (let* ((u (and selected (civm:unit-by-id state selected)))
+                                             (pick (and u (nth (- sc +sc-1+)
+                                                               (spy-menu-lines state u)))))
+                                        (when (and pick (fourth pick)) (do-spy-action (second pick))))
+                                      (setf spy-menu nil))
+                                     ((= sc +sc-escape+) (setf spy-menu nil))))
                                   ;; trade menu open: number executes that civ's offer
                                   (trade-menu
                                    (cond
@@ -495,6 +520,10 @@ or an error message."
                                   ((= sc +sc-e+) (setf trade-menu t))  ; trade menu
                                   ((= sc +sc-z+) (espionage! :steal-tech "advance stolen!"))
                                   ((= sc +sc-x+) (espionage! :sabotage "sabotage!"))
+                                  ((= sc +sc-d+)               ; diplomat action menu
+                                   (let ((u (and selected (civm:unit-by-id state selected))))
+                                     (when (and u (eq (civm:unit-type u) :diplomat))
+                                       (setf spy-menu t))))
                                   ((= sc +sc-k+)                       ; toggle Slynk server
                                    (handler-case
                                        (if *slynk-port*
@@ -561,6 +590,13 @@ or an error message."
                                                       :make-peace :declare-war)
                                                   :player me :against oid))))
                                    (setf diplo-menu nil))
+                                  ;; spy menu open: click an action to run it
+                                  (spy-menu
+                                   (let* ((u (and selected (civm:unit-by-id state selected)))
+                                          (cmd (and u (spy-menu-pick painter state u
+                                                       (floor (ev-mouse-y ev) scale)))))
+                                     (when cmd (do-spy-action cmd)))
+                                   (setf spy-menu nil))
                                   ;; trade menu open: click a civ to execute its offer
                                   (trade-menu
                                    (let* ((me (first (human-player-ids state)))
@@ -618,7 +654,8 @@ or an error message."
                                                              (floor *view-rows* 2))))))
                        (render-game painter state selected
                                     :build-city build-city :gov-menu gov-menu
-                                    :diplo-menu diplo-menu :trade-menu trade-menu :help help
+                                    :diplo-menu diplo-menu :trade-menu trade-menu
+                                    :spy-menu spy-menu :help help
                                     :console (and console (cons con-input con-output))
                                     :cam-x cam-x :cam-y cam-y
                                     :vw *view-cols* :vh *view-rows*)

@@ -1090,6 +1090,68 @@ shield special) so the city keeps producing instead of starving."
     (is-false (member :library (city-buildings c)))
     (is-true (at-war-p s 1 2))))
 
+(test establish-embassy
+  (let* ((s (bare-state 6 6))
+         (dip (add-unit s :diplomat 1 3 2)))
+    (civ-model::register-city s :name "Babylon" :owner 2 :x 3 :y 3)
+    (is-false (civ-model:has-embassy-p s 1 2))
+    (apply-command s (list :establish-embassy :unit (unit-id dip)))
+    (is-true (civ-model:has-embassy-p s 1 2))         ; embassy opened
+    (is-false (unit-by-id s (unit-id dip)))            ; diplomat spent
+    (is-false (at-war-p s 1 2))))                       ; benign
+
+(test investigate-city
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "Babylon" :owner 2 :x 3 :y 3))
+         (dip (add-unit s :diplomat 1 3 2)))
+    (setf (city-size c) 5 (city-buildings c) '(:walls))
+    (let ((report (civ-model:city-report s c)))         ; what the view shows
+      (is-true (search "Babylon" report))
+      (is-true (search "walls" report)))
+    (apply-command s (list :investigate :unit (unit-id dip)))
+    (is-false (unit-by-id s (unit-id dip)))))           ; diplomat spent, no war
+
+(test incite-revolt-flips-city
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "Babylon" :owner 2 :x 3 :y 3))
+         (g (add-unit s :phalanx 2 3 3))               ; the city's garrison
+         (me (player-by-id s 1)))
+    (setf (city-size c) 2 (player-gold me) 500)        ; cost = 2*50 = 100
+    ;; one phalanx in the city makes it catchable -- attempt until it flips
+    (let ((flipped nil))
+      (loop for i below 40 until flipped do
+        (let ((d (add-unit s :diplomat 1 3 2)))
+          (handler-case
+              (progn (apply-command s (list :incite-revolt :unit (unit-id d)))
+                     (setf flipped t))
+            (command-error () nil))))
+      (is-true flipped)
+      (is (= 1 (city-owner c)))                         ; city is now mine
+      (is (= 1 (unit-owner g)))                          ; so is its garrison
+      (is (< (player-gold me) 500))                      ; gold spent
+      (is-true (at-war-p s 1 2)))))
+
+(test incite-cannot-touch-a-capital
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "Babylon" :owner 2 :x 3 :y 3))
+         (dip (add-unit s :diplomat 1 3 2))
+         (me (player-by-id s 1)))
+    (setf (city-buildings c) '(:palace) (player-gold me) 500)
+    (signals command-error (apply-command s (list :incite-revolt :unit (unit-id dip))))
+    (is (= 2 (city-owner c)))))
+
+(test bribe-unit
+  (let* ((s (bare-state 6 6))
+         (target (add-unit s :legion 2 3 3))            ; lone enemy unit, adjacent
+         (dip (add-unit s :diplomat 1 3 2))
+         (me (player-by-id s 1)))
+    (setf (player-gold me) 500)                          ; legion cost 20 -> bribe 40
+    (apply-command s (list :bribe-unit :unit (unit-id dip)))
+    (is (= 1 (unit-owner target)))                       ; the legion defected
+    (is (= 460 (player-gold me)))
+    (is-false (unit-by-id s (unit-id dip)))               ; diplomat spent
+    (is-true (at-war-p s 1 2))))
+
 ;;; --- save / load -----------------------------------------------------------
 
 (test save-load-roundtrip

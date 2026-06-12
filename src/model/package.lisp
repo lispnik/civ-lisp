@@ -33,6 +33,9 @@
    ;; diplomacy
    #:gs-relations #:relation #:at-war-p #:barbarian-id-p
    #:best-trade-with #:*tech-trade-value*
+   ;; espionage
+   #:gs-embassies #:has-embassy-p #:adjacent-enemy-city #:adjacent-enemy-unit
+   #:city-report #:incite-cost
    ;; fog of war
    #:player-seen #:update-visibility #:visible-set #:seen-p
    ;; rules
