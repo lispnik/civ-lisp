@@ -1,9 +1,11 @@
 # civ-lisp
 
 An **SDL2** front-end in Common Lisp (SBCL, [ocicl](https://github.com/ocicl/ocicl)
-for dependencies) for a Civilization-like 4X game. It renders a live
-[`civ-model`](docs/MODEL.md) game — map, units and cities — using sprites
-extracted from the DOS game *Sid Meier's Civilization* (the sibling
+for dependencies) for a Civilization-like 4X game — explore a wrapping world,
+found cities, climb the advance tree, govern, wage war, do diplomacy /
+espionage / trade, manage pollution, and win by conquest or the space race. It
+renders a live [`civ-model`](docs/MODEL.md) game using sprites extracted from
+the DOS game *Sid Meier's Civilization* (the sibling
 [civ-extract](https://github.com/lispnik/civ-extract) project), with the
 **torch** graphic as the mouse cursor.
 
@@ -75,12 +77,18 @@ and AI cities (Akkad, Uruk) have grown alongside.*
 | W | wait — send the unit to the end of this turn's cycle |
 | B | found a city (with a settlers unit) |
 | F | fortify the selected unit (defense + faster healing) |
-| R / I / M | with a settlers unit: build **road** / **irrigation** / **mine** on its tile (takes several turns) |
+| R / I / M | settlers: build **road** (then **railroad** once known) / **irrigation** / **mine** |
+| T / C | settlers: build a **fort** / **clear forest** to plains |
+| P | settlers: **clean pollution** on the tile |
+| Z / X / D | diplomat: **steal tech** / **sabotage** / open the full **spy menu** (embassy, investigate, incite revolt, bribe…) |
+| H / J | caravan: **help build a wonder** / **establish a trade route** |
 | G, then left-click | send the selected unit to a tile (auto-paths each turn); the cursor becomes the **Go** arrow |
 | V | start a **revolution** — pick a new government from the menu |
+| Y / E | open the **diplomacy** (war/peace) / **trade** (tech & gold) menu |
 | , / . | shift the **luxury** rate down / up (trades against science) |
 | Enter | end turn |
 | S / L | **save** / **load** the game (single quicksave slot) |
+| ~ / K | open the **Lisp console** / start–stop a **Slynk** server (connect from Emacs) |
 | ? | toggle the **help** overlay (a keybinding cheat-sheet) |
 | Esc | close a menu / cancel a pending Go; otherwise quit |
 
@@ -94,11 +102,19 @@ in sight of one of your units or cities. The selected unit shows an info box in
 the bottom-left (owner, type, attack/defense, moves, HP, city, terrain, and the
 units sharing its square) — see [Selecting a unit](#selecting-a-unit) above.
 
-Settlers can **terraform** the tile they stand on — `R` builds a road (+1 trade),
-`I` irrigates (+1 food), `M` mines (+1 shield) — over several turns, during which
-the unit holds position; the improvement then feeds straight into that tile's
-yield. City improvements carry a gold **upkeep** that's charged every turn; a
-player who can't pay sells off improvements (priciest first) until solvent.
+Settlers can **terraform** the tile they stand on, over several turns during
+which the unit holds position; the improvement then feeds straight into that
+tile's yield: `R` builds a **road** (+1 trade) and, once **Railroad** is
+researched, upgrades it to a **railroad** (+1 shield); `I` **irrigates** (+1
+food); `M` **mines** (+1 shield); `C` **clears forest** to plains; `T` builds a
+**fort** (+100% defense in the field, like city walls); and `P` **cleans
+pollution**. Industrial cities throw off **pollution** once a civ reaches
+Industrialization — a blight that halves a tile's output until a settler clears
+it — and if it piles up across the map it triggers **global warming**, which
+degrades random land terrain (grassland → plains → desert). City improvements
+carry a gold **upkeep** charged every turn; a player who can't pay sells off
+improvements (priciest first) until solvent.
+
 Press `S` to **save** and `L` to **load** — because the whole `civ-model` state
 is flat, serializable data (the RNG included), a loaded game continues rolling
 identically, so save/load is fully deterministic.
@@ -130,15 +146,34 @@ cities use SP257 sprites. The world is an 80×50 **horizontal cylinder** (it wra
 east–west, with poles top and bottom); the window is a **scrolling 20×15-tile
 viewport** (16 px tiles, scaled 2× → 640×480) whose camera follows the selected
 unit, and tiles are stitched seamlessly across the seam. Keyboard input is turned
-into `civ-model` commands — the view never mutates the model directly. The rival civilization is run by a simple **AI** that issues the same
-commands (it founds and spaces out cities, sets production, explores, and
-researches); it takes its turn automatically whenever you end yours. Moving a
-unit into an enemy-occupied tile triggers **combat** — a Civ1-style fight to the
-death with terrain, fortification and city defense bonuses; win and your unit
-advances onto the cleared tile. Damage carries between fights, so units **heal**
-between turns when they stay put — fully in a city, faster when **fortified**
-(`F`), slowly otherwise; fortifying also adds +50% defense (the AI fortifies its
-city garrisons).
+into `civ-model` commands — the view never mutates the model directly. Several
+rival **civilizations** (the default game has four) plus roving **barbarians**
+are each run by a simple **AI** that issues the same commands — founding and
+spacing out cities, setting production, exploring, researching, even swapping
+advances and declaring wars — and take their turns automatically when you end
+yours.
+
+**Combat** is **war-gated**: you can't enter a tile held by a civ you're at
+peace with, so you **declare war** first (the diplomacy menu, `Y`). Moving into
+an enemy-occupied tile then triggers a Civ1-style fight to the death with
+terrain, fortification, fort and city-wall bonuses; win and your unit advances
+onto the cleared tile. Damage carries between fights, so units **heal** between
+turns when they stay put — fully in a city, faster when **fortified** (`F`).
+Adjacent enemy units exert a **zone of control**.
+
+**Diplomacy & trade.** Relations are war or peace per pair (`Y` to declare war /
+sue for peace); `E` opens a **trade** menu to swap advances or buy/sell them for
+gold, and the AIs trade among themselves too. **Diplomats** (`Z`/`X`/`D`) run
+the full espionage suite — steal tech, sabotage, establish an embassy,
+investigate, incite a city to revolt, or bribe a unit — where a defended city
+may catch the spy (lost, plus war). **Caravans** (`H`/`J`) help build a wonder
+or open a trade route (a gold windfall plus recurring trade).
+
+**Winning.** The game ends by **conquest** — last civilization with a city or
+unit standing — or the **space race**: build the **Apollo Program**, then with
+**Space Flight** assemble ten **spaceship parts**; the ship launches and, after
+its flight, arrives for the win. A **VICTORY / DEFEAT** banner declares the
+result.
 
 > **macOS / arm64 note:** cl-sdl2's high-level event accessors (`scancode-value`,
 > the `:x`/`:y` destructuring) read the wrong `SDL_Event` struct offsets against
@@ -151,7 +186,7 @@ city garrisons).
 | system | what it is | depends on |
 |--------|-----------|------------|
 | **`civ-model`** | the pure game model — state + rules, **no SDL, no I/O** | (nothing) |
-| **`civ-lisp`** | the SDL2 front-end (window, cursor, scaling) | `civ-model`, `sdl2`, `sdl2-image` |
+| **`civ-lisp`** | the SDL2 front-end (window, cursor, scaling, menus) | `civ-model`, `sdl2`, `sdl2-image`, `slynk` |
 
 The model is deliberately independent of rendering so it can be tested headless
 and reused by tools / AI / a future networked client. See
