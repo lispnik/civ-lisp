@@ -210,8 +210,9 @@ call from the `~` console -- e.g. (start-slynk).  Returns the port."
 ;;; --- `~` Lisp console ------------------------------------------------------
 
 (defvar *state* nil
-  "The live game state, bound while the `~` console evaluates a form so you can
-poke at the running game (e.g. (civm:gs-turn *state*)).")
+  "Handle on the live game state.  RUN sets it when a game starts or is loaded,
+so it is reachable both from the `~` console and from a SLY connection
+(e.g. (civm:gs-turn civ-lisp::*state*)).")
 
 (defun split-lines (s)
   (loop with start = 0
@@ -250,6 +251,7 @@ or an error message."
            (lw (* (civm:map-width map) *tile*))
            (lh (* (civm:map-height map) *tile*))
            (selected (first-human-unit state)))
+      (setf *state* state)          ; publish the live game for the console / SLY
       (sdl2:with-window (win :title "civ-lisp" :w (* lw scale) :h (* lh scale)
                              :flags '(:shown))
         (sdl2:with-renderer (ren win :flags '(:accelerated :presentvsync))
@@ -490,6 +492,7 @@ or an error message."
                                    (when (probe-file *save-path*)
                                      (when goto-mode (torch!))
                                      (setf state (civm:load-game *save-path*)
+                                           *state* state          ; republish for SLY
                                            build-city nil
                                            selected (first-human-unit state))
                                      (clrhash *waited*) (setf *wait-seq* 0)
