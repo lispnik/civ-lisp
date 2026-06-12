@@ -618,17 +618,18 @@
       (is-false (unit-by-id s (unit-id u)))            ; removed from the game
       (is (stringp (gs-message s))))))                 ; outcome reported
 
-(test disband-in-city-recovers-half-shields
-  ;; disbanding inside a friendly city banks half the unit's build cost
+(test disband-in-city-recovers-a-fraction-of-shields
+  ;; disbanding inside a friendly city banks build-cost / *disband-shield-divisor*
   (let ((s (bare-state 8 8)))
     (let* ((c (civ-model::register-city s :name "Rome" :owner 1 :x 3 :y 3))
            (u (add-unit s :warriors 1 3 3))
-           (expected (floor (unit-def :warriors :cost 0) 2))
+           (expected (floor (unit-def :warriors :cost 0)
+                            civ-model::*disband-shield-divisor*))
            (box0 (city-shield-box c)))
       (is (plusp expected))
       (apply-command s (list :disband-unit :unit (unit-id u)))
       (is-false (unit-by-id s (unit-id u)))
-      (is (= (+ box0 expected) (city-shield-box c))))))  ; half cost recovered
+      (is (= (+ box0 expected) (city-shield-box c))))))  ; fraction of cost recovered
 
 (test disband-recovery-capped-at-current-cost
   ;; recovered shields can finish the current build but never overflow past it

@@ -410,12 +410,18 @@ city, or a barbarian ambush.  Stores the outcome in GS-MESSAGE and returns it."
     (setf (gs-message state) msg)
     msg))
 
+(defparameter *disband-shield-divisor* 4
+  "A unit disbanded in a friendly city refunds (build-cost / this) shields toward
+its production.  4 = a quarter of the cost; the original Civilization refunded
+nothing, so this is a deliberately modest convenience -- raise/lower to taste.")
+
 (defun cmd-disband-unit (state command)
   "Remove a unit from the game.
 
 Shield reallocation: a unit disbanded while standing in one of its owner's
-cities returns *half its build cost* (rounded down) as shields into that city's
-production box -- but only up to what the city's current build still needs, so
+cities returns build-cost / *DISBAND-SHIELD-DIVISOR* shields (rounded down, a
+quarter by default) into that city's production box -- but only up to what the
+city's current build still needs, so
 the recovered shields can finish (but never overflow past) the item in
 progress.  A unit with no current production simply banks the half-cost.  A unit
 disbanded in the open field returns nothing -- those shields are lost.  A city
@@ -431,12 +437,12 @@ GS-MESSAGE for the UI to report."
          (recover 0))
     (when (and city (= (city-owner city) (unit-owner u))
                (not (eq (first (city-production city)) :wonder)))
-      (let ((half (floor (unit-def type :cost 0) 2)))
-        (when (plusp half)
+      (let ((refund (floor (unit-def type :cost 0) *disband-shield-divisor*)))
+        (when (plusp refund)
           (let ((cap (if (city-production city)
                          (production-cost (city-production city))
                          most-positive-fixnum)))
-            (setf recover (max 0 (min half (- cap (city-shield-box city)))))
+            (setf recover (max 0 (min refund (- cap (city-shield-box city)))))
             (incf (city-shield-box city) recover)))))
     (destroy-unit state u)
     (setf (gs-message state)
