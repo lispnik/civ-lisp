@@ -641,6 +641,17 @@
         (apply-command s (list :disband-unit :unit (unit-id u)))
         (is (= cost (city-shield-box c)))))))            ; capped exactly at cost
 
+(test disband-into-wonder-recovers-nothing
+  ;; wonders can only be hurried by caravans, never by recycling units
+  (let ((s (bare-state 8 8)))
+    (let* ((c (civ-model::register-city s :name "Rome" :owner 1 :x 3 :y 3))
+           (box0 (city-shield-box c))
+           (u (add-unit s :warriors 1 3 3)))
+      (setf (city-production c) (list :wonder :pyramids))
+      (apply-command s (list :disband-unit :unit (unit-id u)))
+      (is-false (unit-by-id s (unit-id u)))            ; unit still removed
+      (is (= box0 (city-shield-box c))))))             ; but no shields toward the wonder
+
 (test disband-in-enemy-city-recovers-nothing
   ;; standing in a city you don't own returns no shields to it
   (let ((s (bare-state 8 8)))

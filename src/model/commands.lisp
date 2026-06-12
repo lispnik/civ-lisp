@@ -418,8 +418,10 @@ cities returns *half its build cost* (rounded down) as shields into that city's
 production box -- but only up to what the city's current build still needs, so
 the recovered shields can finish (but never overflow past) the item in
 progress.  A unit with no current production simply banks the half-cost.  A unit
-disbanded in the open field returns nothing -- those shields are lost.  The
-outcome is recorded in GS-MESSAGE for the UI to report."
+disbanded in the open field returns nothing -- those shields are lost.  A city
+building a *wonder* also gains nothing: wonders can only be hurried by caravans
+(see CMD-HELP-WONDER), never by recycling units.  The outcome is recorded in
+GS-MESSAGE for the UI to report."
   (let* ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit")))
          (type (unit-type u))
          (tile (tile-at (gs-map state) (unit-x u) (unit-y u)))
@@ -427,7 +429,8 @@ outcome is recorded in GS-MESSAGE for the UI to report."
          (city (and cid (city-by-id state cid)))
          (name (string-capitalize (symbol-name type)))
          (recover 0))
-    (when (and city (= (city-owner city) (unit-owner u)))
+    (when (and city (= (city-owner city) (unit-owner u))
+               (not (eq (first (city-production city)) :wonder)))
       (let ((half (floor (unit-def type :cost 0) 2)))
         (when (plusp half)
           (let ((cap (if (city-production city)
