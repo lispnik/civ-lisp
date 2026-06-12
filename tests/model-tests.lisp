@@ -608,6 +608,49 @@
       (is-true (tile-hut (tile-at (gs-map s2) 3 3)))
       (is-false (tile-hut (tile-at (gs-map s2) 0 0))))))
 
+;;; --- disbanding units ------------------------------------------------------
+
+(test disband-in-field-removes-unit
+  ;; a unit disbanded in the open field is simply gone -- no shields recovered
+  (let ((s (bare-state 8 8)))
+    (let ((u (add-unit s :warriors 1 5 5)))
+      (apply-command s (list :disband-unit :unit (unit-id u)))
+      (is-false (unit-by-id s (unit-id u)))            ; removed from the game
+      (is (stringp (gs-message s))))))                 ; outcome reported
+
+(test disband-in-city-recovers-half-shields
+  ;; disbanding inside a friendly city banks half the unit's build cost
+  (let ((s (bare-state 8 8)))
+    (let* ((c (civ-model::register-city s :name "Rome" :owner 1 :x 3 :y 3))
+           (u (add-unit s :warriors 1 3 3))
+           (expected (floor (unit-def :warriors :cost 0) 2))
+           (box0 (city-shield-box c)))
+      (is (plusp expected))
+      (apply-command s (list :disband-unit :unit (unit-id u)))
+      (is-false (unit-by-id s (unit-id u)))
+      (is (= (+ box0 expected) (city-shield-box c))))))  ; half cost recovered
+
+(test disband-recovery-capped-at-current-cost
+  ;; recovered shields can finish the current build but never overflow past it
+  (let ((s (bare-state 8 8)))
+    (let* ((c (civ-model::register-city s :name "Rome" :owner 1 :x 3 :y 3))
+           (cost (unit-def :warriors :cost 0)))
+      (setf (city-production c) (list :unit :warriors)   ; cost = warriors cost
+            (city-shield-box c) (1- cost))               ; needs just 1 more
+      (let ((u (add-unit s :phalanx 1 3 3)))             ; phalanx half-cost > 1
+        (apply-command s (list :disband-unit :unit (unit-id u)))
+        (is (= cost (city-shield-box c)))))))            ; capped exactly at cost
+
+(test disband-in-enemy-city-recovers-nothing
+  ;; standing in a city you don't own returns no shields to it
+  (let ((s (bare-state 8 8)))
+    (let* ((c (civ-model::register-city s :name "Theirs" :owner 2 :x 3 :y 3))
+           (box0 (city-shield-box c))
+           (u (add-unit s :warriors 1 3 3)))            ; player 1 unit on player 2's city
+      (apply-command s (list :disband-unit :unit (unit-id u)))
+      (is-false (unit-by-id s (unit-id u)))
+      (is (= box0 (city-shield-box c))))))               ; their city gains nothing
+
 (test ai-expands
   ;; the AI should found and expand to several cities on its own
   (let ((s (make-new-game :seed 7)))

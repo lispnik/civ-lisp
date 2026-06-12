@@ -44,6 +44,7 @@
 (defun ev-mouse-y (ev)  (cffi:mem-ref (autowrap:ptr ev) :int32 24))  ; button.y
 (defun ev-keymod (ev)   (cffi:mem-ref (autowrap:ptr ev) :uint16 24)) ; key.keysym.mod
 (defun ev-ctrl-p (ev)   (logtest (ev-keymod ev) #xc0))               ; L/R Ctrl held
+(defun ev-shift-p (ev)  (logtest (ev-keymod ev) #x3))                ; L/R Shift held
 
 (defun ev-text (ev)
   "The UTF-8 text of an SDL_TEXTINPUT event (text char[32] at byte offset 12)."
@@ -338,6 +339,16 @@ or an error message."
                          (when selected
                            (try (list job :unit selected))
                            (setf selected (next-human-unit state selected))))
+                       (disband! ()
+                         ;; remove the selected unit (recovering shields if in a
+                         ;; city); report the outcome and advance the cursor
+                         (when selected
+                           (try (list :disband-unit :unit selected))
+                           (when (civm:gs-message state)
+                             (sdl2:set-window-title
+                              win (format nil "civ-lisp — ~A" (civm:gs-message state)))
+                             (setf (civm:gs-message state) nil))
+                           (setf selected (next-human-unit state selected))))
                        (lux! (delta)
                          ;; shift DELTA percent between science and luxury
                          (let* ((pid (first (human-player-ids state)))
@@ -394,7 +405,8 @@ or an error message."
                                       (concatenate 'string con-input (ev-text ev)))))
                              ((= type +ev-keydown+)
                               (let ((sc (ev-scancode ev))
-                                    (ctrl (ev-ctrl-p ev)))
+                                    (ctrl (ev-ctrl-p ev))
+                                    (shift (ev-shift-p ev)))
                                 (cond
                                   ;; Lisp console open: capture editing keys
                                   (console
@@ -544,6 +556,7 @@ or an error message."
                                   ((= sc +sc-x+) (espionage! :sabotage "sabotage!"))
                                   ((= sc +sc-h+) (espionage! :help-wonder "wonder boosted!"))
                                   ((= sc +sc-j+) (espionage! :trade-route "trade route opened!"))
+                                  ((and shift (= sc +sc-d+)) (disband!)) ; Shift+D: disband unit
                                   ((= sc +sc-d+)               ; diplomat action menu
                                    (let ((u (and selected (civm:unit-by-id state selected))))
                                      (when (and u (eq (civm:unit-type u) :diplomat))

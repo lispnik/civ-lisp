@@ -27,6 +27,7 @@ on an illegal move."
     (:set-production (cmd-set-production state command))
     (:fortify        (cmd-fortify state command))
     (:wake           (cmd-wake state command))
+    (:disband-unit   (cmd-disband-unit state command))
     (:goto           (cmd-goto state command))
     ((:build-road :build-railroad :irrigate :mine :build-fort :clear-forest)
      (cmd-terraform state command))
@@ -408,6 +409,38 @@ city, or a barbarian ambush.  Stores the outcome in GS-MESSAGE and returns it."
                      (hut-gold state p)))))))
     (setf (gs-message state) msg)
     msg))
+
+(defun cmd-disband-unit (state command)
+  "Remove a unit from the game.
+
+Shield reallocation: a unit disbanded while standing in one of its owner's
+cities returns *half its build cost* (rounded down) as shields into that city's
+production box -- but only up to what the city's current build still needs, so
+the recovered shields can finish (but never overflow past) the item in
+progress.  A unit with no current production simply banks the half-cost.  A unit
+disbanded in the open field returns nothing -- those shields are lost.  The
+outcome is recorded in GS-MESSAGE for the UI to report."
+  (let* ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit")))
+         (type (unit-type u))
+         (tile (tile-at (gs-map state) (unit-x u) (unit-y u)))
+         (cid (tile-city tile))
+         (city (and cid (city-by-id state cid)))
+         (name (string-capitalize (symbol-name type)))
+         (recover 0))
+    (when (and city (= (city-owner city) (unit-owner u)))
+      (let ((half (floor (unit-def type :cost 0) 2)))
+        (when (plusp half)
+          (let ((cap (if (city-production city)
+                         (production-cost (city-production city))
+                         most-positive-fixnum)))
+            (setf recover (max 0 (min half (- cap (city-shield-box city)))))
+            (incf (city-shield-box city) recover)))))
+    (destroy-unit state u)
+    (setf (gs-message state)
+          (if (plusp recover)
+              (format nil "~A disbanded: ~D shields to ~A." name recover (city-name city))
+              (format nil "~A disbanded." name)))
+    u))
 
 (defun cmd-move-unit (state command)
   (let* ((args (rest command))

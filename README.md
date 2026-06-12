@@ -76,6 +76,7 @@ and AI cities (Akkad, Uruk) have grown alongside.*
 | W | wait — send the unit to the end of this turn's cycle |
 | B | found a city (with a settlers unit) |
 | F | fortify the selected unit (defense + faster healing) |
+| Shift+D | disband the selected unit (recovers shields if in a city) |
 | R / I / M | settlers: build **road** (then **railroad** once known) / **irrigation** / **mine** |
 | T / C | settlers: build a **fort** / **clear forest** to plains |
 | P | settlers: **clean pollution** on the tile |
