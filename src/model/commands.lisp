@@ -97,32 +97,63 @@ until it next moves."
     (values u (or (adjacent-enemy-city state u)
                   (fail "no enemy city next to the diplomat")))))
 
+(defun espionage-caught-p (state city diplomat)
+  "Civ1-style catch roll: an undefended city is a free target; a garrisoned or
+walled one may catch the spy (likelier the more it is defended), and a veteran
+diplomat halves the risk."
+  (let ((garrison (count-city-military state city))
+        (walls (or (member :walls (city-buildings city))
+                   (member :great-wall (city-buildings city)))))
+    (if (and (zerop garrison) (not walls))
+        nil                                       ; undefended: the spy slips in
+        (let ((chance (min 90 (+ 20 (* 25 garrison) (if walls 20 0)))))
+          (when (unit-veteran diplomat) (setf chance (floor chance 2)))
+          (< (gs-rand state 100) chance)))))
+
 (defun cmd-steal-tech (state command)
   "A diplomat steals an advance the adjacent enemy city's owner has and we lack,
-then is spent."
+then is spent.  A defended city may catch the spy (lost, and war); a second
+theft from the same civilization also provokes war."
   (multiple-value-bind (u c) (espionage-target state command)
     (let* ((thief (player-by-id state (unit-owner u)))
            (victim (player-by-id state (city-owner c)))
+           (tid (player-id thief)) (vid (player-id victim))
            (tech (a-tech-other-lacks state victim thief)))
       (unless tech (fail "~A has no advance worth stealing" (player-name victim)))
+      (when (espionage-caught-p state c u)
+        (destroy-unit state u)
+        (setf (relation state tid vid) :war)
+        (fail "your diplomat was caught and executed -- ~A declares war!"
+              (player-name victim)))
       (setf (gethash tech (player-techs thief)) t)
       (destroy-unit state u)               ; the diplomat is consumed
+      (let ((k (+ (* tid 256) vid)))        ; stealing twice from a civ means war
+        (if (gethash k (gs-stolen state))
+            (setf (relation state tid vid) :war)
+            (setf (gethash k (gs-stolen state)) t)))
       tech)))
 
 (defun cmd-sabotage (state command)
   "A diplomat wrecks the adjacent enemy city's priciest improvement (or, if it
-has none, its current production), then is spent."
+has none, its current production), then is spent.  A defended city may catch the
+spy; either way sabotage is an overt act and provokes war."
   (multiple-value-bind (u c) (espionage-target state command)
-    (let ((target (first (sort (remove-if-not
-                                (lambda (b) (and (gethash b *buildings*)
-                                                 (not (eq b :palace))))
-                                (copy-list (city-buildings c)))
-                               #'> :key (lambda (b) (building-def b :cost 0))))))
-      (if target
-          (setf (city-buildings c) (remove target (city-buildings c)))
-          (setf (city-shield-box c) 0))     ; nothing built: wreck the production
-      (destroy-unit state u)
-      (or target :production))))
+    (let ((tid (unit-owner u)) (vid (city-owner c)))
+      (when (espionage-caught-p state c u)
+        (destroy-unit state u)
+        (setf (relation state tid vid) :war)
+        (fail "your diplomat was caught -- war!"))
+      (let ((target (first (sort (remove-if-not
+                                  (lambda (b) (and (gethash b *buildings*)
+                                                   (not (eq b :palace))))
+                                  (copy-list (city-buildings c)))
+                                 #'> :key (lambda (b) (building-def b :cost 0))))))
+        (if target
+            (setf (city-buildings c) (remove target (city-buildings c)))
+            (setf (city-shield-box c) 0))     ; nothing built: wreck the production
+        (destroy-unit state u)
+        (setf (relation state tid vid) :war)  ; sabotage is overt -> war
+        (or target :production)))))
 
 (defun cmd-terraform (state command)
   "Order a settler to begin a terraform job (:build-road/:irrigate/:mine) on the

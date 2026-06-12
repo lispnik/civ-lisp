@@ -1048,6 +1048,48 @@ shield special) so the city keeps producing instead of starving."
     (signals command-error (apply-command s (list :steal-tech :unit (unit-id w))))
     (signals command-error (apply-command s (list :sabotage :unit (unit-id dip))))))
 
+(test first-theft-covert-second-means-war
+  ;; an undefended city is a free target; the first theft is covert, the second
+  ;; from the same civ provokes war
+  (let* ((s (bare-state 6 6))
+         (v (player-by-id s 2)))
+    (civ-model::register-city s :name "Babylon" :owner 2 :x 3 :y 3)
+    (dolist (k '(:masonry :writing)) (setf (gethash k (player-techs v)) t))
+    (apply-command s (list :steal-tech :unit (unit-id (add-unit s :diplomat 1 3 2))))
+    (is-true (player-has-tech-p (player-by-id s 1) :masonry))
+    (is-false (at-war-p s 1 2))                  ; first theft: covert
+    (apply-command s (list :steal-tech :unit (unit-id (add-unit s :diplomat 1 3 2))))
+    (is-true (player-has-tech-p (player-by-id s 1) :writing))
+    (is-true (at-war-p s 1 2))))                 ; caught stealing again -> war
+
+(test defended-city-can-catch-the-spy
+  ;; a walled, garrisoned city sometimes catches the spy: it is lost and war is
+  ;; declared (deterministic over the seeded RNG)
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "Fort" :owner 2 :x 3 :y 3))
+         (v (player-by-id s 2)) (caught nil))
+    (pushnew :walls (city-buildings c))
+    (add-unit s :phalanx 2 3 3) (add-unit s :phalanx 2 3 3)   ; garrison -> high catch
+    (dolist (k '(:masonry :writing :pottery :bronze-working :alphabet :the-wheel))
+      (setf (gethash k (player-techs v)) t))
+    (loop for i below 40 until caught do
+      (let ((d (add-unit s :diplomat 1 3 2)))
+        (handler-case (apply-command s (list :steal-tech :unit (unit-id d)))
+          (command-error (e)
+            (when (search "caught" (princ-to-string e))
+              (setf caught t)
+              (is-false (unit-by-id s (unit-id d)))   ; the spy is lost
+              (is-true (at-war-p s 1 2)))))))           ; and war is declared
+    (is-true caught)))
+
+(test sabotage-is-overt-and-provokes-war
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "Ur" :owner 2 :x 3 :y 3)))
+    (setf (city-buildings c) '(:library))            ; undefended -> succeeds
+    (apply-command s (list :sabotage :unit (unit-id (add-unit s :diplomat 1 3 2))))
+    (is-false (member :library (city-buildings c)))
+    (is-true (at-war-p s 1 2))))
+
 ;;; --- save / load -----------------------------------------------------------
 
 (test save-load-roundtrip

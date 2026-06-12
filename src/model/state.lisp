@@ -18,6 +18,7 @@
   (random (make-random-state nil))         ; seeded per game
   (warming 0 :type fixnum)                 ; number of global-warming events so far
   (relations (make-hash-table :test 'eql)) ; player-pair key -> :war (absent = :peace)
+  (stolen (make-hash-table :test 'eql))    ; (thief*256+victim) -> t: a tech has been stolen
   (phase :start :type keyword))
 
 (defun gs-next-id (state)

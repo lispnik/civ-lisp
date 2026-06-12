@@ -327,7 +327,21 @@ or an error message."
                              (try (list :set-rates :player pid
                                         :tax (civm:player-tax-rate p)
                                         :luxury lux :science sci))
-                             (retitle)))))
+                             (retitle))))
+                       (espionage! (cmd ok-msg)
+                         ;; a selected diplomat's steal/sabotage on an adjacent
+                         ;; enemy city; report the result (incl. being caught)
+                         (when selected
+                           (let ((u selected))
+                             (handler-case
+                                 (progn (civm:apply-command state (list cmd :unit u))
+                                        (sdl2:set-window-title
+                                         win (format nil "civ-lisp — ~A" ok-msg))
+                                        (setf selected (next-human-unit state selected)))
+                               (civm:command-error (e)
+                                 (sdl2:set-window-title win (format nil "civ-lisp — ~A" e))
+                                 (unless (civm:unit-by-id state u)   ; caught/consumed
+                                   (setf selected (next-human-unit state selected)))))))))
                 (retitle)
                 (unwind-protect
                      ;; manual poll loop, reading event fields at raw SDL offsets
@@ -479,20 +493,8 @@ or an error message."
                                   ((= sc +sc-v+) (setf gov-menu t))    ; revolution menu
                                   ((= sc +sc-y+) (setf diplo-menu t))  ; diplomacy menu
                                   ((= sc +sc-e+) (setf trade-menu t))  ; trade menu
-                                  ((= sc +sc-z+)                       ; diplomat: steal tech
-                                   (when selected
-                                     (let ((ok (try (list :steal-tech :unit selected))))
-                                       (sdl2:set-window-title
-                                        win (if ok "civ-lisp — advance stolen!"
-                                                "civ-lisp — no enemy city to spy"))
-                                       (when ok (setf selected (next-human-unit state selected))))))
-                                  ((= sc +sc-x+)                       ; diplomat: sabotage
-                                   (when selected
-                                     (let ((ok (try (list :sabotage :unit selected))))
-                                       (sdl2:set-window-title
-                                        win (if ok "civ-lisp — sabotage!"
-                                                "civ-lisp — no enemy city to sabotage"))
-                                       (when ok (setf selected (next-human-unit state selected))))))
+                                  ((= sc +sc-z+) (espionage! :steal-tech "advance stolen!"))
+                                  ((= sc +sc-x+) (espionage! :sabotage "sabotage!"))
                                   ((= sc +sc-k+)                       ; toggle Slynk server
                                    (handler-case
                                        (if *slynk-port*
