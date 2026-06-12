@@ -622,12 +622,16 @@ celebration banner."
                         (if (zerop i) 120 220)))))
 
 (defun draw-console (painter state input output)
-  "The `~` Lisp console: OUTPUT lines from the last eval, then the input line."
+  "The `~` Lisp console: OUTPUT lines from the last eval, then the input line
+with a blinking caret (the bitmap font has no underscore glyph)."
+  (declare (ignore state))
   (let* ((font (painter-font painter)) (ren (painter-ren painter))
          (h (gfont-height font))
          (clip (lambda (s) (if (> (length s) 52) (subseq s 0 52) s)))
-         (lines (append (mapcar clip output) (list (funcall clip (format nil "> ~A_" input)))))
-         (pw (* (civm:map-width (civm:gs-map state)) *tile*))
+         (prompt-line (funcall clip (format nil "> ~A" input)))
+         (lines (append (mapcar clip output) (list prompt-line)))
+         (last (1- (length lines)))
+         (pw (+ 8 (reduce #'max lines :key (lambda (s) (text-width font s)))))
          (ph (+ 4 (* (length lines) (1+ h)))))
     (sdl2:set-render-draw-color ren 0 0 0 240)
     (set-rect (painter-dst painter) 0 0 pw ph)
@@ -635,12 +639,18 @@ celebration banner."
     (sdl2:set-render-draw-color ren 120 200 120 255)
     (sdl2:render-draw-rect ren (painter-dst painter))
     (loop for s in lines for i from 0
-          for prompt = (= i (1- (length lines)))
+          for prompt = (= i last)
           for err = (and (>= (length s) 5) (string= "ERROR" (subseq s 0 5)))
           do (draw-text painter font s 2 (+ 2 (* i (1+ h)))
                         (cond (err 255) (prompt 255) (t 180))
                         (cond (err 120) (prompt 255) (t 230))
-                        (cond (err 120) (prompt 120) (t 180))))))
+                        (cond (err 120) (prompt 120) (t 180))))
+    ;; a blinking caret just past the input text
+    (when (blink-on-p)
+      (sdl2:set-render-draw-color ren 255 255 120 255)
+      (set-rect (painter-dst painter)
+                (+ 2 (text-width font prompt-line)) (+ 2 (* last (1+ h))) 4 h)
+      (sdl2:render-fill-rect ren (painter-dst painter)))))
 
 (defun gov-hud-text (state)
   "Government + rate readout for the HUD, noting a pending revolution."
