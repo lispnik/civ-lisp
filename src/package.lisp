@@ -2,5 +2,5 @@
 
 (defpackage #:civ-lisp
   (:use #:cl)
-  (:export #:run #:main #:*cursor-image* #:*scale* #:scale-surface
+  (:export #:run #:main #:*scale* #:scale-surface
            #:start-slynk #:stop-slynk))

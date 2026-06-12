@@ -19,14 +19,11 @@
 
 (in-package #:civ-lisp)
 
-(defparameter *cursor-image*
-  (merge-pathnames "assets/torch.png"
-                   (asdf:system-source-directory :civ-lisp))
-  "The torch graphic extracted from Civilization, used as the mouse cursor.")
+(defparameter +torch-cursor-cell+ '(7 . 2)
+  "SP257 col 7, row 2: the torch graphic, used as the default mouse cursor.")
 
-(defparameter *go-cursor-image*
-  (merge-pathnames "assets/go.png" (asdf:system-source-directory :civ-lisp))
-  "The Civilization \"Go\" arrow, used as the cursor while choosing a goto tile.")
+(defparameter +go-cursor-cell+ '(2 . 2)
+  "SP257 col 2, row 2: the \"GO\" cursor, used while choosing a goto tile.")
 
 (defparameter *font-file*
   (merge-pathnames "assets/fonts.cv" (asdf:system-source-directory :civ-lisp))
@@ -119,13 +116,28 @@ alpha preserved).  Caller must free the result with SDL_FreeSurface."
          src (cffi:null-pointer) dst (cffi:null-pointer))
         dst)))
 
-(defun make-cursor (path scale &key (hot-x 0) (hot-y 0))
-  "Load image PATH, scale it, and build a colour cursor (without activating it).
-Returns the cursor (the loaded surfaces leak until process exit, which is fine)."
-  (let* ((base (sdl2-image:load-image (namestring path)))
+(defun cell-surface (sheet col row &optional (size *tile*))
+  "Copy the SIZE x SIZE sprite cell at (COL,ROW) of SHEET into a fresh surface
+(alpha preserved).  Caller must free the result with SDL_FreeSurface."
+  (let* ((fmt (plus-c:c-ref sheet sdl2-ffi:sdl-surface :format :format))
+         (dst (sdl2-ffi.functions:sdl-create-rgb-surface-with-format
+               0 size size 32 fmt))
+         (src (sdl2:make-rect (* col size) (* row size) size size)))
+    (when (cffi:null-pointer-p (autowrap:ptr dst))
+      (error "SDL_CreateRGBSurfaceWithFormat failed: ~A"
+             (sdl2-ffi.functions:sdl-get-error)))
+    (sdl2-ffi.functions:sdl-set-surface-blend-mode sheet 0) ; copy RGBA verbatim
+    (sdl2-ffi.functions:sdl-upper-blit sheet src dst (cffi:null-pointer))
+    dst))
+
+(defun make-sprite-cursor (sheet cell scale &key (hot-x 0) (hot-y 0))
+  "Build a colour cursor from the sprite CELL (col . row) of SHEET, scaled to the
+render scale (without activating it)."
+  (let* ((base (cell-surface sheet (car cell) (cdr cell)))
          (scaled (scale-surface base scale))
          (cursor (sdl2-ffi.functions:sdl-create-color-cursor
                   scaled (* hot-x scale) (* hot-y scale))))
+    (sdl2-ffi.functions:sdl-free-surface base)
     (when (cffi:null-pointer-p (autowrap:ptr cursor))
       (error "SDL_CreateColorCursor failed: ~A" (sdl2-ffi.functions:sdl-get-error)))
     cursor))
@@ -251,7 +263,7 @@ or an error message."
   "Clamp a camera row so the viewport stays within the (non-wrapping) poles."
   (max 0 (min cy (max 0 (- (civm:map-height (civm:gs-map state)) *view-rows*)))))
 
-(defun run (&key (scale *scale*) (seed 0) (cursor-image *cursor-image*)
+(defun run (&key (scale *scale*) (seed 0)
                  (players *civilizations*) (width 80) (height 50))
   "Open a window, start a new game, and render/drive it until quit."
   (sdl2:with-init (:video)
@@ -269,13 +281,16 @@ or an error message."
           (sdl2-ffi.functions:sdl-render-set-scale ren (float scale 1.0)
                                                    (float scale 1.0))
           (sdl2-ffi.functions:sdl-set-render-draw-blend-mode ren 1) ; for fog dimming
-          (let ((painter (make-renderer-painter ren
-                                                (load-atlas ren *sprites-image* +unit-bg-key+)
-                                                (load-atlas ren *terrain-image*)))
-                (font (load-gfont (namestring *font-file*) 1))   ; small label font
-                (torch-cursor (make-cursor cursor-image scale))
-                (go-cursor (make-cursor *go-cursor-image* scale))
-                (goto-mode nil))
+          (let* ((painter (make-renderer-painter ren
+                                                 (load-atlas ren *sprites-image* +unit-bg-key+)
+                                                 (load-atlas ren *terrain-image*)))
+                 (font (load-gfont (namestring *font-file*) 1))   ; small label font
+                 ;; cursors are sliced from the sprite sheet (a one-shot surface load)
+                 (cursor-sheet (sdl2-image:load-image (namestring *sprites-image*)))
+                 (torch-cursor (make-sprite-cursor cursor-sheet +torch-cursor-cell+ scale))
+                 (go-cursor (make-sprite-cursor cursor-sheet +go-cursor-cell+ scale))
+                 (goto-mode nil))
+            (sdl2-ffi.functions:sdl-free-surface cursor-sheet)
             (setf (painter-font painter) font)
             (sdl2-ffi.functions:sdl-set-cursor torch-cursor)
             (sdl2:show-cursor)

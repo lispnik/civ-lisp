@@ -8,9 +8,7 @@ space race. It
 renders a live [`civ-model`](docs/MODEL.md) game using sprites extracted from
 the DOS game *Sid Meier's Civilization* (the sibling
 [civ-extract](https://github.com/lispnik/civ-extract) project), with the
-**torch** graphic as the mouse cursor.
-
-![torch cursor](assets/torch.png)
+**torch** graphic (sliced from the same sprite sheet) as the mouse cursor.
 
 ![civ-lisp rendering a game with edge-blended terrain](docs/screenshot.png)
 
@@ -270,10 +268,11 @@ installed on whatever machine runs the binary.
 
 ## How it works
 
-`sdl2-image:load-image` reads `assets/torch.png` into an SDL surface; that
-surface becomes a colour cursor via the raw FFI call
-`SDL_CreateColorCursor`, which is then made active with `SDL_SetCursor`
-(cl-sdl2 doesn't wrap these high-level cursor calls, so we use the autowrap
+The mouse cursors are sliced straight out of the sprite sheet: the torch is
+SP257 cell (7,2) and the goto "GO" cursor is (2,2).  `cell-surface` blits a
+16×16 cell into a fresh SDL surface, which becomes a colour cursor via the raw
+FFI call `SDL_CreateColorCursor`, then made active with `SDL_SetCursor` (cl-sdl2
+doesn't wrap these high-level cursor calls, so we use the autowrap
 `sdl2-ffi.functions` layer directly). See `src/main.lisp`.
 
 ```lisp
