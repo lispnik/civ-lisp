@@ -12,6 +12,7 @@
 ;;;;   G  : goto (then click)         Enter : end turn
 ;;;;   V  : revolution    Y : diplomacy    E : trade    , / . : luxury rate
 ;;;;   ?  : help overlay        ~ : Lisp console (evals a form; Esc closes)
+;;;;   K  : start/stop the Slynk server (connect from Emacs with M-x sly-connect)
 ;;;;   S / L : save / load game       Esc / close : quit
 
 (in-package #:civ-lisp)
@@ -60,7 +61,7 @@
 
 ;; SDL scancodes for the keys we use
 (defconstant +sc-a+ 4) (defconstant +sc-b+ 5) (defconstant +sc-c+ 6) (defconstant +sc-d+ 7)
-(defconstant +sc-e+ 8)
+(defconstant +sc-e+ 8) (defconstant +sc-k+ 14)
 (defconstant +sc-f+ 9) (defconstant +sc-g+ 10) (defconstant +sc-i+ 12)
 (defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
 (defconstant +sc-n+ 17) (defconstant +sc-p+ 19) (defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
@@ -196,6 +197,14 @@ call from the `~` console -- e.g. (start-slynk).  Returns the port."
         (setf *slynk-port* port)
         (format t "~&Slynk listening on ~D -- M-x sly-connect RET localhost RET ~D RET~%"
                 port port)))
+  *slynk-port*)
+
+(defun stop-slynk ()
+  "Stop the running Slynk server, if any."
+  (when *slynk-port*
+    (ignore-errors (uiop:symbol-call :slynk :stop-server *slynk-port*))
+    (format t "~&Slynk on ~D stopped~%" *slynk-port*)
+    (setf *slynk-port* nil))
   *slynk-port*)
 
 ;;; --- `~` Lisp console ------------------------------------------------------
@@ -459,6 +468,18 @@ or an error message."
                                   ((= sc +sc-v+) (setf gov-menu t))    ; revolution menu
                                   ((= sc +sc-y+) (setf diplo-menu t))  ; diplomacy menu
                                   ((= sc +sc-e+) (setf trade-menu t))  ; trade menu
+                                  ((= sc +sc-k+)                       ; toggle Slynk server
+                                   (handler-case
+                                       (if *slynk-port*
+                                           (progn (stop-slynk)
+                                                  (sdl2:set-window-title win "civ-lisp — Slynk stopped"))
+                                           (progn (start-slynk)
+                                                  (sdl2:set-window-title
+                                                   win (format nil "civ-lisp — Slynk on port ~D"
+                                                               *slynk-port*))))
+                                     (error (e)
+                                       (sdl2:set-window-title
+                                        win (format nil "civ-lisp — Slynk error: ~A" e)))))
                                   ((= sc +sc-comma+) (lux! -10))       ; luxury down
                                   ((= sc +sc-period+) (lux! 10))       ; luxury up
                                   ((= sc +sc-slash+) (setf help t))    ; ? : help

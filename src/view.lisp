@@ -590,7 +590,7 @@ celebration banner."
     "Enter  end turn"
     "S / L  save / load game"
     "Left-click  select unit or city"
-    "~  Lisp console     ?  this help"
+    "~  Lisp console   K  Slynk server   ?  help"
     "Esc  close menu / quit")
   "Lines shown in the help overlay (first line is the title).")
 
