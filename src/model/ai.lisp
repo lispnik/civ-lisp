@@ -28,7 +28,7 @@
 (defun city-near-p (state x y dist)
   "T if any city lies within DIST (chebyshev) of (X,Y)."
   (loop for c being the hash-values of (gs-cities state)
-        thereis (and (<= (abs (- (city-x c) x)) dist)
+        thereis (and (<= (map-dx (gs-map state) (city-x c) x) dist)
                      (<= (abs (- (city-y c) y)) dist))))
 
 (defun ai-move-random (state unit)

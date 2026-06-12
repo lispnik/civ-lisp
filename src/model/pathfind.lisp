@@ -30,7 +30,7 @@ from the first move through the goal, or NIL if unreachable / already there."
            (came (make-hash-table :test 'eql))
            (coord (make-hash-table :test 'eql)) ; key -> (x . y)
            (open (list start)))               ; small maps: linear open set
-      (flet ((h (x y) (max (abs (- x gx)) (abs (- y gy)))))  ; chebyshev
+      (flet ((h (x y) (max (map-dx map x gx) (abs (- y gy)))))  ; chebyshev, wrapped
         (setf (gethash start g) 0
               (gethash start coord) (cons sx sy))
         (loop while open do
@@ -83,7 +83,8 @@ Stops (keeping the order) if a step is blocked; clears the order on arrival."
           (destructuring-bind (nx ny) step
             (handler-case
                 (cmd-move-unit state (list :move-unit :unit (unit-id unit)
-                                           :dx (- nx (unit-x unit))
+                                           ;; a step across the seam is still +/-1
+                                           :dx (signed-dx (gs-map state) (unit-x unit) nx)
                                            :dy (- ny (unit-y unit))))
               (command-error () (return)))      ; blocked (e.g. ZOC): try next turn
             ;; cmd-move-unit set orders to :idle; restore unless we've arrived

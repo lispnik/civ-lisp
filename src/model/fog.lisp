@@ -16,8 +16,8 @@
     (loop for dy from (- *sight*) to *sight* do
       (loop for dx from (- *sight*) to *sight* do
         (let ((x (+ cx dx)) (y (+ cy dy)))
-          (when (in-bounds-p map x y)
-            (setf (gethash (+ x (* y w)) table) t)))))))
+          (when (tile-at map x y)          ; x wraps; tiles past a pole are NIL
+            (setf (gethash (+ (wrap-x map x) (* y w)) table) t)))))))
 
 (defun %collect-sight (state player table)
   "Reveal around all of PLAYER's units and cities into TABLE."

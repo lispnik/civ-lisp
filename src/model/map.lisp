@@ -32,15 +32,32 @@
       (setf (svref tiles i) (make-tile :terrain terrain)))
     (%make-game-map :width width :height height :tiles tiles)))
 
-(declaim (inline in-bounds-p))
+(declaim (inline in-bounds-p wrap-x))
 (defun in-bounds-p (map x y)
   (and (>= x 0) (< x (map-width map))
        (>= y 0) (< y (map-height map))))
 
+;;; The world is a horizontal cylinder: x wraps east-west (the poles, top and
+;;; bottom rows, do not wrap).  WRAP-X normalizes a column; MAP-DX is the
+;;; shortest east-west distance and SIGNED-DX the corresponding +/-1 step.
+(defun wrap-x (map x) (mod x (map-width map)))
+
+(defun map-dx (map x1 x2)
+  "Shortest east-west distance between columns X1 and X2 around the cylinder."
+  (let* ((w (map-width map)) (d (mod (abs (- x1 x2)) w)))
+    (min d (- w d))))
+
+(defun signed-dx (map fromx tox)
+  "Signed horizontal step from FROMX toward TOX, taking the short way around."
+  (let* ((w (map-width map)) (raw (- tox fromx)) (half (floor w 2)))
+    (cond ((> raw half) (- raw w))
+          ((< raw (- half)) (+ raw w))
+          (t raw))))
+
 (defun tile-at (map x y)
-  "The tile at (X,Y), or NIL if out of bounds."
-  (when (in-bounds-p map x y)
-    (svref (map-tiles map) (+ x (* y (map-width map))))))
+  "The tile at (X,Y), or NIL if Y is out of bounds.  X wraps around the cylinder."
+  (when (and (>= y 0) (< y (map-height map)))
+    (svref (map-tiles map) (+ (wrap-x map x) (* y (map-width map))))))
 
 (defparameter +neighbor-offsets+
   '((-1 . -1) (0 . -1) (1 . -1)
@@ -49,11 +66,12 @@
   "The 8 surrounding directions (square grid, king moves).")
 
 (defun neighbors (map x y)
-  "List of (x y tile) for the in-bounds 8-neighbours of (X,Y)."
+  "List of (x y tile) for the 8-neighbours of (X,Y); X coordinates are wrapped
+around the cylinder, and tiles past the poles are omitted."
   (loop for (dx . dy) in +neighbor-offsets+
-        for nx = (+ x dx) for ny = (+ y dy)
-        for tile = (tile-at map nx ny)
-        when tile collect (list nx ny tile)))
+        for ny = (+ y dy)
+        for tile = (tile-at map (+ x dx) ny)
+        when tile collect (list (wrap-x map (+ x dx)) ny tile)))
 
 (defun tile-improvement (tile flag)
   "Read a terraform improvement FLAG (:road/:railroad/:irrigation/:mine) on TILE."

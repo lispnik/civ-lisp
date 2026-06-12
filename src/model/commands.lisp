@@ -52,7 +52,7 @@ following turn via PROCESS-GOTO)."
   (let* ((args (rest command))
          (u (or (unit-by-id state (getf args :unit)) (fail "no such unit")))
          (tx (getf args :x)) (ty (getf args :y)))
-    (unless (in-bounds-p (gs-map state) tx ty) (fail "goto target out of bounds"))
+    (unless (tile-at (gs-map state) tx ty) (fail "goto target out of bounds"))
     (clear-work u)
     (setf (unit-goto-x u) tx (unit-goto-y u) ty (unit-orders u) :goto)
     (advance-goto state u)          ; move now, don't wait for end-of-turn
@@ -107,10 +107,10 @@ position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
          (dx (getf args :dx 0))
          (dy (getf args :dy 0))
          (map (gs-map state))
-         (nx (+ (unit-x u) dx))
+         (nx (wrap-x map (+ (unit-x u) dx)))   ; x wraps around the cylinder
          (ny (+ (unit-y u) dy)))
     (unless (<= 1 (max (abs dx) (abs dy)) 1) (fail "must move exactly one tile"))
-    (unless (in-bounds-p map nx ny) (fail "destination out of bounds"))
+    (unless (tile-at map nx ny) (fail "destination out of bounds"))   ; past a pole
     (when (<= (unit-moves-left u) 0) (fail "unit has no moves left"))
     (let* ((dest (tile-at map nx ny))
            (sea-dest (eq (tile-terrain dest) :ocean))

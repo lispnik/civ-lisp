@@ -74,13 +74,16 @@
     (is-true (in-bounds-p m 4 3))
     (is-false (in-bounds-p m 5 0))
     (is-false (in-bounds-p m -1 0))
-    (is (null (tile-at m 5 0)))
+    (is (null (tile-at m 0 4)))                   ; past the south pole: no tile
+    (is (eq (tile-at m 0 0) (tile-at m 5 0)))     ; x wraps around the cylinder
+    (is (eq (tile-at m 4 1) (tile-at m -1 1)))
     (is (eq :grassland (tile-terrain (tile-at m 2 2))))))
 
 (test neighbor-counts
   (let ((m (civ-model::make-game-map 5 5)))
-    (is (= 3 (length (neighbors m 0 0))))    ; corner
-    (is (= 5 (length (neighbors m 2 0))))    ; edge
+    (is (= 5 (length (neighbors m 0 0))))    ; "corner": x wraps, only the pole row missing
+    (is (= 8 (length (neighbors m 0 2))))    ; left edge wraps to a full 8
+    (is (= 5 (length (neighbors m 2 0))))    ; top edge (pole)
     (is (= 8 (length (neighbors m 2 2))))))  ; interior
 
 ;;; --- yields -----------------------------------------------------------------
@@ -147,10 +150,10 @@
 
 (test move-illegal
   (let* ((s (bare-state 4 4)) (u (add-unit s :warriors 1 0 0)))
-    (signals command-error (apply-command s (list :move-unit :unit (unit-id u) :dx -1 :dy 0)))
-    (signals command-error (apply-command s (list :move-unit :unit (unit-id u) :dx 2 :dy 0)))
+    (signals command-error (apply-command s (list :move-unit :unit (unit-id u) :dx 0 :dy -1)))  ; off the pole
+    (signals command-error (apply-command s (list :move-unit :unit (unit-id u) :dx 2 :dy 0)))   ; not one tile
     (apply-command s (list :move-unit :unit (unit-id u) :dx 1 :dy 0))
-    (signals command-error (apply-command s (list :move-unit :unit (unit-id u) :dx 1 :dy 0)))))
+    (signals command-error (apply-command s (list :move-unit :unit (unit-id u) :dx 1 :dy 0)))))  ; no moves left
 
 (test set-production
   (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
@@ -392,6 +395,44 @@
     (dotimes (i 30) (end-turn s))
     (is (>= (city-size c) 2))))
 
+;;; --- map wraparound (cylinder) ---------------------------------------------
+
+(test cylinder-distance-and-step
+  (let ((m (civ-model::make-game-map 20 15)))
+    (is (= 19 (abs (- 0 19))))                 ; flat distance is 19...
+    (is (= 1 (map-dx m 0 19)))                 ; ...but 1 around the cylinder
+    (is (= 5 (map-dx m 2 17)))
+    (is (= -1 (signed-dx m 0 19)))             ; the short step west wraps
+    (is (= 1 (signed-dx m 19 0)))
+    (is (= 3 (signed-dx m 5 8)))))             ; ordinary step unchanged
+
+(test neighbors-wrap-east-west
+  (let ((m (civ-model::make-game-map 10 10)))
+    ;; the west neighbour of column 0 is column 9
+    (is-true (member 9 (mapcar #'first (neighbors m 0 5))))
+    ;; the east neighbour of the last column is column 0
+    (is-true (member 0 (mapcar #'first (neighbors m 9 5))))
+    ;; but the poles don't wrap: row 0 has no northern neighbours
+    (is (= 5 (length (neighbors m 3 0))))))    ; 8 minus the 3 off the top
+
+(test unit-moves-across-the-seam
+  (let* ((s (bare-state 10 10))
+         (u (add-unit s :warriors 1 0 5)))
+    (apply-command s (list :move-unit :unit (unit-id u) :dx -1 :dy 0))
+    (is (= 9 (unit-x u)))                       ; wrapped from 0 to 9
+    (setf (unit-moves-left u) 1)
+    (apply-command s (list :move-unit :unit (unit-id u) :dx 1 :dy 0))
+    (is (= 0 (unit-x u)))))                      ; and back
+
+(test goto-takes-the-short-way-round
+  (let* ((s (bare-state 20 10))
+         (u (add-unit s :warriors 1 1 5)))
+    ;; goal at x=18 is 17 east but only 3 west around the seam
+    (apply-command s (list :goto :unit (unit-id u) :x 18 :y 5))
+    (dotimes (i 5) (end-turn s))
+    (is (= 18 (unit-x u)))                       ; arrived
+    (is (= 5 (unit-y u)))))
+
 ;;; --- pathfinding & goto -----------------------------------------------------
 
 (test find-path-open
@@ -411,9 +452,10 @@
       (is (equal '(5 1) (car (last path)))))))
 
 (test find-path-blocked
-  ;; full ocean wall across x=3 -> no route
+  ;; on a cylinder one wall isn't enough (you go round the seam); two full
+  ;; ocean columns at x=3 and x=7 split the start (x=1) from the goal (x=6)
   (let ((s (bare-state 8 6)))
-    (dotimes (y 6) (terrain! s 3 y :ocean))
+    (dotimes (y 6) (terrain! s 3 y :ocean) (terrain! s 7 y :ocean))
     (is (null (find-path s 1 1 6 1 1)))))
 
 (test goto-moves-immediately
@@ -421,7 +463,7 @@
   (let* ((s (bare-state 12 6))
          (u (add-unit s :legion 1 1 3)))
     (apply-command s (list :goto :unit (unit-id u) :x 8 :y 3))
-    (is (> (unit-x u) 1))                    ; already stepped toward the target
+    (is (/= (unit-x u) 1))                    ; already stepped toward the target
     (is (eq :goto (unit-orders u)))))         ; and still en route
 
 (test goto-moves-and-arrives

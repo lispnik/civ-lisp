@@ -15,7 +15,7 @@
    #:tile-road #:tile-railroad #:tile-irrigation #:tile-mine #:tile-fort
    #:tile-pollution #:tile-owner #:tile-city #:tile-units
    #:game-map #:map-width #:map-height #:map-tiles
-   #:tile-at #:in-bounds-p #:neighbors #:do-tiles
+   #:tile-at #:in-bounds-p #:neighbors #:do-tiles #:wrap-x #:map-dx #:signed-dx
    ;; entities
    #:player #:make-player #:player-id #:player-name #:player-kind
    #:player-gold #:player-government #:player-techs #:player-researching #:player-beakers
