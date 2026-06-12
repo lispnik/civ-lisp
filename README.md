@@ -126,10 +126,11 @@ feather into their neighbours; ocean tiles add coastline sub-tiles from the
 eight surrounding land directions. Rivers (SP257 connection variants, +1 trade)
 and per-terrain resource **specials** (SP257; e.g. grassland shields, ocean
 fish, mountain gold) are drawn as overlays and feed into tile yields. Units and
-cities use SP257 sprites. The map
-fills the window exactly (20×15 tiles of 16 px, scaled 2× → 640×480). Keyboard
-input is turned into `civ-model` commands — the view never mutates the model
-directly. The rival civilization is run by a simple **AI** that issues the same
+cities use SP257 sprites. The world is an 80×50 **horizontal cylinder** (it wraps
+east–west, with poles top and bottom); the window is a **scrolling 20×15-tile
+viewport** (16 px tiles, scaled 2× → 640×480) whose camera follows the selected
+unit, and tiles are stitched seamlessly across the seam. Keyboard input is turned
+into `civ-model` commands — the view never mutates the model directly. The rival civilization is run by a simple **AI** that issues the same
 commands (it founds and spaces out cities, sets production, explores, and
 researches); it takes its turn automatically whenever you end yours. Moving a
 unit into an enemy-occupied tile triggers **combat** — a Civ1-style fight to the

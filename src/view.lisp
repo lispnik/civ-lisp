@@ -139,22 +139,22 @@ connects to other rivers and flows into the sea)."
 (defun draw-sprite (p col row dx dy)
   (blit p (painter-sprites p) (* col *tile*) (* row *tile*) *tile* *tile* dx dy))
 
-(defun draw-marker (p tx ty w h rgb)
-  "Fill a small W x H rectangle at the top-left of tile (TX,TY)."
+(defun draw-marker (p px py w h rgb)
+  "Fill a small W x H rectangle near the top-left of the tile drawn at (PX,PY)."
   (destructuring-bind (r g b) rgb
     (sdl2:set-render-draw-color (painter-ren p) r g b 255)
-    (set-rect (painter-dst p) (+ (* tx *tile*) 1) (+ (* ty *tile*) 1) w h)
+    (set-rect (painter-dst p) (+ px 1) (+ py 1) w h)
     (sdl2:render-fill-rect (painter-ren p) (painter-dst p))))
 
-(defun draw-frame (p tx ty rgb &optional (inset 0))
-  "Draw a rectangle outline INSET pixels inside tile (TX,TY)."
+(defun draw-frame (p px py rgb &optional (inset 0))
+  "Draw a rectangle outline INSET pixels inside the tile drawn at (PX,PY)."
   (destructuring-bind (r g b) rgb
     (sdl2:set-render-draw-color (painter-ren p) r g b 255)
-    (set-rect (painter-dst p) (+ (* tx *tile*) inset) (+ (* ty *tile*) inset)
+    (set-rect (painter-dst p) (+ px inset) (+ py inset)
               (- *tile* (* 2 inset)) (- *tile* (* 2 inset)))
     (sdl2:render-draw-rect (painter-ren p) (painter-dst p))))
 
-(defun draw-border (p tx ty rgb) (draw-frame p tx ty rgb 0))
+(defun draw-border (p px py rgb) (draw-frame p px py rgb 0))
 
 ;;; --- terrain ---------------------------------------------------------------
 
@@ -235,11 +235,11 @@ toward each neighbour LINK-FN accepts; an isolated track gets a small stub."
 (defun draw-railroad (p map x y px py)
   (draw-track p map x y px py +railroad-row+ 8 #'rail-link-p '(120 120 130)))
 
-(defun draw-terrain-tile (p state x y)
+(defun draw-terrain-tile (p state x y px py)
+  "Draw the world tile (X,Y) at screen pixel (PX,PY)."
   (let* ((map (civm:gs-map state))
          (tile (civm:tile-at map x y))
-         (terr (civm:tile-terrain tile))
-         (px (* x *tile*)) (py (* y *tile*)))
+         (terr (civm:tile-terrain tile)))
     (if (eq terr :ocean)
         (progn
           (blit p (painter-terrain p) (car +ocean-base+) (cdr +ocean-base+)
@@ -287,10 +287,10 @@ toward each neighbour LINK-FN accepts; an isolated track gets a small stub."
     (sdl2-ffi.functions:sdl-set-texture-blend-mode tex 1) ; SDL_BLENDMODE_BLEND
     tex))
 
-(defun dim-tile (p tx ty)
-  "Darken a tile (explored but not currently visible) with a translucent wash."
+(defun dim-tile (p px py)
+  "Darken the tile drawn at (PX,PY) (explored but not currently visible)."
   (sdl2:set-render-draw-color (painter-ren p) 0 0 0 120)
-  (set-rect (painter-dst p) (* tx *tile*) (* ty *tile*) *tile* *tile*)
+  (set-rect (painter-dst p) px py *tile* *tile*)
   (sdl2:render-fill-rect (painter-ren p) (painter-dst p)))
 
 (defun human-player (state)
@@ -299,12 +299,11 @@ toward each neighbour LINK-FN accepts; an isolated track gets a small stub."
 (defun year-text (year)
   (if (minusp year) (format nil "~D BC" (- year)) (format nil "AD ~D" year)))
 
-(defun draw-city (painter state city)
-  "Civ1-style city: skyline, optional walls, a size box, an owner/black border
-(black when a military unit garrisons it), and a name label below."
-  (let* ((cx (civm:city-x city)) (cy (civm:city-y city))
-         (px (* cx *tile*)) (py (* cy *tile*))
-         (font (painter-font painter))
+(defun draw-city (painter state city px py)
+  "Civ1-style city drawn at screen pixel (PX,PY): skyline, optional walls, a size
+box, an owner/black border (black when a military unit garrisons it), and a name
+label below."
+  (let* ((font (painter-font painter))
          (ren (painter-ren painter)))
     ;; the city sprite is transparent, so paint the owner's colour square first
     (destructuring-bind (r g b) (owner-color state (civm:city-owner city))
@@ -316,7 +315,7 @@ toward each neighbour LINK-FN accepts; an isolated track gets a small stub."
       (draw-sprite painter (car +city-walls-sprite+) (cdr +city-walls-sprite+) px py))
     ;; a black border marks a city garrisoned by a military unit
     (when (civm:city-defended-p state city)
-      (draw-border painter cx cy '(0 0 0)))
+      (draw-border painter px py '(0 0 0)))
     (when font
       ;; population number in a small black box at the top-left
       (let* ((label (princ-to-string (civm:city-size city)))
@@ -329,14 +328,13 @@ toward each neighbour LINK-FN accepts; an isolated track gets a small stub."
       (draw-label painter font (civm:city-name city)
                   (+ px (floor *tile* 2)) (+ py *tile* 1)))))
 
-(defun draw-unit (painter state u)
-  "Draw unit U's sprite, owner border and fortify marker."
-  (let ((spr (unit-sprite (civm:unit-type u)))
-        (ux (civm:unit-x u)) (uy (civm:unit-y u)))
-    (draw-sprite painter (car spr) (cdr spr) (* ux *tile*) (* uy *tile*))
-    (draw-border painter ux uy (owner-color state (civm:unit-owner u)))
+(defun draw-unit (painter state u px py)
+  "Draw unit U's sprite, owner border and fortify marker at screen pixel (PX,PY)."
+  (let ((spr (unit-sprite (civm:unit-type u))))
+    (draw-sprite painter (car spr) (cdr spr) px py)
+    (draw-border painter px py (owner-color state (civm:unit-owner u)))
     (when (eq (civm:unit-orders u) :fortified)
-      (draw-marker painter ux uy 3 3 '(245 245 245)))))
+      (draw-marker painter px py 3 3 '(245 245 245)))))
 
 (defun blink-on-p ()
   "Toggles every 500 ms (drives the selected-unit blink)."
@@ -734,48 +732,57 @@ celebration banner."
             do (progn oid)
                (line label i (if deal 230 130) (if deal 230 130) (if deal 150 130))))))
 
-(defun render-game (painter state selected-id &key (fog t) build-city gov-menu
-                                                   diplo-menu trade-menu help console)
-  "Draw STATE from the human player's perspective.  With FOG, unexplored tiles
-are black, explored-but-unseen tiles are dimmed, and units/cities are shown
-only on currently-visible tiles."
+(defun render-game (painter state selected-id
+                    &key (fog t) build-city gov-menu diplo-menu trade-menu help console
+                         (cam-x 0) (cam-y 0) (vw 20) (vh 15))
+  "Draw STATE through a VW x VH-tile viewport whose top-left world tile is
+(CAM-X, CAM-Y); the map wraps east-west.  With FOG, unexplored tiles are black,
+explored-but-unseen tiles are dimmed, and units/cities show only while visible."
   (let* ((ren (painter-ren painter))
          (map (civm:gs-map state))
          (w (civm:map-width map))
          (human (and fog (human-player state)))
          (vis (and human (civm:visible-set state human))))
-    (flet ((visible (x y) (or (not human) (gethash (+ x (* y w)) vis))))
+    (labels ((visible (x y) (or (not human) (gethash (+ x (* y w)) vis)))
+             (scol (x) (let ((c (mod (- x cam-x) w))) (when (< c vw) c))) ; screen col or NIL
+             (srow (y) (let ((r (- y cam-y))) (when (<= 0 r (1- vh)) r))))
       (sdl2:set-render-draw-color ren 0 0 0 255)
       (sdl2:render-clear ren)
-      ;; terrain (only explored tiles; dim the ones not currently in sight)
-      (civm:do-tiles (x y tile map)
-        (declare (ignore tile))
-        (when (or (not human) (civm:seen-p state human x y))
-          (draw-terrain-tile painter state x y)
-          (unless (visible x y) (dim-tile painter x y))))
-      ;; cities and units (only where currently visible)
+      ;; terrain across the viewport (x wraps around the cylinder)
+      (dotimes (sy vh)
+        (dotimes (sx vw)
+          (let ((wx (civm:wrap-x map (+ cam-x sx))) (wy (+ cam-y sy)))
+            (when (and (civm:tile-at map wx wy)
+                       (or (not human) (civm:seen-p state human wx wy)))
+              (let ((px (* sx *tile*)) (py (* sy *tile*)))
+                (draw-terrain-tile painter state wx wy px py)
+                (unless (visible wx wy) (dim-tile painter px py)))))))
+      ;; cities (only those in view and currently visible)
       (maphash (lambda (id c) (declare (ignore id))
-                 (when (visible (civm:city-x c) (civm:city-y c))
-                   (draw-city painter state c)))
+                 (let ((sx (scol (civm:city-x c))) (sy (srow (civm:city-y c))))
+                   (when (and sx sy (visible (civm:city-x c) (civm:city-y c)))
+                     (draw-city painter state c (* sx *tile*) (* sy *tile*)))))
                (civm:gs-cities state))
       ;; units, except the selected one and city garrisons (the city stands in
       ;; for a garrison; the selected unit is drawn last so it's on top)
       (maphash (lambda (id u)
                  (let ((ux (civm:unit-x u)) (uy (civm:unit-y u)))
-                   (when (and (visible ux uy)
-                              (not (eql id selected-id))
-                              (not (civm:tile-city (civm:tile-at map ux uy))))
-                     (draw-unit painter state u))))
+                   (let ((sx (scol ux)) (sy (srow uy)))
+                     (when (and sx sy (visible ux uy)
+                                (not (eql id selected-id))
+                                (not (civm:tile-city (civm:tile-at map ux uy))))
+                       (draw-unit painter state u (* sx *tile*) (* sy *tile*))))))
                (civm:gs-units state))
       ;; the selected unit blinks on top of everything on its square -- but a
-      ;; unit auto-travelling under a goto order is drawn solid (no blink), so
-      ;; you can watch it move across turns without it flickering out
+      ;; unit auto-travelling under a goto order is drawn solid (no blink)
       (let* ((sel (and selected-id (civm:unit-by-id state selected-id)))
-             (traveling (and sel (eq (civm:unit-orders sel) :goto))))
-        (when (and sel (visible (civm:unit-x sel) (civm:unit-y sel))
+             (traveling (and sel (eq (civm:unit-orders sel) :goto)))
+             (sx (and sel (scol (civm:unit-x sel))))
+             (sy (and sel (srow (civm:unit-y sel)))))
+        (when (and sel sx sy (visible (civm:unit-x sel) (civm:unit-y sel))
                    (or traveling (blink-on-p)))
-          (draw-unit painter state sel)
-          (draw-border painter (civm:unit-x sel) (civm:unit-y sel) '(255 240 60)))
+          (draw-unit painter state sel (* sx *tile*) (* sy *tile*))
+          (draw-border painter (* sx *tile*) (* sy *tile*) '(255 240 60)))
         ;; stats panel for the selected unit (hidden while the build menu is up)
         (when (and sel (not build-city) (painter-font painter))
           (draw-unit-panel painter state sel)))

@@ -241,16 +241,24 @@ or an error message."
 (defparameter *civilizations* '("You" "Rome" "Egypt" "Zulu")
   "The civilizations in a new game; the first is the human player.")
 
+(defparameter *view-cols* 20 "Viewport width in tiles.")
+(defparameter *view-rows* 15 "Viewport height in tiles.")
+
+(defun clamp-cam-y (state cy)
+  "Clamp a camera row so the viewport stays within the (non-wrapping) poles."
+  (max 0 (min cy (max 0 (- (civm:map-height (civm:gs-map state)) *view-rows*)))))
+
 (defun run (&key (scale *scale*) (seed 0) (cursor-image *cursor-image*)
-                 (players *civilizations*))
+                 (players *civilizations*) (width 80) (height 50))
   "Open a window, start a new game, and render/drive it until quit."
   (sdl2:with-init (:video)
     (sdl2-image:init '(:png))
-    (let* ((state (civm:make-new-game :seed seed :players players :barbarians t))
-           (map (civm:gs-map state))
-           (lw (* (civm:map-width map) *tile*))
-           (lh (* (civm:map-height map) *tile*))
-           (selected (first-human-unit state)))
+    (let* ((state (civm:make-new-game :seed seed :players players :barbarians t
+                                      :width width :height height))
+           (lw (* *view-cols* *tile*))      ; the window is a fixed viewport,
+           (lh (* *view-rows* *tile*))       ; not the whole (scrolling) map
+           (selected (first-human-unit state))
+           (cam-x 0) (cam-y 0))
       (setf *state* state)          ; publish the live game for the console / SLY
       (sdl2:with-window (win :title "civ-lisp" :w (* lw scale) :h (* lh scale)
                              :flags '(:shown))
@@ -511,8 +519,9 @@ or an error message."
                                   ((= sc +sc-kp-1+) (step! -1  1))
                                   ((= sc +sc-kp-3+) (step!  1  1)))))
                              ((= type +ev-mousebuttondown+)
-                              (let ((tx (floor (ev-mouse-x ev) (* *tile* scale)))
-                                    (ty (floor (ev-mouse-y ev) (* *tile* scale))))
+                              (let ((tx (civm:wrap-x (civm:gs-map state)
+                                          (+ cam-x (floor (ev-mouse-x ev) (* *tile* scale)))))
+                                    (ty (+ cam-y (floor (ev-mouse-y ev) (* *tile* scale)))))
                                 (cond
                                   ;; help overlay up: a click dismisses it
                                   (help (setf help nil))
@@ -574,10 +583,20 @@ or an error message."
                                                     (civm:unit-by-id state u))
                                                    :fortified)
                                            (try (list :wake :unit u))))))))))))
+                       ;; keep the camera centred on the selected unit (it
+                       ;; follows as you move/cycle; the map scrolls and wraps)
+                       (let ((u (and selected (civm:unit-by-id state selected))))
+                         (when u
+                           (setf cam-x (civm:wrap-x (civm:gs-map state)
+                                        (- (civm:unit-x u) (floor *view-cols* 2)))
+                                 cam-y (clamp-cam-y state (- (civm:unit-y u)
+                                                             (floor *view-rows* 2))))))
                        (render-game painter state selected
                                     :build-city build-city :gov-menu gov-menu
                                     :diplo-menu diplo-menu :trade-menu trade-menu :help help
-                                    :console (and console (cons con-input con-output)))
+                                    :console (and console (cons con-input con-output))
+                                    :cam-x cam-x :cam-y cam-y
+                                    :vw *view-cols* :vh *view-rows*)
                        (sdl2:delay 16))
                   ;; cleanup
                   (sdl2:destroy-texture (painter-sprites painter))
