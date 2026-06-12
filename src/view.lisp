@@ -57,6 +57,7 @@
 (defparameter +mine-sprite+ '(5 . 2))         ; SP257 col 5, row 2 (tile_002_005): mine overlay
 (defparameter +pollution-sprite+ '(6 . 2))    ; SP257 col 6, row 2 (tile_002_006): pollution blight
 (defparameter +fort-sprite+ '(14 . 7))         ; SP257 col 14, row 7 (tile_007_014): field fort
+(defparameter +hut-sprite+ '(15 . 7))           ; SP257 col 15, row 7 (tile_007_015): tribal hut
 
 (defun unit-sprite (type)
   (or (cdr (assoc type *unit-sprites*)) +default-unit-sprite+))
@@ -897,6 +898,8 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
                        (or (not human) (civm:seen-p state human wx wy)))
               (let ((px (* sx *tile*)) (py (* sy *tile*)))
                 (draw-terrain-tile painter state wx wy px py)
+                (when (civm:tile-hut (civm:tile-at map wx wy))   ; tribal hut overlay
+                  (draw-sprite painter (car +hut-sprite+) (cdr +hut-sprite+) px py))
                 (unless (visible wx wy) (dim-tile painter px py)))))))
       ;; cities (only those in view and currently visible)
       (maphash (lambda (id c) (declare (ignore id))

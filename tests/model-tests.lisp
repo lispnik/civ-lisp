@@ -553,6 +553,61 @@
         (is-false (gethash (+ 2 (* 5 (map-width (gs-map s))))
                            (visible-set s p)))))))          ; but not in current sight
 
+;;; --- tribal huts (goody huts) ----------------------------------------------
+
+(test huts-scatter-on-land
+  ;; a new game seeds some huts, never on ocean and never on a start tile
+  (let ((s (make-new-game :seed 3 :width 24 :height 18 :players '("You" "Red")))
+        (huts 0))
+    (do-tiles (x y tile (gs-map s))
+      (declare (ignore x y))
+      (when (tile-hut tile)
+        (incf huts)
+        (is-false (eq (tile-terrain tile) :ocean))   ; huts sit on land
+        (is-false (tile-city tile))))
+    (is (plusp huts))
+    ;; no unit starts standing on a hut
+    (loop for u being the hash-values of (gs-units s)
+          do (is-false (tile-hut (tile-at (gs-map s) (unit-x u) (unit-y u)))))))
+
+(test hut-consumed-and-announced-on-entry
+  ;; stepping onto a hut clears it and records an outcome message
+  (let ((s (bare-state 12 12)))
+    (let ((u (add-unit s :warriors 1 4 5)))
+      (setf (tile-hut (tile-at (gs-map s) 4 4)) t)
+      (apply-command s (list :move-unit :unit (unit-id u) :dx 0 :dy -1))
+      (is-false (tile-hut (tile-at (gs-map s) 4 4)))   ; the hut is gone
+      (is (stringp (gs-message s))))))                 ; and the outcome is reported
+
+(test hut-near-a-city-yields-gold
+  ;; huts beside your empire are tame: friendly scouts bearing gold, no surprises
+  (let ((s (bare-state 12 12)))
+    (civ-model::register-city s :name "Rome" :owner 1 :x 5 :y 5)
+    (let ((u (add-unit s :warriors 1 4 5))
+          (p (player-by-id s 1)))
+      (setf (tile-hut (tile-at (gs-map s) 4 4)) t)
+      (let ((g0 (player-gold p)))
+        (apply-command s (list :move-unit :unit (unit-id u) :dx 0 :dy -1))
+        (is (> (player-gold p) g0))))))                ; gold gained
+
+(test barbarian-unit-ignores-huts
+  ;; a barbarian walking onto a hut does not trigger it (no free loot for raiders)
+  (let ((s (bare-state 12 12)))
+    (setf (gs-players s) (vector (make-player :id 1 :name "P1" :kind :human)
+                                 (make-player :id 2 :name "Barb" :kind :barbarian)))
+    (let ((u (add-unit s :legion 2 4 5)))
+      (setf (tile-hut (tile-at (gs-map s) 4 4)) t)
+      (apply-command s (list :move-unit :unit (unit-id u) :dx 0 :dy -1))
+      (is-true (tile-hut (tile-at (gs-map s) 4 4)))    ; still there
+      (is-false (gs-message s)))))
+
+(test save-load-preserves-huts
+  (let ((s (bare-state 8 8)))
+    (setf (tile-hut (tile-at (gs-map s) 3 3)) t)
+    (let ((s2 (load-game-form (dump-game s))))
+      (is-true (tile-hut (tile-at (gs-map s2) 3 3)))
+      (is-false (tile-hut (tile-at (gs-map s2) 0 0))))))
+
 (test ai-expands
   ;; the AI should found and expand to several cities on its own
   (let ((s (make-new-game :seed 7)))

@@ -309,6 +309,11 @@ or an error message."
                          ;; it's spent (out of moves) or gone (lost in combat)
                          (when selected
                            (try (list :move-unit :unit selected :dx dx :dy dy))
+                           ;; a tribal hut popped on this move? announce its outcome
+                           (when (civm:gs-message state)
+                             (sdl2:set-window-title
+                              win (format nil "civ-lisp — ~A" (civm:gs-message state)))
+                             (setf (civm:gs-message state) nil))
                            (let ((u (civm:unit-by-id state selected)))
                              (when (or (null u) (<= (civm:unit-moves-left u) 0))
                                (setf selected (next-human-unit state selected))))))

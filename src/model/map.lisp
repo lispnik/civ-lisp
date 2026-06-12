@@ -15,6 +15,7 @@
   (mine nil)
   (fort nil)                  ; a field fort (defensive structure)
   (pollution nil)             ; a pollution blight sits on this tile
+  (hut nil)                   ; an unexplored tribal hut (goody hut) sits here
   ;; occupancy
   (owner nil)                 ; player id or NIL
   (city nil)                  ; city id or NIL (a city sits on this tile)

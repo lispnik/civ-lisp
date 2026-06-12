@@ -338,6 +338,77 @@ position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
           (unit-moves-left u) 0)            ; busy: no movement while working
     u))
 
+;;; --- tribal huts (goody huts) ----------------------------------------------
+
+(defparameter *hut-mercenaries* '(:legion :phalanx :musketeers :cavalry)
+  "Unit types that can emerge from a hut as friendly 'mercenaries'.")
+
+(defun barbarian-player (state)
+  (find :barbarian (gs-players state) :key #'player-kind))
+
+(defun city-near-p (state x y radius)
+  "T if any city lies within RADIUS tiles (chebyshev, x wrapped) of (X,Y)."
+  (let ((map (gs-map state)))
+    (loop for c being the hash-values of (gs-cities state)
+          thereis (and (<= (abs (signed-dx map (city-x c) x)) radius)
+                       (<= (abs (- (city-y c) y)) radius)))))
+
+(defun hut-gold (state player)
+  (let ((g (+ 25 (gs-rand state 76))))      ; 25-100
+    (incf (player-gold player) g)
+    (format nil "You find ~D gold in an ancient hut." g)))
+
+(defun enter-hut (state u tile)
+  "U (a non-barbarian unit) has stepped onto a hut TILE: clear the hut and roll
+an outcome -- gold, a free advance, mercenaries, wandering settlers, a friendly
+city, or a barbarian ambush.  Stores the outcome in GS-MESSAGE and returns it."
+  (setf (tile-hut tile) nil)
+  (let* ((owner (unit-owner u))
+         (p (player-by-id state owner))
+         (x (unit-x u)) (y (unit-y u))
+         (research (researchable-techs p))
+         (roll (gs-rand state 100))
+         (msg
+          (cond
+            ;; near your own empire: just friendly scouts bearing gold (no
+            ;; cities/barbarians spawned right next to your capital)
+            ((city-near-p state x y 3) (hut-gold state p))
+            ((< roll 35) (hut-gold state p))
+            ;; free advance
+            ((and (< roll 55) research)
+             (let ((tech (nth (gs-rand state (length research)) research)))
+               (setf (gethash tech (player-techs p)) t)
+               (format nil "Ancient scrolls teach you ~A!" (tech-def tech :name))))
+            ;; mercenaries: a free military unit
+            ((< roll 70)
+             (let ((type (nth (gs-rand state (length *hut-mercenaries*)) *hut-mercenaries*)))
+               (register-unit state :type type :owner owner :x x :y y)
+               (format nil "~A emerge from the hut to join you!"
+                       (string-capitalize (symbol-name type)))))
+            ;; wandering nomads -> free settlers
+            ((< roll 85)
+             (register-unit state :type :settlers :owner owner :x x :y y)
+             "Wandering nomads join you as settlers.")
+            ;; an advanced tribe joins -> a new city on the hut tile
+            ((and (< roll 95) (not (tile-city tile)))
+             (let ((c (register-city state :name "Village" :owner owner :x x :y y)))
+               (setf (city-production c) '(:unit :warriors)))
+             "An advanced tribe joins your civilization!")
+            ;; otherwise: barbarian ambush (falls back to gold with no barbarians)
+            (t (let ((barb (barbarian-player state)))
+                 (if barb
+                     (progn
+                       (dolist (n (remove-if (lambda (nb) (eq (tile-terrain (third nb)) :ocean))
+                                             (neighbors (gs-map state) x y)))
+                         (when (and (null (tile-units (third n))) (null (tile-city (third n)))
+                                    (< (gs-rand state 2) 1))   ; ~half the open tiles
+                           (register-unit state :type :legion :owner (player-id barb)
+                                          :x (first n) :y (second n))))
+                       "Barbarian raiders burst from the hut!")
+                     (hut-gold state p)))))))
+    (setf (gs-message state) msg)
+    msg))
+
 (defun cmd-move-unit (state command)
   (let* ((args (rest command))
          (u (or (unit-by-id state (getf args :unit)) (fail "no such unit")))
@@ -402,6 +473,9 @@ position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
               (reveal-around (player-seen (player-by-id state (unit-owner u)))
                              state nx ny)            ; clear fog around the new tile
               (decf (unit-moves-left u) (max 1 (min cost (unit-moves-left u))))
+              ;; stepping onto a tribal hut springs its surprise
+              (when (and (tile-hut dest) (not (barbarian-id-p state (unit-owner u))))
+                (enter-hut state u dest))
               u))))))
 
 (defparameter *clean-pollution-turns* 3

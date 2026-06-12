@@ -23,6 +23,7 @@
   (routes '())                             ; list of (city-a . city-b) trade routes (a<=b)
   (winner nil)                             ; player id of the victor, once decided
   (victory nil)                            ; :conquest or :space
+  (message nil)                            ; transient last-event text (e.g. a hut outcome)
   (phase :start :type keyword))
 
 (defun gs-next-id (state)
@@ -116,6 +117,12 @@ BARBARIANS, append a unit-less barbarian player that spawns roaming raiders."
       (declare (ignore x y))
       (when (zerop (gs-rand state 16))
         (setf (tile-special tile) t)))
+    ;; scatter tribal huts on land (~1 in 22 tiles) -- exploration rewards
+    (do-tiles (x y tile map)
+      (declare (ignore x y))
+      (when (and (not (eq (tile-terrain tile) :ocean))
+                 (zerop (gs-rand state 22)))
+        (setf (tile-hut tile) t)))
     ;; players + their starting units, spread across the map
     (loop for name in all
           for i from 0
@@ -130,6 +137,7 @@ BARBARIANS, append a unit-less barbarian player that spawns roaming raiders."
                ;; a grassland start on a river -- a capital site with baseline trade
                (setf (tile-terrain (tile-at map px py)) :grassland)
                (setf (tile-river (tile-at map px py)) t)
+               (setf (tile-hut (tile-at map px py)) nil)   ; never start on a hut
                (register-unit state :type :settlers :owner (player-id p) :x px :y py)
                (register-unit state :type :warriors :owner (player-id p) :x px :y py)))
     (update-visibility state)        ; reveal each player's starting surroundings

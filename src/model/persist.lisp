@@ -91,16 +91,18 @@ the entity lists on load."
         (and (tile-river tile) t) (and (tile-special tile) t)
         (and (tile-road tile) t) (and (tile-irrigation tile) t)
         (and (tile-mine tile) t) (and (tile-pollution tile) t)
-        (and (tile-railroad tile) t) (and (tile-fort tile) t)))
+        (and (tile-railroad tile) t) (and (tile-fort tile) t)
+        (and (tile-hut tile) t)))
 
 (defun restore-tile (tile spec)
   (destructuring-bind (terrain river special road irrigation mine
-                       &optional pollution railroad fort) spec
+                       &optional pollution railroad fort hut) spec
     (setf (tile-terrain tile) terrain
           (tile-river tile) river (tile-special tile) special
           (tile-road tile) road (tile-irrigation tile) irrigation
           (tile-mine tile) mine (tile-pollution tile) pollution
-          (tile-railroad tile) railroad (tile-fort tile) fort)))
+          (tile-railroad tile) railroad (tile-fort tile) fort
+          (tile-hut tile) hut)))
 
 ;;; --- whole game ------------------------------------------------------------
 

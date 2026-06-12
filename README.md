@@ -1,9 +1,10 @@
 # civ-lisp
 
 An **SDL2** front-end in Common Lisp (SBCL, [ocicl](https://github.com/ocicl/ocicl)
-for dependencies) for a Civilization-like 4X game — explore a wrapping world,
-found cities, climb the advance tree, govern, wage war, do diplomacy /
-espionage / trade, manage pollution, and win by conquest or the space race. It
+for dependencies) for a Civilization-like 4X game — explore a wrapping world
+dotted with tribal huts, found cities, climb the advance tree, govern, wage war,
+do diplomacy / espionage / trade, manage pollution, and win by conquest or the
+space race. It
 renders a live [`civ-model`](docs/MODEL.md) game using sprites extracted from
 the DOS game *Sid Meier's Civilization* (the sibling
 [civ-extract](https://github.com/lispnik/civ-extract) project), with the
@@ -98,9 +99,16 @@ Pressing `?` brings up an in-window cheat-sheet of every key:
 
 The map is covered by **fog of war**: unexplored tiles are black, tiles you've
 seen but can't currently see are dimmed, and enemy units/cities show only while
-in sight of one of your units or cities. The selected unit shows an info box in
-the bottom-left (owner, type, attack/defense, moves, HP, city, terrain, and the
-units sharing its square) — see [Selecting a unit](#selecting-a-unit) above.
+in sight of one of your units or cities. Fog clears the moment a unit moves, not
+at end of turn. The selected unit shows an info box in the bottom-left (owner,
+type, attack/defense, moves, HP, city, terrain, and the units sharing its square)
+— see [Selecting a unit](#selecting-a-unit) above.
+
+Scattered across the map are **tribal huts**. Move a unit onto one and it springs
+a surprise: a windfall of gold, a free advance, friendly mercenaries or wandering
+settlers joining your cause, an advanced tribe handing you a new city — or a
+barbarian ambush. Huts beside your own cities are tame (just friendly scouts
+bearing gold), so there's no farming them next to your capital.
 
 Settlers can **terraform** the tile they stand on, over several turns during
 which the unit holds position; the improvement then feeds straight into that

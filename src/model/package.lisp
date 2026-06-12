@@ -13,7 +13,7 @@
    #:tile #:make-tile #:tile-terrain #:tile-feature #:tile-resource
    #:tile-river #:tile-special
    #:tile-road #:tile-railroad #:tile-irrigation #:tile-mine #:tile-fort
-   #:tile-pollution #:tile-owner #:tile-city #:tile-units
+   #:tile-pollution #:tile-hut #:tile-owner #:tile-city #:tile-units
    #:game-map #:map-width #:map-height #:map-tiles
    #:tile-at #:in-bounds-p #:neighbors #:do-tiles #:wrap-x #:map-dx #:signed-dx
    ;; entities
@@ -30,7 +30,8 @@
    #:game-state #:gs-turn #:gs-year #:gs-map #:gs-players #:gs-units #:gs-cities
    #:make-new-game #:player-by-id #:unit-by-id #:city-by-id
    #:gs-random #:gs-rand #:gs-phase #:gs-warming #:player-has-tech-p
-   #:gs-winner #:gs-victory #:process-victory #:player-alive-p
+   #:gs-winner #:gs-victory #:gs-message #:process-victory #:player-alive-p
+   #:enter-hut #:barbarian-player
    #:*spaceship-parts* #:*spaceship-flight* #:*spaceship-part-cost*
    ;; diplomacy
    #:gs-relations #:relation #:at-war-p #:barbarian-id-p
