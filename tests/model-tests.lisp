@@ -521,6 +521,17 @@
         (update-visibility s)
         (is-true (seen-p s p 5 2))))))         ; now explored
 
+(test fog-clears-immediately-on-move
+  ;; moving reveals the new surroundings at once -- no end-turn needed (Civ1 behavior)
+  (let ((s (bare-state 12 12)))
+    (let ((u (add-unit s :warriors 1 2 2)))
+      (update-visibility s)
+      (let ((p (player-by-id s 1)))
+        (is-false (seen-p s p 4 2))            ; two tiles east: not yet seen
+        (apply-command s (list :move-unit :unit (unit-id u) :dx 1 :dy 0)) ; step to (3,2)
+        (is-true (seen-p s p 4 2))             ; revealed by the move, before any end-turn
+        (is-true (seen-p s p 4 3))))))
+
 (test fog-visible-set
   (let ((s (bare-state 12 12)))
     (add-unit s :warriors 1 5 5)

@@ -379,7 +379,9 @@ position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
                   (let ((old (tile-at map (unit-x u) (unit-y u))))
                     (setf (tile-units old) (remove (unit-id u) (tile-units old)))
                     (push (unit-id u) (tile-units dest))
-                    (setf (unit-x u) nx (unit-y u) ny))))
+                    (setf (unit-x u) nx (unit-y u) ny)
+                    (reveal-around (player-seen (player-by-id state (unit-owner u)))
+                                   state nx ny))))    ; clear fog as we advance
               result))
           ;; normal move (possibly onto friendly units)
           (progn
@@ -397,6 +399,8 @@ position until PROCESS-TERRAFORM finishes it and sets the tile improvement."
               (clear-work u)                        ; moving breaks terraform
               (setf (unit-x u) nx (unit-y u) ny
                     (unit-orders u) :idle)          ; moving breaks fortify
+              (reveal-around (player-seen (player-by-id state (unit-owner u)))
+                             state nx ny)            ; clear fog around the new tile
               (decf (unit-moves-left u) (max 1 (min cost (unit-moves-left u))))
               u))))))
 
