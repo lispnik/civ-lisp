@@ -270,7 +270,7 @@ or an error message."
                                                    (float scale 1.0))
           (sdl2-ffi.functions:sdl-set-render-draw-blend-mode ren 1) ; for fog dimming
           (let ((painter (make-renderer-painter ren
-                                                (load-atlas ren *sprites-image*)
+                                                (load-atlas ren *sprites-image* +unit-bg-key+)
                                                 (load-atlas ren *terrain-image*)))
                 (font (load-gfont (namestring *font-file*) 1))   ; small label font
                 (torch-cursor (make-cursor cursor-image scale))

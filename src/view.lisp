@@ -105,6 +105,10 @@ connects to other rivers and flows into the sea)."
     (5 200 110 220) (6 230 150 60) (7 70 200 210) (8 40 40 50))
   "Player color index -> (r g b).  Index 8 (dark) is used for barbarians.")
 
+(defparameter +unit-bg-key+ '(96 224 100)
+  "The green placeholder behind every SP257 unit sprite, keyed out at load time so
+the owning team's colour shows through instead.")
+
 (defun owner-color (state owner-id)
   (let ((p (and owner-id (civm:player-by-id state owner-id))))
     (if p (or (cdr (assoc (civm:player-color p) *player-colors*)) '(230 230 230))
@@ -279,13 +283,40 @@ toward each neighbour LINK-FN accepts; an isolated track gets a small stub."
 
 ;;; --- the frame -------------------------------------------------------------
 
-(defun load-atlas (ren path)
-  "Load PATH as a blend-enabled texture (caller destroys it)."
-  (let* ((surf (sdl2-image:load-image (namestring path)))
-         (tex (sdl2:create-texture-from-surface ren surf)))
-    (sdl2-ffi.functions:sdl-free-surface surf)
-    (sdl2-ffi.functions:sdl-set-texture-blend-mode tex 1) ; SDL_BLENDMODE_BLEND
-    tex))
+(defun colorkey-surface! (surf rgb)
+  "Make every pixel of SURF (an ABGR8888 surface, byte order R,G,B,A) matching RGB
+fully transparent, in place."
+  (destructuring-bind (r g b) rgb
+    (let ((w (sdl2:surface-width surf))
+          (h (sdl2:surface-height surf))
+          (pitch (plus-c:c-ref surf sdl2-ffi:sdl-surface :pitch))
+          (px (plus-c:c-ref surf sdl2-ffi:sdl-surface :pixels)))
+      (sdl2-ffi.functions:sdl-lock-surface surf)
+      (dotimes (y h)
+        (let ((row (* y pitch)))
+          (dotimes (x w)
+            (let ((o (+ row (* x 4))))
+              (when (and (= (cffi:mem-ref px :uint8 o) r)
+                         (= (cffi:mem-ref px :uint8 (+ o 1)) g)
+                         (= (cffi:mem-ref px :uint8 (+ o 2)) b))
+                (setf (cffi:mem-ref px :uint8 (+ o 3)) 0))))))
+      (sdl2-ffi.functions:sdl-unlock-surface surf))))
+
+(defun load-atlas (ren path &optional colorkey)
+  "Load PATH as a blend-enabled texture (caller destroys it).  When COLORKEY is
+an (r g b) list, those pixels are made transparent first."
+  (let ((surf (sdl2-image:load-image (namestring path))))
+    (when colorkey
+      ;; normalise to ABGR8888 so the pixel walk can assume R,G,B,A byte order
+      (let ((conv (sdl2-ffi.functions:sdl-convert-surface-format
+                   surf sdl2-ffi:+sdl-pixelformat-abgr8888+ 0)))
+        (sdl2-ffi.functions:sdl-free-surface surf)
+        (setf surf conv))
+      (colorkey-surface! surf colorkey))
+    (let ((tex (sdl2:create-texture-from-surface ren surf)))
+      (sdl2-ffi.functions:sdl-free-surface surf)
+      (sdl2-ffi.functions:sdl-set-texture-blend-mode tex 1) ; SDL_BLENDMODE_BLEND
+      tex)))
 
 (defun dim-tile (p px py)
   "Darken the tile drawn at (PX,PY) (explored but not currently visible)."
@@ -329,10 +360,18 @@ label below."
                   (+ px (floor *tile* 2)) (+ py *tile* 1)))))
 
 (defun draw-unit (painter state u px py)
-  "Draw unit U's sprite, owner border and fortify marker at screen pixel (PX,PY)."
-  (let ((spr (unit-sprite (civm:unit-type u))))
+  "Draw unit U's sprite over a team-colour background at screen pixel (PX,PY),
+plus a black border for definition and a fortify marker."
+  (let ((spr (unit-sprite (civm:unit-type u)))
+        (ren (painter-ren painter)))
+    ;; the sprite's green placeholder is keyed out, so paint the owner's colour
+    ;; behind it -- that team colour shows through the unit's background
+    (destructuring-bind (r g b) (owner-color state (civm:unit-owner u))
+      (sdl2:set-render-draw-color ren r g b 255)
+      (set-rect (painter-dst painter) px py *tile* *tile*)
+      (sdl2:render-fill-rect ren (painter-dst painter)))
     (draw-sprite painter (car spr) (cdr spr) px py)
-    (draw-border painter px py (owner-color state (civm:unit-owner u)))
+    (draw-border painter px py '(0 0 0))
     (when (eq (civm:unit-orders u) :fortified)
       (draw-marker painter px py 3 3 '(245 245 245)))))
 
@@ -397,7 +436,13 @@ plus a row of every unit sharing the square (the selected one outlined cyan)."
           for ou in units for i from 0
           for sx = (+ 2 (* i (1+ *tile*)))
           for spr = (unit-sprite (civm:unit-type ou))
-          do (draw-sprite painter (car spr) (cdr spr) sx sy)
+          do ;; team-colour fill behind the keyed-out sprite background
+             (destructuring-bind (r g b) (owner-color state (civm:unit-owner ou))
+               (sdl2:set-render-draw-color ren r g b 255))
+             (set-rect (painter-dst painter) sx sy *tile* *tile*)
+             (sdl2:render-fill-rect ren (painter-dst painter))
+             (draw-sprite painter (car spr) (cdr spr) sx sy)
+             ;; outline: cyan for the selected unit, owner colour otherwise
              (destructuring-bind (r g b)
                  (if (eql (civm:unit-id ou) (civm:unit-id u))
                      '(0 240 240)
