@@ -2,7 +2,7 @@ SBCL ?= sbcl
 HEAP ?= 4096
 
 # Build a standalone executable: ./civ-lisp
-civ-lisp: civ-lisp.asd src/*.lisp assets/torch.png
+civ-lisp: civ-lisp.asd src/*.lisp assets/sprites.png assets/terrain.png assets/fonts.cv
 	$(SBCL) --dynamic-space-size $(HEAP) --non-interactive --load build.lisp
 
 .PHONY: run deps clean
