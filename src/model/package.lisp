@@ -20,7 +20,7 @@
    #:player #:make-player #:player-id #:player-name #:player-kind
    #:player-gold #:player-government #:player-techs #:player-researching #:player-beakers
    #:player-color #:player-tax-rate #:player-science-rate #:player-luxury-rate
-   #:player-gov-target #:player-anarchy-left
+   #:player-gov-target #:player-anarchy-left #:player-spaceship #:player-landing
    #:unit #:unit-id #:unit-type #:unit-owner #:unit-x #:unit-y
    #:unit-hp #:unit-moves-left #:unit-orders #:unit-veteran
    #:unit-goto-x #:unit-goto-y #:unit-work #:unit-work-left
@@ -30,6 +30,8 @@
    #:game-state #:gs-turn #:gs-year #:gs-map #:gs-players #:gs-units #:gs-cities
    #:make-new-game #:player-by-id #:unit-by-id #:city-by-id
    #:gs-random #:gs-rand #:gs-phase #:gs-warming #:player-has-tech-p
+   #:gs-winner #:gs-victory #:process-victory #:player-alive-p
+   #:*spaceship-parts* #:*spaceship-flight* #:*spaceship-part-cost*
    ;; diplomacy
    #:gs-relations #:relation #:at-war-p #:barbarian-id-p
    #:best-trade-with #:*tech-trade-value*

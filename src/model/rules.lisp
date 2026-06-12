@@ -300,11 +300,14 @@ happy, none unhappy, size >= 3."
     (declare (ignore c))
     (and (>= (city-size city) 3) (zerop u) (>= h (ceiling (city-size city) 2)))))
 
+(defparameter *spaceship-part-cost* 160 "Shields per spaceship part.")
+
 (defun production-cost (item)
   (ecase (first item)
     (:unit     (unit-def (second item) :cost 9999))
     (:building (building-def (second item) :cost 9999))
-    (:wonder   (wonder-def (second item) :cost 9999))))
+    (:wonder   (wonder-def (second item) :cost 9999))
+    (:spaceship *spaceship-part-cost*)))
 
 (defun city-try-complete (state city)
   "Finish the current production if enough shields have accumulated."
@@ -318,9 +321,11 @@ happy, none unhappy, size >= 3."
                                             :x (city-x city) :y (city-y city))))
                      (when (member :barracks (city-buildings city))
                        (setf (unit-veteran nu) t))))      ; barracks -> veterans
-            ((:building :wonder) (pushnew (second item) (city-buildings city))))
+            ((:building :wonder) (pushnew (second item) (city-buildings city)))
+            (:spaceship (incf (player-spaceship              ; assemble a ship part
+                               (player-by-id state (city-owner city))))))
           (decf (city-shield-box city) cost)
-          ;; buildings and wonders are one-shot; units keep producing
+          ;; buildings and wonders are one-shot; units and parts keep producing
           (when (member (first item) '(:building :wonder))
             (setf (city-production city) nil)))))))
 
@@ -603,6 +608,40 @@ at zero gold."
 ;; compiles without forward-reference warnings
 (declaim (ftype (function (t) t) run-ai-players process-goto))
 
+;;; --- victory ---------------------------------------------------------------
+
+(defparameter *spaceship-parts* 10 "Parts that complete a spaceship.")
+(defparameter *spaceship-flight* 15 "Turns a launched spaceship takes to arrive.")
+
+(defun player-alive-p (state player)
+  "A non-barbarian player is still in the game while it holds a city or a unit."
+  (and (not (eq (player-kind player) :barbarian))
+       (or (loop for c being the hash-values of (gs-cities state)
+                 thereis (= (city-owner c) (player-id player)))
+           (loop for u being the hash-values of (gs-units state)
+                 thereis (= (unit-owner u) (player-id player))))))
+
+(defun declare-victory (state pid kind)
+  (setf (gs-winner state) pid (gs-victory state) kind (gs-phase state) :game-over))
+
+(defun process-victory (state)
+  "Decide the game: a launched spaceship that has arrived wins the space race;
+otherwise the last surviving civilization wins by conquest."
+  (unless (gs-winner state)
+    ;; launch a completed ship; land an arrived one
+    (loop for p across (gs-players state)
+          when (and (>= (player-spaceship p) *spaceship-parts*) (zerop (player-landing p)))
+            do (setf (player-landing p) (+ (gs-turn state) *spaceship-flight*)))
+    (loop for p across (gs-players state)
+          when (and (plusp (player-landing p)) (>= (gs-turn state) (player-landing p))
+                    (player-alive-p state p))
+            do (return-from process-victory (declare-victory state (player-id p) :space)))
+    ;; conquest: exactly one non-barbarian survivor (and someone has been knocked out)
+    (let* ((civs (remove-if (lambda (p) (eq (player-kind p) :barbarian)) (gs-players state)))
+           (alive (remove-if-not (lambda (p) (player-alive-p state p)) civs)))
+      (when (and (> (length civs) 1) (= (length alive) 1))
+        (declare-victory state (player-id (elt alive 0)) :conquest)))))
+
 (defun end-turn (state)
   "Advance the whole world one turn and return STATE.
 Phases: AI players act -> process cities -> research -> heal units -> refresh
@@ -622,4 +661,5 @@ combat phases here.)"
 
   (incf (gs-turn state))
   (setf (gs-year state) (turn->year (gs-turn state)))
+  (process-victory state)       ; conquest or space-race win?
   state)

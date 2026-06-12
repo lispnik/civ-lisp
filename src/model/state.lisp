@@ -21,6 +21,8 @@
   (stolen (make-hash-table :test 'eql))    ; (thief*256+victim) -> t: a tech has been stolen
   (embassies (make-hash-table :test 'eql)) ; (observer*256+observed) -> t: an embassy exists
   (routes '())                             ; list of (city-a . city-b) trade routes (a<=b)
+  (winner nil)                             ; player id of the victor, once decided
+  (victory nil)                            ; :conquest or :space
   (phase :start :type keyword))
 
 (defun gs-next-id (state)

@@ -62,7 +62,8 @@
         :techs (loop for k being the hash-keys of (player-techs p) collect k)
         :researching (player-researching p) :beakers (player-beakers p)
         :seen (loop for k being the hash-keys of (player-seen p) collect k)
-        :score (player-score p)))
+        :score (player-score p)
+        :spaceship (player-spaceship p) :landing (player-landing p)))
 
 (defun list->player (pl)
   (let ((p (make-player :id (getf pl :id) :name (getf pl :name)
@@ -76,7 +77,9 @@
           (player-luxury-rate p) (getf pl :luxury-rate)
           (player-researching p) (getf pl :researching)
           (player-beakers p) (getf pl :beakers)
-          (player-score p) (getf pl :score))
+          (player-score p) (getf pl :score)
+          (player-spaceship p) (or (getf pl :spaceship) 0)
+          (player-landing p) (or (getf pl :landing) 0))
     (dolist (k (getf pl :techs)) (setf (gethash k (player-techs p)) t))
     (dolist (k (getf pl :seen))  (setf (gethash k (player-seen p)) t))
     p))
@@ -107,6 +110,7 @@ the entity lists on load."
     (list :format :civ-save :version +save-version+
           :turn (gs-turn state) :year (gs-year state)
           :id-counter (gs-id-counter state) :phase (gs-phase state)
+          :winner (gs-winner state) :victory (gs-victory state)
           :warming (gs-warming state)
           :relations (loop for k being the hash-keys of (gs-relations state)
                              using (hash-value v) collect (cons k v))
@@ -135,6 +139,7 @@ the entity lists on load."
                  :id-counter (getf form :id-counter)
                  :random (getf form :random)
                  :warming (or (getf form :warming) 0)
+                 :winner (getf form :winner) :victory (getf form :victory)
                  :phase (getf form :phase))))
     (loop for spec in (getf mspec :tiles) for i from 0
           do (restore-tile (svref (map-tiles map) i) spec))

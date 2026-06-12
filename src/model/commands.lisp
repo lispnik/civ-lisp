@@ -606,6 +606,11 @@ government :TO (which must be unlocked by an advance)."
        (unless (gethash (second item) *wonders*) (fail "unknown wonder ~A" (second item)))
        (when (wonder-built-p state (second item)) (fail "wonder already built"))
        (let ((req (wonder-def (second item) :requires)))
-         (unless (player-has-tech-p owner req) (fail "requires tech ~(~A~)" req)))))
+         (unless (player-has-tech-p owner req) (fail "requires tech ~(~A~)" req))))
+      (:spaceship
+       (unless (wonder-built-p state :apollo-program)
+         (fail "the Apollo Program must be built first"))
+       (unless (player-has-tech-p owner :space-flight)
+         (fail "requires the space-flight advance"))))
     (setf (city-production c) item)
     c))

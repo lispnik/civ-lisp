@@ -20,7 +20,9 @@
   (researching nil)                     ; tech currently being researched
   (beakers 0 :type fixnum)              ; science accumulated toward it
   (seen (make-hash-table :test 'eql))   ; explored tiles (fog of war): key x+y*w -> t
-  (score 0 :type fixnum))
+  (score 0 :type fixnum)
+  (spaceship 0 :type fixnum)            ; spaceship parts built
+  (landing 0 :type fixnum))             ; turn the launched spaceship arrives (0 = not launched)
 
 (defun player-has-tech-p (player tech)
   (or (null tech) (gethash tech (player-techs player))))

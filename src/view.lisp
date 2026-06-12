@@ -431,7 +431,12 @@ plus a row of every unit sharing the square (the selected one outlined cyan)."
   (ecase (first item)
     (:unit (civm:unit-def (second item) :cost 0))
     (:building (civm:building-def (second item) :cost 0))
-    (:wonder (civm:wonder-def (second item) :cost 0))))
+    (:wonder (civm:wonder-def (second item) :cost 0))
+    (:spaceship civm:*spaceship-part-cost*)))
+
+(defun item-label (item)
+  (if (eq (first item) :spaceship) "Spaceship part"
+      (string-capitalize (symbol-name (second item)))))
 
 (defun buildable-items (state city)
   "Production items (:unit/:building/:wonder ...) CITY can currently build."
@@ -448,6 +453,9 @@ plus a row of every unit sharing the square (the selected one outlined cyan)."
       (when (and (civm:player-has-tech-p owner (civm:wonder-def w :requires))
                  (not (civm:wonder-built-p state w)))
         (push (list :wonder w) items)))
+    (when (and (civm:wonder-built-p state :apollo-program)   ; spaceship parts
+               (civm:player-has-tech-p owner :space-flight))
+      (push (list :spaceship) items))
     (nreverse items)))
 
 (defun build-menu-lines (state city)
@@ -456,7 +464,7 @@ plus a row of every unit sharing the square (the selected one outlined cyan)."
         for i from 1
         collect (list i item
                       (format nil "~D ~A (~D)~A" i
-                              (string-capitalize (symbol-name (second item)))
+                              (item-label item)
                               (item-cost item)
                               (if (eq (first item) :wonder) " *" "")))))
 
@@ -782,6 +790,34 @@ celebration banner."
       (loop for (i cmd label ok) in lines
             do (progn cmd) (line label i (if ok 235 130) (if ok 235 130) (if ok 150 130))))))
 
+(defun spaceship-hud-text (state)
+  "Spaceship progress for the human, or NIL."
+  (let ((p (human-player state)))
+    (when p
+      (cond ((plusp (civm:player-landing p))
+             (format nil "SHIP launched -> turn ~D" (civm:player-landing p)))
+            ((plusp (civm:player-spaceship p))
+             (format nil "SHIP ~D/~D parts" (civm:player-spaceship p) civm:*spaceship-parts*))))))
+
+(defun draw-banner (painter state view-w)
+  "A VICTORY / DEFEAT banner centred in the VIEW-W-wide viewport."
+  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+         (human (human-player state))
+         (win (and human (eql (civm:gs-winner state) (civm:player-id human))))
+         (who (civm:player-name (civm:player-by-id state (civm:gs-winner state))))
+         (kind (string-downcase (symbol-name (civm:gs-victory state))))
+         (msg (if win (format nil "VICTORY by ~A!" kind)
+                  (format nil "DEFEAT -- ~A wins by ~A" who kind)))
+         (tw (text-width font msg)) (h (gfont-height font))
+         (px (max 0 (floor (- view-w (+ tw 8)) 2))) (py 100))
+    (sdl2:set-render-draw-color ren 0 0 0 235)
+    (set-rect (painter-dst painter) px py (+ tw 8) (+ 6 h))
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (sdl2:set-render-draw-color ren (if win 90 230) (if win 220 70) 90 255)
+    (sdl2:render-draw-rect ren (painter-dst painter))
+    (draw-text painter font msg (+ px 4) (+ py 3)
+               (if win 120 255) (if win 255 120) 120)))
+
 (defun render-game (painter state selected-id
                     &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu help console
                          (cam-x 0) (cam-y 0) (vw 20) (vh 15))
@@ -849,20 +885,26 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
             ((and build-city (painter-font painter))
              (let ((c (civm:city-by-id state build-city)))
                (when c (draw-build-menu painter state c)))))
-      ;; HUD, top-left: turn/year on one line, government/rates on the next
+      ;; HUD, top-left: turn/year, government/rates, and spaceship status
       (let ((font (painter-font painter)))
         (when font
-          (let* ((l1 (format nil "~A   TURN ~D"
-                             (year-text (civm:gs-year state)) (civm:gs-turn state)))
-                 (l2 (gov-hud-text state))
-                 (fh (gfont-height font))
-                 (tw (max (text-width font l1) (if l2 (text-width font l2) 0))))
+          (let* ((fh (gfont-height font))
+                 (lines (remove nil (list (format nil "~A   TURN ~D"
+                                                  (year-text (civm:gs-year state))
+                                                  (civm:gs-turn state))
+                                          (gov-hud-text state)
+                                          (spaceship-hud-text state))))
+                 (tw (reduce #'max lines :key (lambda (s) (text-width font s)))))
             (sdl2:set-render-draw-color ren 0 0 0 190)
-            (set-rect (painter-dst painter) 0 0 (+ tw 2)
-                      (+ 2 (if l2 (* 2 (1+ fh)) fh)))
+            (set-rect (painter-dst painter) 0 0 (+ tw 2) (+ 1 (* (length lines) (1+ fh))))
             (sdl2:render-fill-rect ren (painter-dst painter))
-            (draw-text painter font l1 1 1 255 255 255)
-            (when l2 (draw-text painter font l2 1 (+ 1 (1+ fh)) 200 220 255)))))
+            (loop for s in lines for i from 0
+                  do (draw-text painter font s 1 (+ 1 (* i (1+ fh)))
+                                (if (zerop i) 255 200) (if (zerop i) 255 220)
+                                (if (zerop i) 255 255))))))
+      ;; victory / defeat banner
+      (when (and (civm:gs-winner state) (painter-font painter))
+        (draw-banner painter state (* vw *tile*)))
       ;; help overlay, drawn last so it sits on top of everything
       (when (and help (painter-font painter))
         (draw-help painter state))
