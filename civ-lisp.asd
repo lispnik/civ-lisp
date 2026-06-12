@@ -11,7 +11,7 @@
   :author "burnsidemk@gmail.com"
   :license "MIT"
   :version "0.1.0"
-  :depends-on ("civ-model" "sdl2" "sdl2-image")
+  :depends-on ("civ-model" "sdl2" "sdl2-image" "slynk")
   :serial t
   :pathname "src"
   :components ((:file "package")
