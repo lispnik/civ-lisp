@@ -110,6 +110,11 @@ connects to other rivers and flows into the sea)."
   "The green placeholder behind every SP257 unit sprite, keyed out at load time so
 the owning team's colour shows through instead.")
 
+(defparameter +sprite-grid-key+ '(0 168 168)
+  "Leftover cyan cell-grid lines along the top/left of many SP257 cells; stripped
+at load time where they sit on a 16px boundary (interior cyan -- e.g. the water
+on naval sprites -- is real art and is left alone).")
+
 (defun owner-color (state owner-id)
   (let ((p (and owner-id (civm:player-by-id state owner-id))))
     (if p (or (cdr (assoc (civm:player-color p) *player-colors*)) '(230 230 230))
@@ -303,9 +308,31 @@ fully transparent, in place."
                 (setf (cffi:mem-ref px :uint8 (+ o 3)) 0))))))
       (sdl2-ffi.functions:sdl-unlock-surface surf))))
 
+(defun strip-grid-lines! (surf rgb)
+  "On an ABGR8888 SURF, make pixels matching RGB transparent only where they lie
+on a *TILE*-pixel cell boundary (x or y a multiple of *TILE*) -- the sprite
+sheet's leftover grid lines.  Interior pixels of that colour (real art) stay."
+  (destructuring-bind (r g b) rgb
+    (let ((w (sdl2:surface-width surf))
+          (h (sdl2:surface-height surf))
+          (pitch (plus-c:c-ref surf sdl2-ffi:sdl-surface :pitch))
+          (px (plus-c:c-ref surf sdl2-ffi:sdl-surface :pixels)))
+      (sdl2-ffi.functions:sdl-lock-surface surf)
+      (dotimes (y h)
+        (let ((row (* y pitch)) (y-edge (zerop (mod y *tile*))))
+          (dotimes (x w)
+            (when (or y-edge (zerop (mod x *tile*)))
+              (let ((o (+ row (* x 4))))
+                (when (and (= (cffi:mem-ref px :uint8 o) r)
+                           (= (cffi:mem-ref px :uint8 (+ o 1)) g)
+                           (= (cffi:mem-ref px :uint8 (+ o 2)) b))
+                  (setf (cffi:mem-ref px :uint8 (+ o 3)) 0)))))))
+      (sdl2-ffi.functions:sdl-unlock-surface surf))))
+
 (defun load-atlas (ren path &optional colorkey)
   "Load PATH as a blend-enabled texture (caller destroys it).  When COLORKEY is
-an (r g b) list, those pixels are made transparent first."
+an (r g b) list, those pixels are made transparent first and the sheet's leftover
+cyan cell-grid lines are stripped."
   (let ((surf (sdl2-image:load-image (namestring path))))
     (when colorkey
       ;; normalise to ABGR8888 so the pixel walk can assume R,G,B,A byte order
@@ -313,7 +340,8 @@ an (r g b) list, those pixels are made transparent first."
                    surf sdl2-ffi:+sdl-pixelformat-abgr8888+ 0)))
         (sdl2-ffi.functions:sdl-free-surface surf)
         (setf surf conv))
-      (colorkey-surface! surf colorkey))
+      (colorkey-surface! surf colorkey)
+      (strip-grid-lines! surf +sprite-grid-key+))
     (let ((tex (sdl2:create-texture-from-surface ren surf)))
       (sdl2-ffi.functions:sdl-free-surface surf)
       (sdl2-ffi.functions:sdl-set-texture-blend-mode tex 1) ; SDL_BLENDMODE_BLEND
