@@ -292,7 +292,8 @@ or an error message."
                  (go-cursor (make-sprite-cursor cursor-sheet +go-cursor-cell+ scale))
                  (goto-mode nil))
             (sdl2-ffi.functions:sdl-free-surface cursor-sheet)
-            (setf (painter-font painter) font)
+            (setf (painter-font painter) font
+                  (painter-nuke painter) (load-atlas ren *nuke-image* +nuke-bg-key+))
             (sdl2-ffi.functions:sdl-set-cursor torch-cursor)
             (sdl2:show-cursor)
             (sdl2:raise-window win)        ; bring the window to the front / focus it
@@ -350,14 +351,31 @@ or an error message."
                              (setf (civm:gs-message state) nil))
                            (setf selected (next-human-unit state selected))))
                        (nuke! ()
-                         ;; detonate the selected nuclear missile on its own tile
+                         ;; detonate the selected nuclear missile on its own tile,
+                         ;; playing the blast animation where it stood
                          (when selected
-                           (try (list :nuke :unit selected))
-                           (when (civm:gs-message state)
-                             (sdl2:set-window-title
-                              win (format nil "civ-lisp — ~A" (civm:gs-message state)))
-                             (setf (civm:gs-message state) nil))
-                           (setf selected (next-human-unit state selected))))
+                           (let* ((u (civm:unit-by-id state selected))
+                                  (cx (and u (civm:unit-x u))) (cy (and u (civm:unit-y u))))
+                             (try (list :nuke :unit selected))
+                             (when (and cx (null (civm:unit-by-id state selected)))  ; it went off
+                               (let ((sx (mod (- cx cam-x)
+                                              (civm:map-width (civm:gs-map state))))
+                                     (sy (- cy cam-y)))
+                                 (when (and (< sx *view-cols*) (<= 0 sy (1- *view-rows*)))
+                                   (dotimes (f +nuke-frames+)
+                                     (let ((f f))
+                                       (render-game painter state selected :fog t
+                                                    :cam-x cam-x :cam-y cam-y
+                                                    :vw *view-cols* :vh *view-rows*
+                                                    :overlay (lambda (p)
+                                                               (draw-explosion-frame
+                                                                p f (* sx *tile*) (* sy *tile*)))))
+                                     (sdl2:delay 25)))))
+                             (when (civm:gs-message state)
+                               (sdl2:set-window-title
+                                win (format nil "civ-lisp — ~A" (civm:gs-message state)))
+                               (setf (civm:gs-message state) nil))
+                             (setf selected (next-human-unit state selected)))))
                        (upgrade! ()
                          ;; upgrade the selected (obsolete) unit in its city for gold
                          (when selected
@@ -723,6 +741,7 @@ or an error message."
                   ;; cleanup
                   (sdl2:destroy-texture (painter-sprites painter))
                   (sdl2:destroy-texture (painter-terrain painter))
+                  (when (painter-nuke painter) (sdl2:destroy-texture (painter-nuke painter)))
                   (sdl2-ffi.functions:sdl-free-cursor torch-cursor)
                   (sdl2-ffi.functions:sdl-free-cursor go-cursor)
                   (sdl2-image:quit))))))))))

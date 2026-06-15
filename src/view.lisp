@@ -20,6 +20,12 @@
 (defparameter *terrain-image*
   (merge-pathnames "assets/terrain.png" (asdf:system-source-directory :civ-lisp))
   "The TER257 sheet (terrain blend variants, ocean, coast).")
+(defparameter *nuke-image*
+  (merge-pathnames "assets/nuke.png" (asdf:system-source-directory :civ-lisp))
+  "Nuclear-detonation animation: 40 frames (8x5 of 40x40), green-keyed.")
+(defparameter +nuke-bg-key+ '(44 120 0) "Green background keyed out of nuke.png.")
+(defparameter +nuke-frame+ 40 "Pixel size of one detonation frame.")
+(defparameter +nuke-frames+ 40 "Number of detonation frames (8 cols x 5 rows).")
 
 ;;; --- sprite atlas coordinates ----------------------------------------------
 
@@ -123,7 +129,7 @@ on naval sprites -- is real art and is left alone).")
 ;;; --- painter (reuses two rects to avoid per-draw allocation) ---------------
 
 (defstruct (painter (:constructor make-painter (ren sprites terrain src dst)))
-  ren sprites terrain src dst (font nil))
+  ren sprites terrain src dst (font nil) (nuke nil))
 
 ;; defined in font.lisp (loaded after this file)
 (declaim (ftype (function (t t t t t t t t) t) draw-text))
@@ -909,9 +915,22 @@ with a blinking caret (the bitmap font has no underscore glyph)."
     (draw-text painter font msg (+ px 4) (+ py 3)
                (if win 120 255) (if win 255 120) 120)))
 
+(defun draw-explosion-frame (painter frame px py)
+  "Blit detonation FRAME (0..+NUKE-FRAMES+-1) from the nuke sheet, scaled to a
+3x3-tile burst centred on the tile drawn at screen pixel (PX,PY)."
+  (let ((tex (painter-nuke painter)))
+    (when tex
+      (set-rect (painter-src painter)
+                (* (mod frame 8) +nuke-frame+) (* (floor frame 8) +nuke-frame+)
+                +nuke-frame+ +nuke-frame+)
+      (set-rect (painter-dst painter) (- px *tile*) (- py *tile*) (* 3 *tile*) (* 3 *tile*))
+      (sdl2:render-copy (painter-ren painter) tex
+                        :source-rect (painter-src painter)
+                        :dest-rect (painter-dst painter)))))
+
 (defun render-game (painter state selected-id
                     &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu help console
-                         (cam-x 0) (cam-y 0) (vw 20) (vh 15))
+                         overlay (cam-x 0) (cam-y 0) (vw 20) (vh 15))
   "Draw STATE through a VW x VH-tile viewport whose top-left world tile is
 (CAM-X, CAM-Y); the map wraps east-west.  With FOG, unexplored tiles are black,
 explored-but-unseen tiles are dimmed, and units/cities show only while visible."
@@ -1004,4 +1023,6 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
       ;; the `~` console sits on top of even the help overlay
       (when (and console (painter-font painter))
         (draw-console painter state (car console) (cdr console)))
+      ;; a transient effect overlay (e.g. a nuclear detonation animation frame)
+      (when overlay (funcall overlay painter))
       (sdl2:render-present ren))))

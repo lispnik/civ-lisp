@@ -221,7 +221,8 @@ tile and the eight around it is vaporised, any **city** in the blast is
 devastated (population halved), and the ground is left with **fallout**
 (pollution, which feeds global warming). The strike is indiscriminate — it kills
 your own units too — and dropping it on a civ you were at peace with is an act of
-**war**.
+**war**. Detonation plays a 40-frame **mushroom-cloud animation**
+(`assets/nuke.png`) over the blast.
 
 **Diplomacy & trade.** Relations are war or peace per pair (`Y` to declare war /
 sue for peace); `E` opens a **trade** menu to swap advances or buy/sell them for
