@@ -21,7 +21,11 @@
      (:forest    :food 1 :shields 2 :trade 0 :move 2 :defense 25)
      (:hills     :food 1 :shields 0 :trade 0 :move 2 :defense 50)
      (:mountains :food 0 :shields 1 :trade 0 :move 3 :defense 100)
-     (:desert    :food 0 :shields 1 :trade 0 :move 1 :defense 0)))
+     (:desert    :food 0 :shields 1 :trade 0 :move 1 :defense 0)
+     (:tundra    :food 1 :shields 0 :trade 0 :move 1 :defense 0)
+     (:arctic    :food 0 :shields 0 :trade 0 :move 2 :defense 0)
+     (:swamp     :food 1 :shields 0 :trade 0 :move 2 :defense 0)
+     (:jungle    :food 1 :shields 0 :trade 0 :move 2 :defense 0)))
   "Terrain types -> base yields, move cost, % defense bonus.")
 
 (defparameter *units*
@@ -187,7 +191,11 @@ and display name.  Sourced from the CC0 CivOne advance data.")
     (:hills     0 2 0)   ; coal
     (:mountains 0 0 6)   ; gold
     (:desert    3 0 0)   ; oasis
-    (:ocean     2 0 0))  ; fish
+    (:ocean     2 0 0)   ; fish
+    (:tundra    2 0 0)   ; game
+    (:arctic    2 1 0)   ; seals
+    (:swamp     0 4 0)   ; oil
+    (:jungle    0 0 4))  ; gems
   "Yield bonus per terrain's special resource.")
 
 (defparameter *governments*

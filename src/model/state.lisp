@@ -83,6 +83,64 @@
 
 ;;; --- new game --------------------------------------------------------------
 
+;;; --- map generation: continents + latitude climate ------------------------
+
+(defun climate-terrain (state h y)
+  "A land terrain for row Y of an H-tall map: arctic/tundra near the poles,
+jungle/swamp near the equator, temperate land between, with local variety."
+  (let* ((mid (/ (1- h) 2.0))
+         (lat (if (plusp mid) (/ (abs (- y mid)) mid) 0.0))  ; 0 equator .. 1 pole
+         (r (gs-rand state 100)))
+    (cond
+      ((> lat 0.85) :arctic)
+      ((> lat 0.70) (if (< r 60) :tundra :arctic))
+      ((> lat 0.50) (cond ((< r 45) :tundra) ((< r 70) :hills)
+                          ((< r 85) :forest) (t :grassland)))
+      ((< lat 0.25) (cond ((< r 30) :jungle) ((< r 45) :swamp) ((< r 60) :grassland)
+                          ((< r 75) :plains) ((< r 90) :forest) (t :desert)))
+      (t            (cond ((< r 28) :grassland) ((< r 48) :plains) ((< r 65) :forest)
+                          ((< r 80) :hills) ((< r 90) :mountains) (t :desert))))))
+
+(defun grow-continents (state map)
+  "Carve organic landmasses out of an all-ocean MAP by accretion from a handful
+of seeds, then paint each land tile a climate-appropriate terrain."
+  (let* ((w (map-width map)) (h (map-height map))
+         (target (round (* w h 0.38)))                 ; ~38% land
+         (nseeds (max 2 (round (isqrt (* w h)) 4)))
+         (land (make-hash-table :test 'eql))           ; key = x + y*w
+         (frontier (make-array 0 :adjustable t :fill-pointer 0)))
+    (flet ((key (x y) (+ x (* y w)))
+           (add (x y) (let ((k (+ x (* y w))))
+                        (unless (gethash k land)
+                          (setf (gethash k land) t)
+                          (vector-push-extend (cons x y) frontier)))))
+      (dotimes (i nseeds)                               ; seeds, away from the poles
+        (add (gs-rand state w) (+ 2 (gs-rand state (max 1 (- h 4))))))
+      (loop repeat (* target 8)
+            while (and (< (hash-table-count land) target) (plusp (length frontier))) do
+        (let* ((cell (aref frontier (gs-rand state (length frontier))))
+               (d (aref #((1 . 0) (-1 . 0) (0 . 1) (0 . -1)) (gs-rand state 4)))
+               (nxx (wrap-x map (+ (car cell) (car d))))
+               (nyy (+ (cdr cell) (cdr d))))
+          (when (< 0 nyy (1- h))                        ; keep the pole rows ocean
+            (add nxx nyy))))
+      (loop for k being the hash-keys of land
+            do (setf (tile-terrain (svref (map-tiles map) k))
+                     (climate-terrain state h (floor k w)))))))
+
+(defun find-land-near (map x0 y0)
+  "Nearest non-ocean tile to (X0,Y0), spiralling outward; (values x y)."
+  (let ((w (map-width map)) (h (map-height map)))
+    (dotimes (r (max w h))
+      (loop for dy from (- r) to r do
+        (loop for dx from (- r) to r
+              when (= r (max (abs dx) (abs dy)))        ; the ring at radius R
+                do (let ((x (wrap-x map (+ x0 dx))) (y (+ y0 dy)))
+                     (when (and (<= 0 y (1- h))
+                                (not (eq (tile-terrain (tile-at map x y)) :ocean)))
+                       (return-from find-land-near (values x y)))))))
+    (values x0 y0)))
+
 (defun make-new-game (&key (width 20) (height 15) (players '("You" "Rival"))
                            (seed 0) barbarians)
   "Build a fresh GAME-STATE: a small map, the given players, each with a
@@ -90,17 +148,13 @@ starting settlers + warriors unit.  SEED makes the game reproducible.  With
 BARBARIANS, append a unit-less barbarian player that spawns roaming raiders."
   (let* ((nciv (length players))
          (all (if barbarians (append players (list "Barbarians")) players))
-         (map (make-game-map width height :terrain :grassland))
+         (map (make-game-map width height :terrain :ocean))
          (pvec (make-array (length all)))
          (state (%make-game-state
                  :map map :players pvec
                  :random (sb-ext:seed-random-state seed))))
-    ;; a little terrain variety so the map isn't uniform
-    (dotimes (i (round (* width height 1/4)))
-      (let ((tile (tile-at map (gs-rand state width) (gs-rand state height))))
-        (when tile
-          (setf (tile-terrain tile)
-                (nth (gs-rand state 4) '(:plains :forest :hills :ocean))))))
+    ;; carve continents out of the ocean and give them a latitude climate
+    (grow-continents state map)
     ;; a couple of meandering rivers (random walks over non-ocean tiles)
     (dotimes (r 2)
       (let ((x (gs-rand state width)) (y (gs-rand state height)))
@@ -127,18 +181,21 @@ BARBARIANS, append a unit-less barbarian player that spawns roaming raiders."
     (loop for name in all
           for i from 0
           for barb = (and barbarians (= i nciv))   ; the appended barbarian player
-          for px = (max 1 (min (- width 2) (* (1+ i) (floor width (1+ nciv)))))
-          for py = (floor height 2)
           for p = (make-player :id (1+ i) :name name
                                :kind (cond (barb :barbarian) ((zerop i) :human) (t :ai))
                                :color (if barb 8 (1+ i)))
           do (setf (svref pvec i) p)
              (unless barb           ; barbarians have no capital and no start units
-               ;; a grassland start on a river -- a capital site with baseline trade
-               (setf (tile-terrain (tile-at map px py)) :grassland)
-               (setf (tile-river (tile-at map px py)) t)
-               (setf (tile-hut (tile-at map px py)) nil)   ; never start on a hut
-               (register-unit state :type :settlers :owner (player-id p) :x px :y py)
-               (register-unit state :type :warriors :owner (player-id p) :x px :y py)))
+               ;; spread starts across the map, snapped to the nearest land tile
+               (multiple-value-bind (px py)
+                   (find-land-near map
+                                   (max 1 (min (- width 2) (* (1+ i) (floor width (1+ nciv)))))
+                                   (floor height 2))
+                 ;; a grassland start on a river -- a capital site with baseline trade
+                 (setf (tile-terrain (tile-at map px py)) :grassland
+                       (tile-river (tile-at map px py)) t
+                       (tile-hut (tile-at map px py)) nil)   ; never start on a hut
+                 (register-unit state :type :settlers :owner (player-id p) :x px :y py)
+                 (register-unit state :type :warriors :owner (player-id p) :x px :y py))))
     (update-visibility state)        ; reveal each player's starting surroundings
     state))

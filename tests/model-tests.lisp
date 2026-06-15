@@ -907,6 +907,42 @@
         (civ-model::ai-military s raider)
         (is (= 2 (city-owner c)))))))              ; the AI marched in and took it
 
+;;; --- continental map generation --------------------------------------------
+
+(test the-four-new-terrains-have-yields-and-specials
+  (dolist (terr '(:tundra :arctic :swamp :jungle))
+    (is (integerp (terrain-def terr :food)))      ; in the *terrain* table now
+    (is (integerp (terrain-def terr :move 1)))
+    (is (assoc terr civ-model::*special-bonus*)))) ; and has a special bonus
+
+(test new-game-has-both-land-and-sea
+  (let ((s (make-new-game :seed 7 :width 40 :height 26 :players '("A" "B" "C")))
+        (land 0) (sea 0))
+    (do-tiles (x y tile (gs-map s))
+      (declare (ignore x y))
+      (if (eq (tile-terrain tile) :ocean) (incf sea) (incf land)))
+    (is (plusp land))
+    (is (plusp sea))
+    (is (< 1/10 (/ land (+ land sea)) 3/5))))      ; a sane continental land fraction
+
+(test climate-keeps-ice-off-the-equator
+  (let ((s (make-new-game :seed 3 :width 40 :height 26 :players '("A" "B"))))
+    (let* ((h (map-height (gs-map s)))
+           (mid (/ (1- h) 2.0)) (bad 0))
+      (do-tiles (x y tile (gs-map s))
+        (declare (ignore x))
+        (when (and (member (tile-terrain tile) '(:arctic :tundra))
+                   (< (abs (- y mid)) (* 0.45 mid)))   ; firmly the equatorial half
+          (incf bad)))
+      (is (zerop bad)))))                              ; ice/tundra only toward the poles
+
+(test every-civ-starts-on-land
+  (let ((s (make-new-game :seed 5 :width 40 :height 26 :players '("A" "B" "C"))))
+    (is (plusp (hash-table-count (gs-units s))))
+    (loop for u being the hash-values of (gs-units s)
+          do (is-false (eq (tile-terrain (tile-at (gs-map s) (unit-x u) (unit-y u)))
+                           :ocean)))))
+
 (test ai-expands
   ;; the AI should found and expand to several cities on its own
   (let ((s (make-new-game :seed 7)))
