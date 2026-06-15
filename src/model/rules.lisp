@@ -321,6 +321,12 @@ happy, none unhappy, size >= 3."
 
 (defparameter *spaceship-part-cost* 160 "Shields per spaceship part.")
 
+(defun unit-obsolete-p (player type)
+  "T if PLAYER has researched the advance that retires unit TYPE (a newer unit
+has superseded it), so it can no longer be built."
+  (let ((tech (unit-def type :obsolete-by)))
+    (and tech (player-has-tech-p player tech))))
+
 (defun production-cost (item)
   (ecase (first item)
     (:unit     (unit-def (second item) :cost 9999))

@@ -44,6 +44,7 @@
    ;; fog of war
    #:player-seen #:update-visibility #:visible-set #:seen-p
    ;; rules
+   #:unit-obsolete-p #:upgrade-cost
    #:tile-yield #:city-yields #:end-turn #:resolve-combat #:heal-units
    #:enemy-adjacent-p #:city-defended-p #:wonder-built-p #:city-upkeep
    #:city-happiness #:city-disorder-p #:city-celebrating-p #:count-city-military

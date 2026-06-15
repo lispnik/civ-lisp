@@ -77,6 +77,7 @@ and AI cities (Akkad, Uruk) have grown alongside.*
 | B | found a city (with a settlers unit) |
 | F | fortify the selected unit (defense + faster healing) |
 | Shift+D | disband the selected unit (recovers shields if in a city) |
+| U | upgrade the selected obsolete unit to its successor (for gold, in a city) |
 | R / I / M | settlers: build **road** (then **railroad** once known) / **irrigation** / **mine** |
 | T / C | settlers: build a **fort** / **clear forest** to plains |
 | P | settlers: **clean pollution** on the tile |
@@ -177,6 +178,13 @@ carries its cargo wherever it sails. Move a passenger back onto land to
 **amphibious assault**. A ship only takes on cargo up to its capacity, and a
 ship **sunk** at sea drowns everyone aboard. (Carriers carry air units, which
 matters once air units gain range.)
+
+**Obsolescence.** Advances retire old units: once you research the superseding
+tech (Gunpowder retires Warriors/Phalanx, Conscription retires Legions and
+Musketeers, Combustion retires Frigates and Ironclads, and so on) the unit drops
+out of the build menu. Existing ones keep fighting, but you can **upgrade** one
+to its successor while it sits in a city (`U`) for gold proportional to the cost
+difference.
 
 **Diplomacy & trade.** Relations are war or peace per pair (`Y` to declare war /
 sue for peace); `E` opens a **trade** menu to swap advances or buy/sell them for

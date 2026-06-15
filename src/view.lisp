@@ -517,7 +517,8 @@ plus a row of every unit sharing the square (the selected one outlined cyan)."
   (let ((owner (civm:player-by-id state (civm:city-owner city)))
         (items '()))
     (dolist (type *unit-order*)
-      (when (civm:player-has-tech-p owner (civm:unit-def type :requires))
+      (when (and (civm:player-has-tech-p owner (civm:unit-def type :requires))
+                 (not (civm:unit-obsolete-p owner type)))   ; retired units leave the menu
         (push (list :unit type) items)))
     (dolist (b *improvement-order*)        ; improvements not already built here
       (when (and (civm:player-has-tech-p owner (civm:building-def b :requires))
@@ -662,7 +663,7 @@ celebration banner."
     "Arrows / Numpad  move (numpad = 8-way)"
     "Tab  next unit      W  wait"
     "B  found city       F  fortify"
-    "Shift+D  disband unit (recovers shields in a city)"
+    "Shift+D  disband unit    U  upgrade obsolete unit"
     "R / I / M  road (then rail) / irrigate / mine"
     "T  fort   C  clear forest   P  clean pollution"
     "G then click  go to a tile"

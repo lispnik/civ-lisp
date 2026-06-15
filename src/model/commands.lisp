@@ -28,6 +28,7 @@ on an illegal move."
     (:fortify        (cmd-fortify state command))
     (:wake           (cmd-wake state command))
     (:disband-unit   (cmd-disband-unit state command))
+    (:upgrade-unit   (cmd-upgrade-unit state command))
     (:goto           (cmd-goto state command))
     ((:build-road :build-railroad :irrigate :mine :build-fort :clear-forest)
      (cmd-terraform state command))
@@ -487,6 +488,35 @@ ride -- land units sharing a coastal *city* tile are its garrison, not cargo."
             (reveal-around (player-seen (player-by-id state (unit-owner p)))
                            state (unit-x p) (unit-y p))))))))
 
+(defun upgrade-cost (from to)
+  "Gold to upgrade unit FROM into TO: twice the build-cost difference (min 10)."
+  (max 10 (* 2 (max 0 (- (unit-def to :cost 0) (unit-def from :cost 0))))))
+
+(defun cmd-upgrade-unit (state command)
+  "Upgrade an obsolete unit to its successor for gold, while in a friendly city.
+Records the outcome in GS-MESSAGE."
+  (let* ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit")))
+         (from (unit-type u))
+         (to (unit-def from :upgrade-to))
+         (owner (player-by-id state (unit-owner u)))
+         (tile (tile-at (gs-map state) (unit-x u) (unit-y u)))
+         (city (and (tile-city tile) (city-by-id state (tile-city tile)))))
+    (unless to (fail "~(~A~) has no upgrade" from))
+    (unless (unit-obsolete-p owner from) (fail "~(~A~) is not obsolete yet" from))
+    (unless (and city (= (city-owner city) (unit-owner u)))
+      (fail "must be in one of your cities to upgrade"))
+    (let ((cost (upgrade-cost from to)))
+      (when (< (player-gold owner) cost)
+        (fail "upgrading to ~(~A~) costs ~D gold" to cost))
+      (decf (player-gold owner) cost)
+      (setf (unit-type u) to
+            (unit-moves-left u) 0)            ; the upgrade uses up its turn
+      (setf (gs-message state)
+            (format nil "~A upgraded to ~A for ~D gold."
+                    (string-capitalize (symbol-name from))
+                    (string-capitalize (symbol-name to)) cost))
+      u)))
+
 (defun cmd-move-unit (state command)
   (let* ((args (rest command))
          (u (or (unit-by-id state (getf args :unit)) (fail "no such unit")))
@@ -759,7 +789,9 @@ government :TO (which must be unlocked by an advance)."
       (:unit
        (unless (gethash (second item) *units*) (fail "unknown unit ~A" (second item)))
        (let ((req (unit-def (second item) :requires)))
-         (unless (player-has-tech-p owner req) (fail "requires tech ~(~A~)" req))))
+         (unless (player-has-tech-p owner req) (fail "requires tech ~(~A~)" req)))
+       (when (unit-obsolete-p owner (second item))
+         (fail "~(~A~) is obsolete" (second item))))
       (:building
        (unless (gethash (second item) *buildings*) (fail "unknown building ~A" (second item)))
        (when (member (second item) (city-buildings c)) (fail "already built"))

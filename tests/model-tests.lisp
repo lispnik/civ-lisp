@@ -663,6 +663,56 @@
       (is-false (unit-by-id s (unit-id u)))
       (is (= box0 (city-shield-box c))))))               ; their city gains nothing
 
+;;; --- unit obsolescence -----------------------------------------------------
+
+(test unit-becomes-obsolete-with-its-successor-tech
+  (let ((s (bare-state 6 6)))
+    (let ((p (player-by-id s 1)))
+      (is-false (unit-obsolete-p p :warriors))           ; fine to start
+      (setf (gethash :gunpowder (player-techs p)) t)     ; muskets supersede warriors
+      (is-true (unit-obsolete-p p :warriors))
+      (is-false (unit-obsolete-p p :musketeers)))))      ; the successor is not obsolete
+
+(test cannot-build-an-obsolete-unit
+  (let ((s (bare-state 6 6)))
+    (let ((c (civ-model::register-city s :name "Rome" :owner 1 :x 3 :y 3))
+          (p (player-by-id s 1)))
+      (apply-command s (list :set-production :city (city-id c) :item '(:unit :warriors))) ; ok now
+      (is (equal '(:unit :warriors) (city-production c)))
+      (setf (gethash :gunpowder (player-techs p)) t)
+      (signals command-error
+        (apply-command s (list :set-production :city (city-id c) :item '(:unit :warriors)))))))
+
+(test upgrade-obsolete-unit-in-a-city
+  (let ((s (bare-state 6 6)))
+    (let ((c (civ-model::register-city s :name "Rome" :owner 1 :x 3 :y 3))
+          (p (player-by-id s 1)))
+      (declare (ignore c))
+      (setf (gethash :gunpowder (player-techs p)) t       ; warriors now obsolete
+            (player-gold p) 999)
+      (let* ((u (add-unit s :warriors 1 3 3))
+             (cost (upgrade-cost :warriors :musketeers))
+             (g0 (player-gold p)))
+        (apply-command s (list :upgrade-unit :unit (unit-id u)))
+        (is (eq :musketeers (unit-type u)))               ; became the successor
+        (is (= (- g0 cost) (player-gold p)))))))          ; paid for it
+
+(test upgrade-needs-a-city-obsolescence-and-gold
+  (let ((s (bare-state 6 6)))
+    (let ((p (player-by-id s 1)))
+      ;; not obsolete yet -> refused
+      (let ((u (add-unit s :warriors 1 1 1)))
+        (signals command-error (apply-command s (list :upgrade-unit :unit (unit-id u)))))
+      (setf (gethash :gunpowder (player-techs p)) t)
+      ;; obsolete but out in the field (no city) -> refused
+      (let ((u (add-unit s :warriors 1 2 2)))
+        (signals command-error (apply-command s (list :upgrade-unit :unit (unit-id u)))))
+      ;; obsolete, in a city, but broke -> refused
+      (civ-model::register-city s :name "Rome" :owner 1 :x 4 :y 4)
+      (setf (player-gold p) 0)
+      (let ((u (add-unit s :warriors 1 4 4)))
+        (signals command-error (apply-command s (list :upgrade-unit :unit (unit-id u))))))))
+
 ;;; --- naval transport -------------------------------------------------------
 
 (test land-unit-boards-an-adjacent-transport

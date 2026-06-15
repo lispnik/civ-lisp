@@ -66,7 +66,7 @@
 (defconstant +sc-j+ 13)
 (defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
 (defconstant +sc-n+ 17) (defconstant +sc-p+ 19) (defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
-(defconstant +sc-v+ 25)
+(defconstant +sc-v+ 25) (defconstant +sc-u+ 24)
 (defconstant +sc-x+ 27) (defconstant +sc-y+ 28) (defconstant +sc-z+ 29)
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
 (defconstant +sc-tab+ 43)
@@ -349,6 +349,17 @@ or an error message."
                               win (format nil "civ-lisp — ~A" (civm:gs-message state)))
                              (setf (civm:gs-message state) nil))
                            (setf selected (next-human-unit state selected))))
+                       (upgrade! ()
+                         ;; upgrade the selected (obsolete) unit in its city for gold
+                         (when selected
+                           (handler-case
+                               (progn
+                                 (civm:apply-command state (list :upgrade-unit :unit selected))
+                                 (sdl2:set-window-title
+                                  win (format nil "civ-lisp — ~A" (civm:gs-message state)))
+                                 (setf (civm:gs-message state) nil))
+                             (civm:command-error (e)
+                               (sdl2:set-window-title win (format nil "civ-lisp — ~A" e))))))
                        (lux! (delta)
                          ;; shift DELTA percent between science and luxury
                          (let* ((pid (first (human-player-ids state)))
@@ -557,6 +568,7 @@ or an error message."
                                   ((= sc +sc-h+) (espionage! :help-wonder "wonder boosted!"))
                                   ((= sc +sc-j+) (espionage! :trade-route "trade route opened!"))
                                   ((and shift (= sc +sc-d+)) (disband!)) ; Shift+D: disband unit
+                                  ((= sc +sc-u+) (upgrade!))             ; U: upgrade obsolete unit
                                   ((= sc +sc-d+)               ; diplomat action menu
                                    (let ((u (and selected (civm:unit-by-id state selected))))
                                      (when (and u (eq (civm:unit-type u) :diplomat))

@@ -112,8 +112,9 @@
   "Land units, best first, the AI will build for an invasion / defense force.")
 
 (defun ai-best-attacker (player)
-  "The strongest land unit in *AI-ATTACKERS* PLAYER has the tech to build."
-  (find-if (lambda (u) (player-has-tech-p player (unit-def u :requires)))
+  "The strongest non-obsolete land unit in *AI-ATTACKERS* PLAYER can build."
+  (find-if (lambda (u) (and (player-has-tech-p player (unit-def u :requires))
+                            (not (unit-obsolete-p player u))))
            *ai-attackers*))
 
 (defun ai-step-toward (state unit tx ty)
@@ -219,7 +220,8 @@ an adjacent sea tile, board it.  Returns non-NIL if UNIT boarded."
                 ((and (player-has-tech-p player :writing)
                       (not (member :library (city-buildings city))))
                  '(:building :library))
-                (t '(:unit :warriors)))))
+                ;; cheap filler that is never obsolete for this player
+                (t (list :unit (or (ai-best-attacker player) :warriors))))))
     (ai-cmd state (list :set-production :city (city-id city) :item item))))
 
 (defun ai-try-trade (state player)
