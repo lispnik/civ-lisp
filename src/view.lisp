@@ -752,6 +752,29 @@ with a blinking caret (the bitmap font has no underscore glyph)."
               (let ((tgt (civm:player-gov-target p)))
                 (and tgt (civm:government-def tgt :name)))))))
 
+(defun pop-hud-text (state)
+  "Total civilization population for the HUD (Civ1 grouping with commas)."
+  (let ((p (human-player state)))
+    (when p
+      (format nil "Pop ~:D" (civm:civ-population state (civm:player-id p))))))
+
+(defun gold-hud-text (state)
+  "Gold reserves for the HUD."
+  (let ((p (human-player state)))
+    (when p (format nil "Gold ~D" (civm:player-gold p)))))
+
+(defun science-hud-text (state)
+  "Current research target and percent progress toward the next advance."
+  (let ((p (human-player state)))
+    (when p
+      (let ((tech (civm:player-researching p)))
+        (if tech
+            (format nil "Sci ~A ~D%"
+                    (civm:tech-def tech :name)
+                    (min 99 (floor (* (civm:player-beakers p) 100)
+                                   (max 1 (civm:research-cost p)))))
+            "Sci (choosing)")))))
+
 ;;; --- diplomacy menu --------------------------------------------------------
 
 (defun diplo-menu-lines (state)
@@ -1000,14 +1023,18 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
             ((and build-city (painter-font painter))
              (let ((c (civm:city-by-id state build-city)))
                (when c (draw-build-menu painter state c)))))
-      ;; HUD, top-left: turn/year, government/rates, and spaceship status
+      ;; HUD, top-left: a Civ1-style status pane -- date, population, gold, the
+      ;; government and tax/lux/science split, research progress, spaceship status
       (let ((font (painter-font painter)))
         (when font
           (let* ((fh (gfont-height font))
                  (lines (remove nil (list (format nil "~A   TURN ~D"
                                                   (year-text (civm:gs-year state))
                                                   (civm:gs-turn state))
+                                          (pop-hud-text state)
+                                          (gold-hud-text state)
                                           (gov-hud-text state)
+                                          (science-hud-text state)
                                           (spaceship-hud-text state))))
                  (tw (reduce #'max lines :key (lambda (s) (text-width font s)))))
             (sdl2:set-render-draw-color ren 0 0 0 190)

@@ -395,6 +395,22 @@
       (push :sewer-system (city-buildings c))
       (is (= most-positive-fixnum (civ-model::city-growth-cap c))))))
 
+(test population-formula
+  ;; the classic Civ1 city-population table: 10k, 30k, 60k, 100k, 150k, ...
+  (let* ((s (bare-state 8 8)) (st (add-unit s :settlers 1 4 4)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (dolist (pair '((1 . 10000) (2 . 30000) (3 . 60000) (4 . 100000) (5 . 150000)))
+        (setf (city-size c) (car pair))
+        (is (= (cdr pair) (civ-model::city-population c))))
+      ;; an empire's population sums its cities
+      (setf (city-size c) 4)                                  ; 100,000
+      (let ((st2 (add-unit s :settlers 1 1 1)))
+        (apply-command s (list :found-city :unit (unit-id st2) :name "Veii"))
+        (setf (city-size (city-named s "Veii")) 2)            ; +30,000
+        (is (= 130000 (civ-model::civ-population s 1)))
+        (is (= 0 (civ-model::civ-population s 2)))))))         ; rival has no cities
+
 (test ai-economy
   ;; ai-best-wonder picks the first buildable, unbuilt wonder it has tech for
   (let* ((s (bare-state 6 6)) (p (player-by-id s 1)))

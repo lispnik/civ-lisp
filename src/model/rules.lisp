@@ -721,6 +721,16 @@ across the map.  The more polluted tiles, the likelier and worse each event."
 same fine units as accrued science: 1000 = 10 'trade-turns' at 100% science."
   (* 1000 (1+ (hash-table-count (player-techs player)))))
 
+(defun city-population (city)
+  "A city's population in people, by the classic Civilization formula: a city of
+size N holds 10,000 x N(N+1)/2 citizens (10k, 30k, 60k, 100k, 150k, ...)."
+  (* 10000 (floor (* (city-size city) (1+ (city-size city))) 2)))
+
+(defun civ-population (state pid)
+  "Total population of PID's empire, summed over its cities (the Civ1 formula)."
+  (loop for c being the hash-values of (gs-cities state)
+        when (= (city-owner c) pid) sum (city-population c)))
+
 (defun process-research (state)
   (loop for p across (gs-players state) do
     (unless (player-researching p)

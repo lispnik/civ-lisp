@@ -30,6 +30,20 @@ defended; text uses a font extracted from the game's `FONTS.CV`.*
 *Fog of war from the human's view: black = unexplored, dim = explored but out of
 sight, bright = currently visible. A scout's trail is dimmed behind it.*
 
+### The status pane
+
+A Civ1-style status pane sits in the top-left, reading out the state of your
+civilization at a glance: the **date** and turn, your total **population**
+(the classic 10k / 30k / 60k… per-city formula, summed and comma-grouped), your
+**gold reserves**, your **government** and the **tax / luxury / science** split,
+and your current **research** target with its **percent progress** toward the
+next advance. A spaceship line appears once one is in flight.
+
+![the civilization status pane](docs/hud-shot.png)
+
+*Despotism Rome in 3700 BC: population 30,000, 144 gold, a 50/0/50 tax split, and
+Writing 56% researched.*
+
 ### Selecting a unit
 
 Selecting a unit opens a Civ1-style info box in the bottom-left: the owner and

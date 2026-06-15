@@ -48,6 +48,7 @@
    #:tile-yield #:city-yields #:end-turn #:resolve-combat #:heal-units
    #:enemy-adjacent-p #:city-defended-p #:wonder-built-p #:city-upkeep
    #:city-happiness #:city-disorder-p #:city-celebrating-p #:count-city-military
+   #:research-cost #:city-population #:civ-population
    ;; persistence
    #:save-game #:load-game #:dump-game #:load-game-form
    ;; pathfinding / goto
