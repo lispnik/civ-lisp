@@ -79,7 +79,7 @@ and AI cities (Akkad, Uruk) have grown alongside.*
 | Shift+D | disband the selected unit (recovers shields if in a city) |
 | U | upgrade the selected obsolete unit to its successor (for gold, in a city) |
 | R / I / M | settlers: build **road** (then **railroad** once known) / **irrigation** / **mine** |
-| T / C | settlers: build a **fort** / **clear forest** to plains |
+| T / C | settlers: build a **fort** / **clear** forest→plains, jungle/swamp→grassland |
 | P | settlers: **clean pollution** on the tile |
 | Z / X / D | diplomat: **steal tech** / **sabotage** / open the full **spy menu** (embassy, investigate, incite revolt, bribe…) |
 | H / J | caravan: **help build a wonder** / **establish a trade route** |
@@ -114,7 +114,8 @@ Settlers can **terraform** the tile they stand on, over several turns during
 which the unit holds position; the improvement then feeds straight into that
 tile's yield: `R` builds a **road** (+1 trade) and, once **Railroad** is
 researched, upgrades it to a **railroad** (+1 shield); `I` **irrigates** (+1
-food); `M` **mines** (+1 shield); `C` **clears forest** to plains; `T` builds a
+food); `M` **mines** (+1 shield); `C` **clears** vegetation/wetland to the land
+beneath (forest→plains, jungle and swamp→grassland); `T` builds a
 **fort** (+100% defense in the field, like city walls); and `P` **cleans
 pollution**. Industrial cities throw off **pollution** once a civ reaches
 Industrialization — a blight that halves a tile's output until a settler clears

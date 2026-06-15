@@ -616,8 +616,10 @@ turn).  Run after REFRESH-UNITS so a busy unit's restored moves are taken back."
            (let ((tile (tile-at (gs-map state) (unit-x u) (unit-y u))))
              (case (unit-work u)
                (:clean-pollution (setf (tile-pollution tile) nil))   ; clears the blight
-               (:clear-forest    (setf (tile-terrain tile)           ; forest -> plains
-                                       (terraform-def :clear-forest :becomes)))
+               (:clear-forest    (setf (tile-terrain tile)           ; reveal the land beneath
+                                       (or (cdr (assoc (tile-terrain tile)
+                                                       (terraform-def :clear-forest :becomes)))
+                                           :plains)))
                (t (setf (tile-improvement tile (terraform-def (unit-work u) :flag)) t)))
              (setf (unit-work u) nil (unit-work-left u) 0))
            (setf (unit-moves-left u) 0))))      ; still busy

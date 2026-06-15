@@ -907,6 +907,46 @@
         (civ-model::ai-military s raider)
         (is (= 2 (city-owner c)))))))              ; the AI marched in and took it
 
+;;; --- terrain transformation (clearing) -------------------------------------
+
+(defun clear-to-completion (s u)
+  (apply-command s (list :clear-forest :unit (unit-id u)))
+  (dotimes (i (civ-model::terraform-def :clear-forest :turns))
+    (civ-model::process-terraform s)))
+
+(test clearing-forest-yields-plains
+  (let ((s (bare-state 6 6)))
+    (terrain! s 3 3 :forest)
+    (clear-to-completion s (add-unit s :settlers 1 3 3))
+    (is (eq :plains (tile-terrain (tile-at (gs-map s) 3 3))))))
+
+(test clearing-jungle-yields-grassland
+  (let ((s (bare-state 6 6)))
+    (terrain! s 3 3 :jungle)
+    (clear-to-completion s (add-unit s :settlers 1 3 3))
+    (is (eq :grassland (tile-terrain (tile-at (gs-map s) 3 3))))))
+
+(test clearing-swamp-yields-grassland
+  (let ((s (bare-state 6 6)))
+    (terrain! s 3 3 :swamp)
+    (clear-to-completion s (add-unit s :settlers 1 3 3))
+    (is (eq :grassland (tile-terrain (tile-at (gs-map s) 3 3))))))
+
+(test cannot-clear-open-grassland
+  (let ((s (bare-state 6 6)))                       ; bare-state is grassland
+    (let ((u (add-unit s :settlers 1 3 3)))
+      (signals command-error
+        (apply-command s (list :clear-forest :unit (unit-id u)))))))
+
+(test roads-can-be-built-on-the-new-terrains
+  (let ((s (bare-state 6 6)))
+    (terrain! s 3 3 :tundra)
+    (let ((u (add-unit s :settlers 1 3 3)))
+      (apply-command s (list :build-road :unit (unit-id u)))   ; must not signal
+      (dotimes (i (civ-model::terraform-def :build-road :turns))
+        (civ-model::process-terraform s))
+      (is-true (tile-road (tile-at (gs-map s) 3 3))))))
+
 ;;; --- continental map generation --------------------------------------------
 
 (test the-four-new-terrains-have-yields-and-specials
