@@ -879,6 +879,8 @@ government :TO (which must be unlocked by an advance)."
        (unless (wonder-built-p state :apollo-program)
          (fail "the Apollo Program must be built first"))
        (unless (player-has-tech-p owner :space-flight)
-         (fail "requires the space-flight advance"))))
+         (fail "requires the space-flight advance"))     ; structurals
+       (unless (player-has-tech-p owner :fusion-power)
+         (fail "requires the fusion-power advance"))))    ; the ship's fuel
     (setf (city-production c) item)
     c))

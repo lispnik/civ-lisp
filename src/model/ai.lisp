@@ -118,7 +118,10 @@ Republic/Democracy suffer war-weariness."
   '(:monarchy :bronze-working :currency :trade :construction :masonry :writing
     :literacy :the-republic :philosophy :mathematics :banking :university
     :democracy :gunpowder :industrialization :the-corporation :electronics
-    :computers)
+    :computers
+    ;; the space-race endgame: Space Flight for the Apollo Program and ship
+    ;; structurals, Fusion Power for its fuel
+    :rocketry :space-flight :super-conductor :nuclear-power :fusion-power)
   "Advances the AI beelines for, best first -- governments plus the economy and
 wonder techs (Currency/Trade/Banking for gold, Construction for aqueducts,
 University for science, Industrialization for factories).  The AI researches

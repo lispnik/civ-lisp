@@ -266,9 +266,9 @@ or open a trade route (a gold windfall plus recurring trade).
 
 **Winning.** The game ends by **conquest** — last civilization with a city or
 unit standing — or the **space race**: build the **Apollo Program**, then with
-**Space Flight** assemble ten **spaceship parts**; the ship launches and, after
-its flight, arrives for the win. A **VICTORY / DEFEAT** banner declares the
-result.
+**Space Flight** (the structurals) and **Fusion Power** (the ship's fuel)
+assemble ten **spaceship parts**; the ship launches and, after its flight,
+arrives for the win. A **VICTORY / DEFEAT** banner declares the result.
 
 > **macOS / arm64 note:** cl-sdl2's high-level event accessors (`scancode-value`,
 > the `:x`/`:y` destructuring) read the wrong `SDL_Event` struct offsets against

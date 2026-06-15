@@ -2070,6 +2070,9 @@ shield special) so the city keeps producing instead of starving."
     (signals command-error (apply-command s (list :set-production :city (city-id c)
                                                   :item '(:spaceship))))   ; still no space-flight
     (setf (gethash :space-flight (player-techs p)) t)
+    (signals command-error (apply-command s (list :set-production :city (city-id c)
+                                                  :item '(:spaceship))))   ; still no fusion-power
+    (setf (gethash :fusion-power (player-techs p)) t)       ; the ship's fuel
     (apply-command s (list :set-production :city (city-id c) :item '(:spaceship)))
     (is (equal '(:spaceship) (civ-model::city-production c)))))
 
