@@ -401,7 +401,7 @@ label below."
 
 (defun draw-unit (painter state u px py)
   "Draw unit U's sprite over a team-colour background at screen pixel (PX,PY),
-plus a black border for definition and a fortify marker."
+plus a fortify marker."
   (let ((spr (unit-sprite (civm:unit-type u)))
         (ren (painter-ren painter)))
     ;; the sprite's green placeholder is keyed out, so paint the owner's colour
@@ -411,7 +411,6 @@ plus a black border for definition and a fortify marker."
       (set-rect (painter-dst painter) px py *tile* *tile*)
       (sdl2:render-fill-rect ren (painter-dst painter)))
     (draw-sprite painter (car spr) (cdr spr) px py)
-    (draw-border painter px py '(0 0 0))
     (when (eq (civm:unit-orders u) :fortified)
       (draw-marker painter px py 3 3 '(245 245 245)))))
 
