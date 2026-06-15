@@ -24,7 +24,13 @@
   (winner nil)                             ; player id of the victor, once decided
   (victory nil)                            ; :conquest or :space
   (message nil)                            ; transient last-event text (e.g. a hut outcome)
+  (log '())                                ; chronicle of notable events (newest first)
   (phase :start :type keyword))
+
+(defun gs-note (state fmt &rest args)
+  "Record a timestamped line in the game's event chronicle (GS-LOG)."
+  (push (format nil "T~D: ~A" (gs-turn state) (apply #'format nil fmt args))
+        (gs-log state)))
 
 (defun gs-next-id (state)
   "Allocate a fresh monotonic entity id."

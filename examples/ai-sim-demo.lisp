@@ -1,12 +1,14 @@
-;;;; ai-sim-demo.lisp -- run a whole game with four AI civilizations and no human
+;;;; ai-sim-demo.lisp -- run a whole game with six AI civilizations and no human
 ;;;; player, snapshotting the board periodically.
 ;;;;
 ;;;;   sbcl --non-interactive --load examples/ai-sim-demo.lisp
 ;;;;
 ;;;; Every civ is flipped to :ai, then END-TURN drives the entire game; the board
 ;;;; is rendered to docs/ai-sim-tNNN.png at intervals and a per-civ city/unit
-;;;; tally is printed each time.  Asserts the civs actually develop -- founding
-;;;; cities and that the world is still being contested (prints PASS/FAIL).
+;;;; tally is printed each time.  At the end it prints the chronicle of city
+;;;; captures and razings (GS-LOG) -- the cause behind every city that changed
+;;;; hands or vanished.  Asserts the civs develop and cities are contested
+;;;; (prints PASS/FAIL).
 
 (asdf:load-system :civ-lisp)
 (in-package :civ-lisp)
@@ -40,7 +42,8 @@
         (sdl2:with-renderer (ren win :flags '(:software))
           (sdl2-ffi.functions:sdl-set-render-draw-blend-mode ren 1)
           (let* ((state (civm:make-new-game :seed 12 :width *sim-w* :height *sim-h*
-                                            :players '("Rome" "Egypt" "Zulu" "Babylon")
+                                            :players '("Rome" "Egypt" "Zulu" "Babylon"
+                                                       "Greece" "Persia")
                                             :barbarians t))
                  (painter (make-renderer-painter ren
                             (load-atlas ren *sprites-image* +unit-bg-key+)
@@ -76,8 +79,13 @@
                                     (civm:player-by-id state (civm:gs-winner state))))
                               (civm:gs-victory state)))
                     (when (civm:gs-winner state) (return))))
-                (format t "Peak cities founded: ~D~%=> ~A~%"
-                        peak-cities (if (>= peak-cities 4) "PASS" "FAIL"))  ; the AIs developed
+                ;; the chronicle: every city that changed hands or vanished, and why
+                (format t "~%-- City events (the cause of every city captured or razed) --~%")
+                (let ((events (reverse (civm:gs-log state))))   ; oldest first
+                  (if events (dolist (e events) (format t "  ~A~%" e))
+                      (format t "  (none -- no city changed hands this game)~%")))
+                (format t "=> ~A~%"
+                        (if (>= peak-cities 6) "PASS" "FAIL"))  ; the AIs developed
                 (format t "Wrote docs/ai-sim-t000.png .. ai-sim-t~3,'0D.png~%" *sim-turns*)))))))))
 
 ;; SDL video must run on the main thread (required on macOS).

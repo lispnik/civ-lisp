@@ -222,12 +222,15 @@ with -- i.e. (X,Y) lies in an enemy zone of control."
   "CAPTOR (a player id) takes CITY: a size-1 city is razed; a larger one changes
 hands -- shrunk by one, production and stored food/shields reset, trade routes
 broken (its buildings and any wonders carry over).  Records GS-MESSAGE."
-  (let ((loser (city-owner city))
-        (tile (tile-at (gs-map state) (city-x city) (city-y city))))
+  (let* ((loser (city-owner city))
+         (tile (tile-at (gs-map state) (city-x city) (city-y city)))
+         (takername (player-name (player-by-id state captor)))
+         (losername (player-name (player-by-id state loser))))
     (cond
       ((<= (city-size city) 1)
        (raze-city state city)
-       (setf (gs-message state) (format nil "~A razed." (city-name city))))
+       (setf (gs-message state) (format nil "~A razed." (city-name city)))
+       (gs-note state "~A razed by ~A (taken from ~A)" (city-name city) takername losername))
       (t
        (decf (city-size city))
        (setf (city-owner city) captor
@@ -238,8 +241,8 @@ broken (its buildings and any wonders carry over).  Records GS-MESSAGE."
              (city-worked city) '())
        (remove-city-routes state (city-id city))
        (setf (gs-message state)
-             (format nil "~A captured from ~(~A~)!" (city-name city)
-                     (player-name (player-by-id state loser))))))))
+             (format nil "~A captured from ~(~A~)!" (city-name city) losername))
+       (gs-note state "~A captured by ~A from ~A" (city-name city) takername losername)))))
 
 (defun tile-enemies (state tile owner)
   "Units on TILE not belonging to OWNER (any other civilization)."

@@ -889,7 +889,16 @@
         (apply-command s (list :move-unit :unit (unit-id w) :dx 1 :dy 0))
         (is-false (city-by-id s (city-id c)))                       ; razed away
         (is-false (tile-city (tile-at (gs-map s) 4 4)))             ; tile cleared
-        (is (= 4 (unit-x w)))))))                                    ; unit stands on the ruins
+        (is (= 4 (unit-x w)))                                        ; unit stands on the ruins
+        (is (search "razed" (or (first (gs-log s)) "")))))))         ; cause recorded
+
+(test capture-is-recorded-in-the-log
+  (let ((s (bare-state 8 8)))
+    (setf (relation s 1 2) :war)
+    (let ((c (civ-model::register-city s :name "Big" :owner 2 :x 4 :y 4)))
+      (setf (city-size c) 4)
+      (apply-command s (list :move-unit :unit (unit-id (add-unit s :warriors 1 3 4)) :dx 1 :dy 0))
+      (is (search "captured" (or (first (gs-log s)) ""))))))
 
 (test cannot-enter-a-peaceful-citys-tile
   (let ((s (bare-state 8 8)))                     ; relation defaults to peace

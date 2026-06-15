@@ -30,7 +30,7 @@
    #:game-state #:gs-turn #:gs-year #:gs-map #:gs-players #:gs-units #:gs-cities
    #:make-new-game #:player-by-id #:unit-by-id #:city-by-id
    #:gs-random #:gs-rand #:gs-phase #:gs-warming #:player-has-tech-p
-   #:gs-winner #:gs-victory #:gs-message #:process-victory #:player-alive-p
+   #:gs-winner #:gs-victory #:gs-message #:gs-log #:gs-note #:process-victory #:player-alive-p
    #:enter-hut #:barbarian-player
    #:*spaceship-parts* #:*spaceship-flight* #:*spaceship-part-cost*
    ;; diplomacy
