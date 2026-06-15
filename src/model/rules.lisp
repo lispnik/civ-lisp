@@ -757,9 +757,24 @@ at zero gold."
                 (unless sold (return))))
             (when (minusp (player-gold p)) (setf (player-gold p) 0)))))
 
+(defun year-per-turn (year)
+  "Civ1's accelerating clock: years a single turn advances at the given YEAR --
+50 in antiquity, tapering to 1 in the modern era."
+  (cond ((< year -1000) 50)     ; 4000 BC .. 1000 BC
+        ((< year 1)     25)     ; 1000 BC .. 1 AD
+        ((< year 1500)  20)     ; .. 1500 AD
+        ((< year 1750)  10)     ; .. 1750 AD
+        ((< year 1850)   5)     ; .. 1850 AD
+        ((< year 1900)   2)     ; .. 1900 AD
+        (t               1)))   ; 1900 AD onward
+
 (defun turn->year (turn)
-  "Map a turn number to a (simplified) calendar year."
-  (+ -4000 (* (1- turn) 40)))
+  "Map TURN (1 = 4000 BC) to a calendar year using Civ1's accelerating schedule.
+There is no year 0: a step that lands on it advances to 1 AD."
+  (let ((year -4000))
+    (dotimes (i (max 0 (1- turn)) year)
+      (incf year (year-per-turn year))
+      (when (zerop year) (setf year 1)))))
 
 ;; defined in later files (ai.lisp / pathfind.lisp); declared so END-TURN
 ;; compiles without forward-reference warnings

@@ -380,7 +380,16 @@
     (is (= 1 (gs-turn s)))
     (end-turn s)
     (is (= 2 (gs-turn s)))
-    (is (= -3960 (gs-year s)))))
+    (is (= -3950 (gs-year s)))))    ; 50 years/turn in antiquity (Civ1 schedule)
+
+(test civ1-year-schedule-accelerates
+  (flet ((y (turn) (civ-model::turn->year turn)))
+    (is (= -4000 (y 1)))                       ; the game starts in 4000 BC
+    (is (= -1000 (y 61)))                       ; 60 turns of 50 years -> 1000 BC
+    (is (= 50 (- (y 2) (y 1))))                 ; 50 years/turn early
+    (is (loop for turn from 2 to 250 always (> (y turn) (y (1- turn))))) ; strictly rising
+    (is (loop for turn from 1 to 250 never (zerop (y turn))))            ; no year 0
+    (is (= 1 (- (y 250) (y 249))))))            ; 1 year/turn in the modern era
 
 (test research-progresses
   (let ((s (make-new-game :seed 11)))
