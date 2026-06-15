@@ -22,10 +22,12 @@
   "The TER257 sheet (terrain blend variants, ocean, coast).")
 (defparameter *nuke-image*
   (merge-pathnames "assets/nuke.png" (asdf:system-source-directory :civ-lisp))
-  "Nuclear-detonation animation: 40 frames (8x5 of 40x40), green-keyed.")
+  "Nuclear-detonation animation: 28 centred frames (7x4), green-keyed.")
 (defparameter +nuke-bg-key+ '(44 120 0) "Green background keyed out of nuke.png.")
-(defparameter +nuke-frame+ 40 "Pixel size of one detonation frame.")
-(defparameter +nuke-frames+ 40 "Number of detonation frames (8 cols x 5 rows).")
+(defparameter +nuke-pitch+ 45 "Cell pitch in nuke.png (1px green separators at each multiple of 45).")
+(defparameter +nuke-frame+ 43 "Content size of one detonation frame within its cell.")
+(defparameter +nuke-cols+ 7 "Frame columns in nuke.png.")
+(defparameter +nuke-frames+ 28 "Detonation frames: 7 cols x 4 rows.")
 
 ;;; --- sprite atlas coordinates ----------------------------------------------
 
@@ -921,7 +923,8 @@ with a blinking caret (the bitmap font has no underscore glyph)."
   (let ((tex (painter-nuke painter)))
     (when tex
       (set-rect (painter-src painter)
-                (* (mod frame 8) +nuke-frame+) (* (floor frame 8) +nuke-frame+)
+                (1+ (* (mod frame +nuke-cols+) +nuke-pitch+))
+                (1+ (* (floor frame +nuke-cols+) +nuke-pitch+))
                 +nuke-frame+ +nuke-frame+)
       (set-rect (painter-dst painter) (- px *tile*) (- py *tile*) (* 3 *tile*) (* 3 *tile*))
       (sdl2:render-copy (painter-ren painter) tex
