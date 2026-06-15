@@ -1102,6 +1102,43 @@
           (civ-model::ai-military s raider)
           (is (< (dist) d0)))))))                      ; advanced toward the enemy city
 
+;;; --- AI uses its full toolbox ----------------------------------------------
+
+(test ai-aircraft-returns-to-base
+  (let ((s (bare-state 14 8)))
+    (civ-model::register-city s :name "Base" :owner 2 :x 2 :y 4)
+    (let ((f (add-unit s :fighter 2 9 4)))         ; out in the field
+      (flet ((d () (+ (map-dx (gs-map s) 2 (unit-x f)) (abs (- 4 (unit-y f))))))
+        (let ((d0 (d)))
+          (civ-model::ai-air s f)
+          (is (< (d) d0)))))))                       ; flew toward base to refuel
+
+(test ai-diplomat-spies-on-an-adjacent-city
+  (let ((s (bare-state 10 10)))
+    (setf (relation s 1 2) :war)
+    (civ-model::register-city s :name "Foe" :owner 1 :x 5 :y 5)
+    (let ((dip (add-unit s :diplomat 2 4 5)))
+      (civ-model::ai-diplomat s dip)
+      (is-true (has-embassy-p s 2 1)))))             ; established an embassy
+
+(test ai-nuke-detonates-on-an-adjacent-enemy
+  (let ((s (bare-state 10 10)))
+    (setf (relation s 1 2) :war)
+    (let ((c (civ-model::register-city s :name "Foe" :owner 1 :x 5 :y 5)))
+      (setf (city-size c) 8)
+      (let ((nuke (add-unit s :nuclear 2 4 5)))
+        (civ-model::ai-nuke s nuke)
+        (is-false (unit-by-id s (unit-id nuke)))     ; it went off
+        (is (< (city-size c) 8))))))                  ; and devastated the city
+
+(test ai-caravan-opens-a-trade-route
+  (let ((s (bare-state 10 10)))
+    (civ-model::register-city s :name "A" :owner 2 :x 3 :y 3)
+    (civ-model::register-city s :name "B" :owner 2 :x 7 :y 3)
+    (let ((car (add-unit s :caravan 2 3 3)))         ; a caravan in city A
+      (civ-model::ai-caravan s car)
+      (is (plusp (length (gs-routes s)))))))          ; opened a trade route
+
 ;;; --- terrain transformation (clearing) -------------------------------------
 
 (defun clear-to-completion (s u)

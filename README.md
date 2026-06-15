@@ -178,7 +178,10 @@ spends its **whole movement** each turn; cities always keep a **garrison**
 war** on a rival it is at least as strong as, **suing for peace** once it is down
 to half a rival's cities. Surplus troops **march on the nearest enemy city**,
 and at war a coastal AI builds a **transport**, loads an invasion force,
-ferries it across the sea, and lands the troops on your shore.
+ferries it across the sea, and lands the troops on your shore. It also fields its
+**whole toolbox** — defending **aircraft** that fly home to refuel, **diplomats**
+that spy on adjacent cities, **caravans** that open trade routes, and **nuclear
+missiles** it flies at your cities and detonates.
 
 **Combat** is **war-gated**: you can't enter a tile held by a civ you're at
 peace with, so you **declare war** first (the diplomacy menu, `Y`). Moving into

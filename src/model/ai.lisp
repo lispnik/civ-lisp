@@ -156,6 +156,77 @@ own city (keeping one defender) or explore."
 
 (defun ai-best-attacker (player) (ai-buildable player *ai-attackers*))
 (defun ai-best-defender (player) (ai-buildable player *ai-defenders*))
+(defun ai-best-air (player) (ai-buildable player '(:bomber :fighter)))
+
+;;; --- the AI's full toolbox: aircraft, nukes, diplomats, caravans -----------
+
+(defun nearest-own-city (state u)
+  "The owner's city closest to unit U, or NIL."
+  (let ((map (gs-map state)) best bestd)
+    (loop for c being the hash-values of (gs-cities state)
+          when (= (city-owner c) (unit-owner u))
+            do (let ((d (+ (map-dx map (city-x c) (unit-x u)) (abs (- (city-y c) (unit-y u))))))
+                 (when (or (null bestd) (< d bestd)) (setf best c bestd d))))
+    best))
+
+(defun ai-air (state u)
+  "Aircraft (non-nuke) defend: strike an adjacent enemy, garrison an own city,
+or fly back to the nearest city to refuel (so they never run dry in the field)."
+  (let ((enemy (adjacent-enemy state u))
+        (tile (tile-at (gs-map state) (unit-x u) (unit-y u))))
+    (cond
+      (enemy (ai-cmd state (list :move-unit :unit (unit-id u)
+                                 :dx (signum (- (unit-x enemy) (unit-x u)))
+                                 :dy (signum (- (unit-y enemy) (unit-y u))))))
+      ((and tile (tile-city tile) (eql (tile-owner tile) (unit-owner u)))
+       (unless (eq (unit-orders u) :fortified) (ai-cmd state (list :fortify :unit (unit-id u)))))
+      (t (let ((c (nearest-own-city state u)))
+           (if c (ai-step-toward state u (city-x c) (city-y c)) (ai-move-random state u)))))))
+
+(defun ai-nuke (state u)
+  "Fly a missile at the nearest enemy city and detonate once it is in reach."
+  (let ((tgt (nearest-enemy-city state (unit-owner u) (unit-x u) (unit-y u))))
+    (cond
+      ((null tgt) (ai-move-random state u))
+      ((or (ai-adjacent-enemy-city state u) (adjacent-enemy state u))
+       (ai-cmd state (list :nuke :unit (unit-id u))))
+      (t (ai-step-toward state u (city-x tgt) (city-y tgt))))))
+
+(defun ai-diplomat (state u)
+  "March a diplomat to the nearest enemy city and run espionage when adjacent."
+  (let ((tgt (nearest-enemy-city state (unit-owner u) (unit-x u) (unit-y u))))
+    (cond
+      ((adjacent-enemy-city state u)
+       (or (ai-cmd state (list :establish-embassy :unit (unit-id u)))
+           (ai-cmd state (list :steal-tech :unit (unit-id u)))
+           (ai-move-random state u)))
+      (tgt (ai-step-toward state u (city-x tgt) (city-y tgt)))
+      (t (ai-move-random state u)))))
+
+(defun ai-caravan (state u)
+  "Use a caravan: help a wonder or open a trade route from a city, else head to one."
+  (cond
+    ((ai-cmd state (list :help-wonder :unit (unit-id u))))
+    ((ai-cmd state (list :trade-route :unit (unit-id u))))
+    (t (let ((c (nearest-own-city state u)))
+         (if c (ai-step-toward state u (city-x c) (city-y c)) (ai-move-random state u))))))
+
+(defun ai-special-unit (state player)
+  "A wartime extra to build: occasionally a nuke, a defending aircraft, or a spy."
+  (let ((pid (player-id player)) (r (gs-rand state 100)))
+    (cond
+      ((and (< r 15) (player-has-tech-p player :rocketry)
+            (wonder-built-p state :manhattan-project)
+            (not (find :nuclear (player-unit-list state pid) :key #'unit-type)))
+       :nuclear)
+      ((and (< r 40) (player-has-tech-p player :flight)
+            (< (count-if (lambda (u) (eq (unit-def (unit-type u) :domain) :air))
+                         (player-unit-list state pid))
+               2))
+       (or (ai-best-air player) :fighter))
+      ((and (< r 65) (player-has-tech-p player :writing)
+            (notany (lambda (u) (eq (unit-type u) :diplomat)) (player-unit-list state pid)))
+       :diplomat))))
 
 (defun ai-step-toward (state unit tx ty)
   "Move UNIT one tile toward (TX,TY) -- diagonal first, then either axis.
@@ -242,6 +313,7 @@ an adjacent sea tile, board it.  Returns non-NIL if UNIT boarded."
   "Keep cities content, expand while small, then build a library or defenders."
   (let* ((pid (player-id player))
          (at-war (ai-has-invasion-target-p state pid))
+         (special (and at-war (ai-special-unit state player)))
          (item (cond
                 ;; an undefended city must raise a garrison before anything else
                 ((not (city-defended-p state city))
@@ -259,7 +331,16 @@ an adjacent sea tile, board it.  Returns non-NIL if UNIT boarded."
                       (player-has-tech-p player :industrialization)
                       (not (find :transport (player-unit-list state pid) :key #'unit-type)))
                  '(:unit :transport))
+                ;; a wartime toolbox extra (a nuke, a defending plane, a spy)
+                (special (list :unit special))
                 (at-war (list :unit (ai-best-attacker player)))
+                ;; peacetime economy: a caravan to open trade routes between cities
+                ((and (player-has-tech-p player :trade)
+                      (>= (length (player-city-list state pid)) 2)
+                      (notany (lambda (u) (eq (unit-type u) :caravan))
+                              (player-unit-list state pid))
+                      (< (gs-rand state 100) 15))
+                 '(:unit :caravan))
                 ((and (player-has-tech-p player :writing)
                       (not (member :library (city-buildings city))))
                  '(:building :library))
@@ -289,7 +370,11 @@ spreads among the civilizations."
 board a waiting transport when there's an enemy to hit, else fight/explore."
   (cond
     ((eq (unit-type u) :settlers) (ai-settler state u))
+    ((member :nuke (unit-def (unit-type u) :abilities)) (ai-nuke state u))
+    ((member :espionage (unit-def (unit-type u) :abilities)) (ai-diplomat state u))
+    ((member :caravan (unit-def (unit-type u) :abilities)) (ai-caravan state u))
     ((eq (unit-def (unit-type u) :carries) :land) (ai-transport state u))
+    ((eq (unit-def (unit-type u) :domain) :air) (ai-air state u))   ; non-nuke aircraft
     ((and (eq (unit-def (unit-type u) :domain) :land)
           (plusp (unit-def (unit-type u) :attack 0))
           (ai-try-board state u)))                  ; boarded -> done
