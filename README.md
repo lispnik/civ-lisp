@@ -78,6 +78,7 @@ and AI cities (Akkad, Uruk) have grown alongside.*
 | F | fortify the selected unit (defense + faster healing) |
 | Shift+D | disband the selected unit (recovers shields if in a city) |
 | U | upgrade the selected obsolete unit to its successor (for gold, in a city) |
+| N | detonate the selected nuclear missile (3×3 blast centred on its tile) |
 | R / I / M | settlers: build **road** (then **railroad** once known) / **irrigation** / **mine** |
 | T / A / C | settlers: build a **fort** / **airbase** / **clear** forest→plains, jungle/swamp→grassland |
 | P | settlers: **clean pollution** on the tile |
@@ -213,6 +214,14 @@ end a turn on a friendly **city**, **airbase** (a settler improvement, `A`) or
 **carrier** to refuel — run dry in the air and the unit crashes. Carriers are
 mobile airbases: parked planes refuel on them and ride along when the carrier
 sails. The selected unit's info box shows its remaining **Fuel**.
+
+**Nuclear weapons.** Once you research Rocketry you can build the **nuclear
+missile**. Fly it next to a target and detonate (`N`): everything on the centre
+tile and the eight around it is vaporised, any **city** in the blast is
+devastated (population halved), and the ground is left with **fallout**
+(pollution, which feeds global warming). The strike is indiscriminate — it kills
+your own units too — and dropping it on a civ you were at peace with is an act of
+**war**.
 
 **Diplomacy & trade.** Relations are war or peace per pair (`Y` to declare war /
 sue for peace); `E` opens a **trade** menu to swap advances or buy/sell them for

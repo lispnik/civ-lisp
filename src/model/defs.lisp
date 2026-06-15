@@ -57,7 +57,7 @@
      (:bomber      :attack 12 :defense 1 :move 8 :cost 120 :requires :advanced-flight :domain :air :range 5)
      (:battleship  :attack 18 :defense 12 :move 4 :cost 160 :requires :steel :domain :sea)
      (:carrier     :attack 1 :defense 12 :move 5 :cost 160 :requires :advanced-flight :domain :sea :capacity 8 :carries :air)
-     (:nuclear     :attack 99 :defense 0 :move 16 :cost 160 :requires :rocketry :domain :air :range 8)))
+     (:nuclear     :attack 99 :defense 0 :move 16 :cost 160 :requires :rocketry :domain :air :range 8 :abilities (:nuke))))
   "Unit types -> combat stats, build cost, tech requirement, domain.
 :domain is :land (off ocean), :sea (only ocean) or :air (unrestricted).")
 

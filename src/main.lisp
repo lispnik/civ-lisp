@@ -349,6 +349,15 @@ or an error message."
                               win (format nil "civ-lisp — ~A" (civm:gs-message state)))
                              (setf (civm:gs-message state) nil))
                            (setf selected (next-human-unit state selected))))
+                       (nuke! ()
+                         ;; detonate the selected nuclear missile on its own tile
+                         (when selected
+                           (try (list :nuke :unit selected))
+                           (when (civm:gs-message state)
+                             (sdl2:set-window-title
+                              win (format nil "civ-lisp — ~A" (civm:gs-message state)))
+                             (setf (civm:gs-message state) nil))
+                           (setf selected (next-human-unit state selected))))
                        (upgrade! ()
                          ;; upgrade the selected (obsolete) unit in its city for gold
                          (when selected
@@ -570,6 +579,7 @@ or an error message."
                                   ((= sc +sc-j+) (espionage! :trade-route "trade route opened!"))
                                   ((and shift (= sc +sc-d+)) (disband!)) ; Shift+D: disband unit
                                   ((= sc +sc-u+) (upgrade!))             ; U: upgrade obsolete unit
+                                  ((= sc +sc-n+) (nuke!))                ; N: detonate a nuke
                                   ((= sc +sc-d+)               ; diplomat action menu
                                    (let ((u (and selected (civm:unit-by-id state selected))))
                                      (when (and u (eq (civm:unit-type u) :diplomat))

@@ -908,6 +908,46 @@
         (civ-model::ai-military s raider)
         (is (= 2 (city-owner c)))))))              ; the AI marched in and took it
 
+;;; --- nuclear weapons -------------------------------------------------------
+
+(test nuke-flattens-the-blast-area
+  (let ((s (bare-state 10 10)))
+    (setf (relation s 1 2) :war)
+    (let ((nuke (add-unit s :nuclear 1 5 5))
+          (a (add-unit s :warriors 2 4 5))    ; adjacent
+          (b (add-unit s :phalanx 2 6 6))     ; diagonal -- still in the 3x3
+          (far (add-unit s :legion 2 8 8)))   ; well outside
+      (apply-command s (list :nuke :unit (unit-id nuke)))
+      (is-false (unit-by-id s (unit-id nuke)))   ; missile expended
+      (is-false (unit-by-id s (unit-id a)))
+      (is-false (unit-by-id s (unit-id b)))
+      (is-true (unit-by-id s (unit-id far))))))  ; survives
+
+(test nuke-devastates-a-city
+  (let ((s (bare-state 10 10)))
+    (setf (relation s 1 2) :war)
+    (let ((c (civ-model::register-city s :name "Foe" :owner 2 :x 6 :y 5)))
+      (setf (city-size c) 8)
+      (apply-command s (list :nuke :unit (unit-id (add-unit s :nuclear 1 5 5))))
+      (is (= 4 (city-size c))))))                ; halved, not razed
+
+(test nuke-leaves-fallout
+  (let ((s (bare-state 10 10)))
+    (apply-command s (list :nuke :unit (unit-id (add-unit s :nuclear 1 5 5))))
+    (is-true (tile-pollution (tile-at (gs-map s) 5 5)))     ; ground zero
+    (is-true (tile-pollution (tile-at (gs-map s) 4 4)))))   ; and the rim
+
+(test nuking-a-civ-is-an-act-of-war
+  (let ((s (bare-state 10 10)))                  ; starts at peace
+    (add-unit s :warriors 2 4 5)                 ; an enemy in the blast
+    (apply-command s (list :nuke :unit (unit-id (add-unit s :nuclear 1 5 5))))
+    (is-true (at-war-p s 1 2))))
+
+(test only-a-nuclear-weapon-can-detonate
+  (let ((s (bare-state 8 8)))
+    (let ((u (add-unit s :warriors 1 4 4)))
+      (signals command-error (apply-command s (list :nuke :unit (unit-id u)))))))
+
 ;;; --- air units: fuel, airbases, carriers -----------------------------------
 
 (test air-unit-launches-with-a-full-tank

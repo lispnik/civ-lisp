@@ -29,6 +29,7 @@ on an illegal move."
     (:wake           (cmd-wake state command))
     (:disband-unit   (cmd-disband-unit state command))
     (:upgrade-unit   (cmd-upgrade-unit state command))
+    (:nuke           (cmd-nuke state command))
     (:goto           (cmd-goto state command))
     ((:build-road :build-railroad :irrigate :mine :build-fort :build-airbase :clear-forest)
      (cmd-terraform state command))
@@ -526,6 +527,46 @@ Only land units take cities; ships and aircraft can't hold ground."
       (let ((c (city-by-id state cid)))
         (when (and c (/= (city-owner c) (unit-owner u)))
           (capture-city state c (unit-owner u)))))))
+
+(defun cmd-nuke (state command)
+  "Detonate a nuclear missile, centred on its own tile (plus an optional DX/DY
+offset).  Every unit on the centre tile and the eight around it is destroyed,
+any city in the blast is devastated (population halved), and the ground is left
+with fallout (pollution).  The missile is expended and every civilization caught
+in the blast is now at war with the attacker."
+  (let* ((args (rest command))
+         (u (or (unit-by-id state (getf args :unit)) (fail "no such unit")))
+         (map (gs-map state)))
+    (unless (member :nuke (unit-def (unit-type u) :abilities))
+      (fail "~(~A~) is not a nuclear weapon" (unit-type u)))
+    (when (<= (unit-moves-left u) 0) (fail "unit has no moves left"))
+    (let ((cx (wrap-x map (+ (unit-x u) (getf args :dx 0))))
+          (cy (+ (unit-y u) (getf args :dy 0)))
+          (owner (unit-owner u)))
+      (unless (tile-at map cx cy) (fail "target out of bounds"))
+      (flet ((act-of-war (against)
+               (when (and (/= against owner) (not (barbarian-id-p state against)))
+                 (setf (relation state owner against) :war))))
+        (destroy-unit state u)                       ; the missile is expended
+        (dolist (cell (cons (list cx cy) (neighbors map cx cy)))
+          (let ((tl (tile-at map (first cell) (second cell))))
+            (when tl
+              ;; vaporise every unit on the tile
+              (dolist (id (copy-list (tile-units tl)))
+                (let ((v (unit-by-id state id)))
+                  (when v (act-of-war (unit-owner v)) (destroy-unit state v))))
+              ;; devastate a city (population halved, never below 1)
+              (let ((cid (tile-city tl)))
+                (when cid
+                  (let ((c (city-by-id state cid)))
+                    (when c
+                      (act-of-war (city-owner c))
+                      (setf (city-size c) (max 1 (floor (city-size c) 2)))))))
+              ;; fallout: pollution on the scorched land
+              (unless (eq (tile-terrain tl) :ocean)
+                (setf (tile-pollution tl) t))))))
+      (setf (gs-message state) "Nuclear detonation!")
+      t)))
 
 (defun cmd-move-unit (state command)
   (let* ((args (rest command))
