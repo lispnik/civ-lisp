@@ -163,8 +163,12 @@ into `civ-model` commands — the view never mutates the model directly. Several
 rival **civilizations** (the default game has four) plus roving **barbarians**
 are each run by a simple **AI** that issues the same commands — founding and
 spacing out cities, setting production, exploring, researching, even swapping
-advances and declaring wars — and take their turns automatically when you end
-yours. At war, a coastal AI builds a **transport**, loads an invasion force,
+advances — and take their turns automatically when you end yours. Each unit
+spends its **whole movement** each turn; cities always keep a **garrison**
+(rebuilding a defender whenever one is left empty); and the AI only **declares
+war** on a rival it is at least as strong as, **suing for peace** once it is down
+to half a rival's cities. Surplus troops **march on the nearest enemy city**,
+and at war a coastal AI builds a **transport**, loads an invasion force,
 ferries it across the sea, and lands the troops on your shore.
 
 **Combat** is **war-gated**: you can't enter a tile held by a civ you're at

@@ -46,15 +46,25 @@
                    do (return-from adjacent-enemy e))))
 
 (defun ai-diplomacy (state player)
-  "Occasionally an AI declares war on a civilization it is at peace with."
-  (let ((pid (player-id player)))
+  "Pick fights it can win and bow out of ones it is losing: declare war only on a
+peer it is at least as strong as, and sue for peace when down to half a rival's
+cities (strength measured by city count)."
+  (let ((pid (player-id player))
+        (mine (length (player-city-list state (player-id player)))))
     (loop for other across (gs-players state)
           for oid = (player-id other)
-          when (and (/= oid pid)
-                    (not (eq (player-kind other) :barbarian))
-                    (eq (relation state pid oid) :peace)
-                    (< (gs-rand state 100) 2))      ; 2% per peace-partner per turn
-            do (setf (relation state pid oid) :war))))
+          when (and (/= oid pid) (not (eq (player-kind other) :barbarian)))
+            do (let ((theirs (length (player-city-list state oid))))
+                 (cond
+                   ;; at war and clearly losing -> sue for peace (a city-less
+                   ;; roaming force has nothing to protect, so it fights on)
+                   ((and (at-war-p state pid oid) (plusp mine) (<= (* 2 mine) theirs))
+                    (setf (relation state pid oid) :peace))
+                   ;; at peace, not weaker, and they have something to take -> pounce
+                   ((and (eq (relation state pid oid) :peace)
+                         (plusp theirs) (>= mine theirs)
+                         (< (gs-rand state 100) 3))
+                    (setf (relation state pid oid) :war)))))))
 
 (defun ai-adjacent-enemy-city (state unit)
   "Coordinates (x y) of an at-war enemy city bordering UNIT, or NIL."
@@ -63,12 +73,21 @@
         when (and cid (at-war-p state (city-owner (city-by-id state cid)) (unit-owner unit)))
           return (list x y)))
 
+;; forward references to the invasion helpers defined further down
+(declaim (ftype (function (t t t t) t) nearest-enemy-city ai-step-toward)
+         (ftype (function (t t) t) only-defender-p))
+
 (defun ai-military (state unit)
   "Attack an adjacent enemy, walk into an adjacent undefended enemy city to take
-it, else garrison (fortify) in an own city, else explore."
-  (let ((enemy (adjacent-enemy state unit))
-        (cityxy (ai-adjacent-enemy-city state unit))
-        (tile (tile-at (gs-map state) (unit-x unit) (unit-y unit))))
+it, march surplus troops on the nearest enemy city in wartime, else garrison an
+own city (keeping one defender) or explore."
+  (let* ((enemy (adjacent-enemy state unit))
+         (cityxy (ai-adjacent-enemy-city state unit))
+         (tile (tile-at (gs-map state) (unit-x unit) (unit-y unit)))
+         ;; surplus troops (not a city's lone defender) head for the front
+         (target (and (not (only-defender-p state unit))
+                      (nearest-enemy-city state (unit-owner unit)
+                                          (unit-x unit) (unit-y unit)))))
     (cond
       (enemy
        (ai-cmd state (list :move-unit :unit (unit-id unit)
@@ -78,6 +97,7 @@ it, else garrison (fortify) in an own city, else explore."
        (ai-cmd state (list :move-unit :unit (unit-id unit)
                            :dx (signum (signed-dx (gs-map state) (unit-x unit) (first cityxy)))
                            :dy (signum (- (second cityxy) (unit-y unit))))))
+      (target (ai-step-toward state unit (city-x target) (city-y target)))
       ((and tile (tile-city tile) (eql (tile-owner tile) (unit-owner unit)))
        (unless (eq (unit-orders unit) :fortified)
          (ai-cmd state (list :fortify :unit (unit-id unit)))))
@@ -124,11 +144,18 @@ it, else garrison (fortify) in an own city, else explore."
   '(:armor :artillery :cannon :musketeers :knights :catapult :legion :phalanx :warriors)
   "Land units, best first, the AI will build for an invasion / defense force.")
 
-(defun ai-best-attacker (player)
-  "The strongest non-obsolete land unit in *AI-ATTACKERS* PLAYER can build."
+(defparameter *ai-defenders*
+  '(:mech-inf :riflemen :musketeers :phalanx :warriors)
+  "Land units, best defender first, the AI garrisons its cities with.")
+
+(defun ai-buildable (player list)
+  "The first unit in LIST that PLAYER can build and that isn't obsolete."
   (find-if (lambda (u) (and (player-has-tech-p player (unit-def u :requires))
                             (not (unit-obsolete-p player u))))
-           *ai-attackers*))
+           list))
+
+(defun ai-best-attacker (player) (ai-buildable player *ai-attackers*))
+(defun ai-best-defender (player) (ai-buildable player *ai-defenders*))
 
 (defun ai-step-toward (state unit tx ty)
   "Move UNIT one tile toward (TX,TY) -- diagonal first, then either axis.
@@ -216,6 +243,9 @@ an adjacent sea tile, board it.  Returns non-NIL if UNIT boarded."
   (let* ((pid (player-id player))
          (at-war (ai-has-invasion-target-p state pid))
          (item (cond
+                ;; an undefended city must raise a garrison before anything else
+                ((not (city-defended-p state city))
+                 (list :unit (ai-best-defender player)))
                 ;; a growing city needs a temple to stave off disorder
                 ((and (>= (city-size city) 4)
                       (player-has-tech-p player :ceremonial-burial)
@@ -254,23 +284,37 @@ spreads among the civilizations."
                                          :want (list (list :tech want))))
                      (return)))))))
 
+(defun ai-act (state u)
+  "One action for unit U: settlers settle; ships ferry invasions; land troops
+board a waiting transport when there's an enemy to hit, else fight/explore."
+  (cond
+    ((eq (unit-type u) :settlers) (ai-settler state u))
+    ((eq (unit-def (unit-type u) :carries) :land) (ai-transport state u))
+    ((and (eq (unit-def (unit-type u) :domain) :land)
+          (plusp (unit-def (unit-type u) :attack 0))
+          (ai-try-board state u)))                  ; boarded -> done
+    (t (ai-military state u))))
+
+(defun ai-unit-turn (state u)
+  "Let U act repeatedly until it is spent, consumed, or makes no progress, so a
+unit uses its whole movement allowance in one turn."
+  (let ((id (unit-id u)))
+    (dotimes (guard 10)
+      (unless (and (unit-by-id state id) (plusp (unit-moves-left u))) (return))
+      (let ((before (unit-moves-left u)))
+        (ai-act state u)
+        (when (or (null (unit-by-id state id))      ; consumed (founded a city, died)
+                  (= (unit-moves-left u) before))    ; no progress -> stop spinning
+          (return))))))
+
 (defun ai-take-turn (state player)
   "Issue this AI PLAYER's commands for the current turn."
   (ai-diplomacy state player)
   (ai-try-trade state player)
   (let ((pid (player-id player)))
-    ;; units: settlers settle; ships ferry invasions; land troops board a
-    ;; waiting transport when there's an enemy to hit, else fight/explore
     (dolist (u (player-unit-list state pid))
       (when (unit-by-id state (unit-id u))         ; may have been consumed/killed
-        (cond
-          ((eq (unit-type u) :settlers) (ai-settler state u))
-          ((eq (unit-def (unit-type u) :carries) :land) (ai-transport state u))
-          ((and (eq (unit-def (unit-type u) :domain) :land)
-                (plusp (unit-def (unit-type u) :attack 0))
-                (ai-try-board state u)))           ; boarded -> nothing more this turn
-          (t (ai-military state u)))))
-    ;; cities: pick production
+        (ai-unit-turn state u)))
     (dolist (c (player-city-list state pid))
       (ai-city-production state player c))))
 
@@ -298,7 +342,7 @@ spreads among the civilizations."
     (spawn-barbarian state barb))
   (dolist (u (player-unit-list state (player-id barb)))
     (when (unit-by-id state (unit-id u))
-      (ai-military state u))))            ; attack an adjacent enemy, else wander
+      (ai-unit-turn state u))))           ; raid with full movement
 
 (defun run-ai-players (state)
   "Run AI for every non-human player.  Called from END-TURN."

@@ -800,6 +800,7 @@
       (civ-model::register-city s :name "A" :owner 2 :x 1 :y 1)     ; >=3 cities so it
       (civ-model::register-city s :name "B" :owner 2 :x 2 :y 2)     ;   isn't still settling
       (let ((coastal (civ-model::register-city s :name "C" :owner 2 :x 3 :y 4)))
+        (add-unit s :phalanx 2 3 4)             ; already garrisoned, so it can look outward
         (civ-model::ai-city-production s p2 coastal)
         (is (equal '(:unit :transport) (city-production coastal)))))))
 
@@ -906,6 +907,50 @@
       (let ((raider (add-unit s :legion 2 3 4)))   ; an AI (player 2) legion next door
         (civ-model::ai-military s raider)
         (is (= 2 (city-owner c)))))))              ; the AI marched in and took it
+
+;;; --- smarter AI ------------------------------------------------------------
+
+(test ai-uses-its-full-movement
+  ;; a fast unit should spend its whole movement allowance in one turn
+  (let ((s (bare-state 12 12)))
+    (let ((u (add-unit s :cavalry 2 6 6)))          ; cavalry: 2 moves, AI-owned
+      (is (= 2 (unit-moves-left u)))
+      (civ-model::ai-unit-turn s u)
+      (is (= 0 (unit-moves-left u))))))             ; both moves used, not just one
+
+(test ai-rebuilds-a-defender-for-an-undefended-city
+  (let ((s (bare-state 8 8)))
+    (let ((c (civ-model::register-city s :name "Open" :owner 2 :x 4 :y 4))
+          (p2 (player-by-id s 2)))
+      (civ-model::ai-city-production s p2 c)         ; nothing garrisons it
+      (is (eq :unit (first (city-production c))))
+      (is (member (second (city-production c)) '(:warriors :phalanx :musketeers :riflemen :mech-inf))))))
+
+(test ai-sues-for-peace-when-clearly-losing
+  (let ((s (bare-state 8 8)))
+    (setf (relation s 1 2) :war)
+    (civ-model::register-city s :name "Mine" :owner 1 :x 1 :y 1)          ; player 1: 1 city
+    (dotimes (i 4) (civ-model::register-city s :name "T" :owner 2 :x (+ 3 i) :y 4)) ; player 2: 4
+    (civ-model::ai-diplomacy s (player-by-id s 1))   ; the weak side reconsiders
+    (is (not (at-war-p s 1 2)))))                     ; made peace
+
+(test ai-wont-start-a-war-it-would-lose
+  (let ((s (bare-state 8 8)))                         ; relation defaults to peace
+    (civ-model::register-city s :name "Mine" :owner 1 :x 1 :y 1)          ; player 1: 1 city
+    (dotimes (i 4) (civ-model::register-city s :name "T" :owner 2 :x (+ 3 i) :y 4)) ; player 2: 4
+    (dotimes (i 50) (civ-model::ai-diplomacy s (player-by-id s 1)))       ; many chances
+    (is (not (at-war-p s 1 2)))))                     ; never picks the losing fight
+
+(test ai-marches-on-the-enemy-in-wartime
+  (let ((s (bare-state 16 8)))
+    (setf (relation s 1 2) :war)
+    (let ((foe (civ-model::register-city s :name "Foe" :owner 1 :x 12 :y 4))
+          (raider (add-unit s :legion 2 3 4)))        ; an AI legion in the field
+      (flet ((dist () (+ (map-dx (gs-map s) (city-x foe) (unit-x raider))
+                         (abs (- (city-y foe) (unit-y raider))))))
+        (let ((d0 (dist)))
+          (civ-model::ai-military s raider)
+          (is (< (dist) d0)))))))                      ; advanced toward the enemy city
 
 ;;; --- terrain transformation (clearing) -------------------------------------
 
