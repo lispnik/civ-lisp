@@ -56,6 +56,47 @@
   ;; a deep advance has the right prerequisites
   (is (equal '(:flight :electricity) (tech-def :advanced-flight :prereqs))))
 
+(test tech-tree-fully-wired
+  ;; A durable guard so the advance tree can't silently rot as content is added:
+  ;; every advance is reachable, every requirement names a real advance, and no
+  ;; advance is a useless orphan (it must either unlock something or feed another).
+  (let ((techs (loop for k being the hash-keys of *techs* collect k)))
+    ;; 1. reachability: every advance is derivable from the no-prereq roots
+    ;;    (this also rejects any prerequisite cycle, which would be unreachable)
+    (let ((known (make-hash-table)))
+      (dolist (tk techs)
+        (when (null (tech-def tk :prereqs)) (setf (gethash tk known) t)))
+      (loop with changed = t while changed do
+        (setf changed nil)
+        (dolist (tk techs)
+          (when (and (not (gethash tk known))
+                     (every (lambda (p) (gethash p known)) (tech-def tk :prereqs)))
+            (setf (gethash tk known) t changed t))))
+      (dolist (tk techs)
+        (is-true (gethash tk known) "advance ~A is unreachable from the roots" tk)))
+    ;; 2. everything gated by an advance (units, buildings, wonders, governments)
+    ;;    names a real advance
+    (dolist (table (list *units* *buildings* *wonders* *governments*))
+      (loop for k being the hash-keys of table
+            for req = (def-get table k :requires)
+            when req
+              do (is-true (gethash req *techs*)
+                          "~A requires non-existent advance ~A" k req)))
+    ;; 3. no orphan advances: each either unlocks content (a unit/building/wonder/
+    ;;    government, or the code-gated spaceship) or is a prerequisite of another
+    (let ((useful (make-hash-table)))
+      (dolist (table (list *units* *buildings* *wonders* *governments*))
+        (loop for k being the hash-keys of table
+              for req = (def-get table k :requires)
+              when req do (setf (gethash req useful) t)))
+      ;; the spaceship is gated in CMD-SET-PRODUCTION, not a def table
+      (dolist (req '(:space-flight :fusion-power)) (setf (gethash req useful) t))
+      (dolist (tk techs)
+        (dolist (pre (tech-def tk :prereqs)) (setf (gethash pre useful) t)))
+      (dolist (tk techs)
+        (is-true (gethash tk useful)
+                 "advance ~A is an orphan: it unlocks nothing and leads nowhere" tk)))))
+
 (test terrain-and-unit-defs
   (is (= 2 (terrain-def :grassland :food)))
   (is (= 2 (terrain-def :forest :shields)))
