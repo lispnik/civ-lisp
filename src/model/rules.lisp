@@ -161,6 +161,32 @@ carry (e.g. after a transport is sunk)."
                (eq (unit-def (unit-type unit) :carries) :land))
       (drown-stranded-cargo state tile))))
 
+(defun air-refuel-p (state u)
+  "T if air unit U is sitting somewhere it can refuel: an airbase, one of its
+owner's cities, or one of its owner's carriers."
+  (let ((tile (tile-at (gs-map state) (unit-x u) (unit-y u))))
+    (or (tile-airbase tile)
+        (let ((cid (tile-city tile)))
+          (and cid (= (city-owner (city-by-id state cid)) (unit-owner u))))
+        (loop for id in (tile-units tile)
+              for o = (unit-by-id state id)
+              thereis (and o (/= id (unit-id u))
+                           (= (unit-owner o) (unit-owner u))
+                           (eq (unit-def (unit-type o) :carries) :air))))))
+
+(defun process-fuel (state)
+  "Air units on a city/airbase/carrier refuel to full; others burn a turn of
+fuel and crash (are lost) once it runs out."
+  (let ((doomed '()))
+    (maphash (lambda (id u) (declare (ignore id))
+               (when (plusp (unit-def (unit-type u) :range 0))   ; a fuelled air unit
+                 (cond ((air-refuel-p state u)
+                        (setf (unit-fuel u) (unit-def (unit-type u) :range 0)))
+                       ((<= (unit-fuel u) 0) (push u doomed))     ; out of fuel airborne
+                       (t (decf (unit-fuel u))))))
+             (gs-units state))
+    (dolist (u doomed) (destroy-unit state u))))
+
 (defun enemy-adjacent-p (state x y owner)
   "T if a tile bordering (X,Y) holds a unit of a civilization OWNER is at war
 with -- i.e. (X,Y) lies in an enemy zone of control."
@@ -720,6 +746,7 @@ combat phases here.)"
   (refresh-units state)
   (process-terraform state)     ; advance settler road/irrigation/mine jobs
   (process-goto state)          ; units on :goto walk toward their target
+  (process-fuel state)          ; air units refuel, or crash when out of fuel
   (update-visibility state)     ; reveal newly-scouted tiles (fog of war)
 
   (incf (gs-turn state))

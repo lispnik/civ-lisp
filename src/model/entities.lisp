@@ -38,6 +38,7 @@
   (goto-x nil) (goto-y nil)       ; :goto target tile
   (work nil)                      ; terraform job in progress: :build-road/:irrigate/:mine or NIL
   (work-left 0 :type fixnum)      ; turns of work remaining on WORK
+  (fuel 0 :type fixnum)           ; air units: turns of flight left before they must refuel
   (veteran nil))
 
 (defstruct (city (:constructor make-city (&key id name owner x y (size 1))))

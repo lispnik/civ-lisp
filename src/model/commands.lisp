@@ -30,7 +30,7 @@ on an illegal move."
     (:disband-unit   (cmd-disband-unit state command))
     (:upgrade-unit   (cmd-upgrade-unit state command))
     (:goto           (cmd-goto state command))
-    ((:build-road :build-railroad :irrigate :mine :build-fort :clear-forest)
+    ((:build-road :build-railroad :irrigate :mine :build-fort :build-airbase :clear-forest)
      (cmd-terraform state command))
     (:clean-pollution (cmd-clean-pollution state command))
     (:set-rates      (cmd-set-rates state command))
@@ -469,24 +469,25 @@ unit (current land passengers < total transport capacity there)."
     (> cap load)))
 
 (defun carry-passengers (state old transport)
-  "TRANSPORT has just moved to its new tile; bring up to its capacity of the land
-units left on OLD along with it (cargo rides for free).  Only OCEAN passengers
-ride -- land units sharing a coastal *city* tile are its garrison, not cargo."
-  (when (and (eq (tile-terrain old) :ocean)
-             (eq (unit-def (unit-type transport) :carries) :land))
-    (let ((cap (unit-def (unit-type transport) :capacity 0))
-          (dest (tile-at (gs-map state) (unit-x transport) (unit-y transport)))
-          (moved 0))
-      (dolist (id (copy-list (tile-units old)))
-        (let ((p (unit-by-id state id)))
-          (when (and p (< moved cap)
-                     (eq (unit-def (unit-type p) :domain) :land))
-            (setf (tile-units old) (remove id (tile-units old)))
-            (push id (tile-units dest))
-            (setf (unit-x p) (unit-x transport) (unit-y p) (unit-y transport))
-            (incf moved)
-            (reveal-around (player-seen (player-by-id state (unit-owner p)))
-                           state (unit-x p) (unit-y p))))))))
+  "TRANSPORT has just moved to its new tile; bring up to its capacity of the cargo
+left on OLD along with it (rides for free).  A land transport ferries land units,
+a carrier ferries air units; only OCEAN passengers ride, so units sharing a
+coastal *city* tile (a garrison, parked planes) are left behind."
+  (let ((carries (unit-def (unit-type transport) :carries)))
+    (when (and (eq (tile-terrain old) :ocean) carries)
+      (let ((cap (unit-def (unit-type transport) :capacity 0))
+            (dest (tile-at (gs-map state) (unit-x transport) (unit-y transport)))
+            (moved 0))
+        (dolist (id (copy-list (tile-units old)))
+          (let ((p (unit-by-id state id)))
+            (when (and p (< moved cap)
+                       (eq (unit-def (unit-type p) :domain) carries))
+              (setf (tile-units old) (remove id (tile-units old)))
+              (push id (tile-units dest))
+              (setf (unit-x p) (unit-x transport) (unit-y p) (unit-y transport))
+              (incf moved)
+              (reveal-around (player-seen (player-by-id state (unit-owner p)))
+                             state (unit-x p) (unit-y p)))))))))
 
 (defun upgrade-cost (from to)
   "Gold to upgrade unit FROM into TO: twice the build-cost difference (min 10)."

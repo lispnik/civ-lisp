@@ -79,7 +79,7 @@ and AI cities (Akkad, Uruk) have grown alongside.*
 | Shift+D | disband the selected unit (recovers shields if in a city) |
 | U | upgrade the selected obsolete unit to its successor (for gold, in a city) |
 | R / I / M | settlers: build **road** (then **railroad** once known) / **irrigation** / **mine** |
-| T / C | settlers: build a **fort** / **clear** forest→plains, jungle/swamp→grassland |
+| T / A / C | settlers: build a **fort** / **airbase** / **clear** forest→plains, jungle/swamp→grassland |
 | P | settlers: **clean pollution** on the tile |
 | Z / X / D | diplomat: **steal tech** / **sabotage** / open the full **spy menu** (embassy, investigate, incite revolt, bribe…) |
 | H / J | caravan: **help build a wonder** / **establish a trade route** |
@@ -198,6 +198,13 @@ Musketeers, Combustion retires Frigates and Ironclads, and so on) the unit drops
 out of the build menu. Existing ones keep fighting, but you can **upgrade** one
 to its successor while it sits in a city (`U`) for gold proportional to the cost
 difference.
+
+**Air power.** Fighters, bombers and the nuclear missile fly anywhere, but burn
+**fuel**: each carries a limited number of turns of flight (2 / 5 / 8) and must
+end a turn on a friendly **city**, **airbase** (a settler improvement, `A`) or
+**carrier** to refuel — run dry in the air and the unit crashes. Carriers are
+mobile airbases: parked planes refuel on them and ride along when the carrier
+sails. The selected unit's info box shows its remaining **Fuel**.
 
 **Diplomacy & trade.** Relations are war or peace per pair (`Y` to declare war /
 sue for peace); `E` opens a **trade** menu to swap advances or buy/sell them for

@@ -14,6 +14,7 @@
   (irrigation nil)
   (mine nil)
   (fort nil)                  ; a field fort (defensive structure)
+  (airbase nil)               ; an airbase: air units refuel/rebase here
   (pollution nil)             ; a pollution blight sits on this tile
   (hut nil)                   ; an unexplored tribal hut (goody hut) sits here
   ;; occupancy
@@ -81,7 +82,8 @@ around the cylinder, and tiles past the poles are omitted."
     (:railroad (tile-railroad tile))
     (:irrigation (tile-irrigation tile))
     (:mine (tile-mine tile))
-    (:fort (tile-fort tile))))
+    (:fort (tile-fort tile))
+    (:airbase (tile-airbase tile))))
 
 (defun (setf tile-improvement) (value tile flag)
   (ecase flag
@@ -89,7 +91,8 @@ around the cylinder, and tiles past the poles are omitted."
     (:railroad (setf (tile-railroad tile) value))
     (:irrigation (setf (tile-irrigation tile) value))
     (:mine (setf (tile-mine tile) value))
-    (:fort (setf (tile-fort tile) value))))
+    (:fort (setf (tile-fort tile) value))
+    (:airbase (setf (tile-airbase tile) value))))
 
 (defmacro do-tiles ((x y tile map) &body body)
   "Iterate X Y TILE over every tile of MAP."

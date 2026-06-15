@@ -13,7 +13,7 @@
    #:tile #:make-tile #:tile-terrain #:tile-feature #:tile-resource
    #:tile-river #:tile-special
    #:tile-road #:tile-railroad #:tile-irrigation #:tile-mine #:tile-fort
-   #:tile-pollution #:tile-hut #:tile-owner #:tile-city #:tile-units
+   #:tile-pollution #:tile-hut #:tile-airbase #:tile-owner #:tile-city #:tile-units
    #:game-map #:map-width #:map-height #:map-tiles
    #:tile-at #:in-bounds-p #:neighbors #:do-tiles #:wrap-x #:map-dx #:signed-dx
    ;; entities
@@ -22,7 +22,7 @@
    #:player-color #:player-tax-rate #:player-science-rate #:player-luxury-rate
    #:player-gov-target #:player-anarchy-left #:player-spaceship #:player-landing
    #:unit #:unit-id #:unit-type #:unit-owner #:unit-x #:unit-y
-   #:unit-hp #:unit-moves-left #:unit-orders #:unit-veteran
+   #:unit-hp #:unit-moves-left #:unit-orders #:unit-veteran #:unit-fuel
    #:unit-goto-x #:unit-goto-y #:unit-work #:unit-work-left
    #:city #:city-id #:city-name #:city-owner #:city-x #:city-y #:city-size
    #:city-food-box #:city-shield-box #:city-buildings #:city-production #:city-worked

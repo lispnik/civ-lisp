@@ -68,6 +68,7 @@
   "Create a unit, place it on the map, and index it.  Returns the unit."
   (let ((u (make-unit :id (gs-next-id state) :type type :owner owner :x x :y y)))
     (setf (unit-moves-left u) (unit-def type :move 1)
+          (unit-fuel u) (unit-def type :range 0)      ; air units launch with a full tank
           (gethash (unit-id u) (gs-units state)) u)
     (push (unit-id u) (tile-units (tile-at (gs-map state) x y)))
     u))

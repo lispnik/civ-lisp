@@ -908,6 +908,62 @@
         (civ-model::ai-military s raider)
         (is (= 2 (city-owner c)))))))              ; the AI marched in and took it
 
+;;; --- air units: fuel, airbases, carriers -----------------------------------
+
+(test air-unit-launches-with-a-full-tank
+  (let ((s (bare-state 8 8)))
+    (let ((f (add-unit s :fighter 1 4 4)))
+      (is (= (unit-def :fighter :range) (unit-fuel f))))))
+
+(test air-unit-refuels-over-a-city
+  (let ((s (bare-state 8 8)))
+    (civ-model::register-city s :name "Base" :owner 1 :x 4 :y 4)
+    (let ((f (add-unit s :fighter 1 4 4)))
+      (setf (unit-fuel f) 0)                 ; nearly out of fuel, but sitting in a city
+      (civ-model::process-fuel s)
+      (is-true (unit-by-id s (unit-id f)))   ; didn't crash
+      (is (= (unit-def :fighter :range) (unit-fuel f))))))  ; topped back up
+
+(test air-unit-burns-fuel-and-crashes-when-dry
+  (let ((s (bare-state 8 8)))
+    (let ((f (add-unit s :fighter 1 4 4)))   ; out in the open field
+      (setf (unit-fuel f) 1)
+      (civ-model::process-fuel s)            ; burns a turn -> 0
+      (is (= 0 (unit-fuel f)))
+      (is-true (unit-by-id s (unit-id f)))
+      (civ-model::process-fuel s)            ; still airborne, dry -> crash
+      (is-false (unit-by-id s (unit-id f))))))
+
+(test airbase-refuels-air-units
+  (let ((s (bare-state 8 8)))
+    (setf (tile-airbase (tile-at (gs-map s) 4 4)) t)
+    (let ((f (add-unit s :fighter 1 4 4)))
+      (setf (unit-fuel f) 0)
+      (civ-model::process-fuel s)
+      (is-true (unit-by-id s (unit-id f)))
+      (is (= (unit-def :fighter :range) (unit-fuel f))))))
+
+(test settler-can-build-an-airbase
+  (let ((s (bare-state 8 8)))
+    (let ((u (add-unit s :settlers 1 3 3))
+          (p (player-by-id s 1)))
+      (setf (gethash :flight (player-techs p)) t)        ; airbases need Flight
+      (apply-command s (list :build-airbase :unit (unit-id u)))
+      (dotimes (i (civ-model::terraform-def :build-airbase :turns))
+        (civ-model::process-terraform s))
+      (is-true (tile-airbase (tile-at (gs-map s) 3 3))))))
+
+(test carrier-refuels-and-ferries-its-planes
+  (let ((s (bare-state 8 8)))
+    (terrain! s 4 4 :ocean) (terrain! s 5 4 :ocean)      ; a sea lane
+    (let ((carrier (add-unit s :carrier 1 4 4))
+          (f (add-unit s :fighter 1 4 4)))               ; a fighter parked on the carrier
+      (setf (unit-fuel f) 0)
+      (civ-model::process-fuel s)                        ; the carrier refuels it
+      (is (= (unit-def :fighter :range) (unit-fuel f)))
+      (apply-command s (list :move-unit :unit (unit-id carrier) :dx 1 :dy 0))
+      (is (= 5 (unit-x f))) (is (= 4 (unit-y f))))))     ; the plane sailed along
+
 ;;; --- smarter AI ------------------------------------------------------------
 
 (test ai-uses-its-full-movement

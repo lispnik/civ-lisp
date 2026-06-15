@@ -19,7 +19,7 @@
         :moves-left (unit-moves-left u) :orders (unit-orders u)
         :goto-x (unit-goto-x u) :goto-y (unit-goto-y u)
         :work (unit-work u) :work-left (unit-work-left u)
-        :veteran (unit-veteran u)))
+        :fuel (unit-fuel u) :veteran (unit-veteran u)))
 
 (defun list->unit (ul)
   (let ((u (make-unit :id (getf ul :id) :type (getf ul :type)
@@ -31,6 +31,7 @@
           (unit-goto-y u) (getf ul :goto-y)
           (unit-work u) (getf ul :work)
           (unit-work-left u) (getf ul :work-left)
+          (unit-fuel u) (or (getf ul :fuel) 0)
           (unit-veteran u) (getf ul :veteran))
     u))
 
@@ -92,17 +93,17 @@ the entity lists on load."
         (and (tile-road tile) t) (and (tile-irrigation tile) t)
         (and (tile-mine tile) t) (and (tile-pollution tile) t)
         (and (tile-railroad tile) t) (and (tile-fort tile) t)
-        (and (tile-hut tile) t)))
+        (and (tile-hut tile) t) (and (tile-airbase tile) t)))
 
 (defun restore-tile (tile spec)
   (destructuring-bind (terrain river special road irrigation mine
-                       &optional pollution railroad fort hut) spec
+                       &optional pollution railroad fort hut airbase) spec
     (setf (tile-terrain tile) terrain
           (tile-river tile) river (tile-special tile) special
           (tile-road tile) road (tile-irrigation tile) irrigation
           (tile-mine tile) mine (tile-pollution tile) pollution
           (tile-railroad tile) railroad (tile-fort tile) fort
-          (tile-hut tile) hut)))
+          (tile-hut tile) hut (tile-airbase tile) airbase)))
 
 ;;; --- whole game ------------------------------------------------------------
 

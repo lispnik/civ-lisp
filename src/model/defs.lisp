@@ -50,14 +50,14 @@
      (:submarine   :attack 8 :defense 2 :move 3 :cost 50 :requires :mass-production :domain :sea)
      (:transport   :attack 0 :defense 3 :move 4 :cost 50 :requires :industrialization :domain :sea :capacity 8 :carries :land)
      (:artillery   :attack 12 :defense 2 :move 2 :cost 60 :requires :robotics :domain :land)
-     (:fighter     :attack 4 :defense 2 :move 10 :cost 60 :requires :flight :domain :air)
+     (:fighter     :attack 4 :defense 2 :move 10 :cost 60 :requires :flight :domain :air :range 2)
      (:ironclad    :attack 4 :defense 4 :move 4 :cost 60 :requires :steam-engine :domain :sea :obsolete-by :combustion :upgrade-to :cruiser)
      (:armor       :attack 10 :defense 5 :move 3 :cost 80 :requires :automobile :domain :land)
      (:cruiser     :attack 6 :defense 6 :move 6 :cost 80 :requires :combustion :domain :sea)
-     (:bomber      :attack 12 :defense 1 :move 8 :cost 120 :requires :advanced-flight :domain :air)
+     (:bomber      :attack 12 :defense 1 :move 8 :cost 120 :requires :advanced-flight :domain :air :range 5)
      (:battleship  :attack 18 :defense 12 :move 4 :cost 160 :requires :steel :domain :sea)
      (:carrier     :attack 1 :defense 12 :move 5 :cost 160 :requires :advanced-flight :domain :sea :capacity 8 :carries :air)
-     (:nuclear     :attack 99 :defense 0 :move 16 :cost 160 :requires :rocketry :domain :air)))
+     (:nuclear     :attack 99 :defense 0 :move 16 :cost 160 :requires :rocketry :domain :air :range 8)))
   "Unit types -> combat stats, build cost, tech requirement, domain.
 :domain is :land (off ocean), :sea (only ocean) or :air (unrestricted).")
 
@@ -233,6 +233,9 @@ CORRUPTION    percent of a city's trade lost; SCIENCE  whether research happens.
      (:mine       :flag :mine       :verb "mine"        :turns 4
                   :terrains (:hills :mountains :desert))
      (:build-fort :flag :fort       :verb "fort"        :turns 3 :requires :construction
+                  :terrains (:grassland :plains :forest :hills :mountains :desert
+                             :tundra :arctic :swamp :jungle))
+     (:build-airbase :flag :airbase :verb "airbase"     :turns 4 :requires :flight
                   :terrains (:grassland :plains :forest :hills :mountains :desert
                              :tundra :arctic :swamp :jungle))
      ;; clearing reveals the land under vegetation/wetland (terrain-dependent)

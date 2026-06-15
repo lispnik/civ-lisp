@@ -558,6 +558,7 @@ or an error message."
                                   ((= sc +sc-i+) (terra :irrigate))
                                   ((= sc +sc-m+) (terra :mine))
                                   ((= sc +sc-t+) (terra :build-fort))
+                                  ((= sc +sc-a+) (terra :build-airbase))
                                   ((= sc +sc-c+) (terra :clear-forest))
                                   ((= sc +sc-p+) (terra :clean-pollution))
                                   ((= sc +sc-v+) (setf gov-menu t))    ; revolution menu

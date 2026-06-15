@@ -282,6 +282,9 @@ toward each neighbour LINK-FN accepts; an isolated track gets a small stub."
     (when (civm:tile-fort tile)
       (blit p (painter-sprites p) (* (car +fort-sprite+) *tile*)
             (* (cdr +fort-sprite+) *tile*) *tile* *tile* px py))
+    (when (civm:tile-airbase tile)            ; airbase pad (a light landing strip)
+      (draw-marker p px py (- *tile* 4) 3 '(210 210 230))
+      (draw-frame p px py '(120 120 160) 1))
     ;; pollution blight sits on top of everything else on the tile
     (when (civm:tile-pollution tile)
       (blit p (painter-sprites p) (* (car +pollution-sprite+) *tile*)
@@ -432,6 +435,8 @@ plus a row of every unit sharing the square (the selected one outlined cyan)."
                                       (civm:unit-def type :defense 0))
                               (format nil "Moves: ~D  HP ~D"
                                       (civm:unit-moves-left u) (civm:unit-hp u))
+                              (and (plusp (civm:unit-def type :range 0))
+                                   (format nil "Fuel: ~D" (civm:unit-fuel u)))
                               (let ((w (civm:unit-work u)))
                                 (and w (format nil "~A ~D"
                                                (string-capitalize
@@ -665,7 +670,7 @@ celebration banner."
     "B  found city       F  fortify"
     "Shift+D  disband unit    U  upgrade obsolete unit"
     "R / I / M  road (then rail) / irrigate / mine"
-    "T  fort   C  clear forest/jungle/swamp   P  clean pollution"
+    "T fort  A airbase  C clear forest/jungle/swamp  P de-pollute"
     "G then click  go to a tile"
     "V  revolution   Y  diplomacy   E  trade"
     "Z / X  diplomat steal / sabotage   D  spy menu"
