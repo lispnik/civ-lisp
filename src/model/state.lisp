@@ -93,14 +93,15 @@ jungle/swamp near the equator, temperate land between, with local variety."
          (lat (if (plusp mid) (/ (abs (- y mid)) mid) 0.0))  ; 0 equator .. 1 pole
          (r (gs-rand state 100)))
     (cond
-      ((> lat 0.85) :arctic)
-      ((> lat 0.70) (if (< r 60) :tundra :arctic))
-      ((> lat 0.50) (cond ((< r 45) :tundra) ((< r 70) :hills)
-                          ((< r 85) :forest) (t :grassland)))
-      ((< lat 0.25) (cond ((< r 30) :jungle) ((< r 45) :swamp) ((< r 60) :grassland)
-                          ((< r 75) :plains) ((< r 90) :forest) (t :desert)))
-      (t            (cond ((< r 28) :grassland) ((< r 48) :plains) ((< r 65) :forest)
-                          ((< r 80) :hills) ((< r 90) :mountains) (t :desert))))))
+      ;; thin polar caps, then a broad habitable belt, then the equator
+      ((> lat 0.88) :arctic)
+      ((> lat 0.72) (cond ((< r 60) :tundra) ((< r 78) :arctic)
+                          ((< r 90) :hills) (t :forest)))
+      ((< lat 0.30) (cond ((< r 26) :jungle) ((< r 40) :swamp) ((< r 57) :grassland)
+                          ((< r 72) :plains) ((< r 84) :forest) ((< r 93) :hills)
+                          (t :desert)))
+      (t            (cond ((< r 26) :grassland) ((< r 44) :plains) ((< r 60) :forest)
+                          ((< r 78) :hills) ((< r 92) :mountains) (t :desert))))))
 
 (defun grow-continents (state map)
   "Carve organic landmasses out of an all-ocean MAP by accretion from a handful
@@ -127,7 +128,17 @@ of seeds, then paint each land tile a climate-appropriate terrain."
             (add nxx nyy))))
       (loop for k being the hash-keys of land
             do (setf (tile-terrain (svref (map-tiles map) k))
-                     (climate-terrain state h (floor k w)))))))
+                     (climate-terrain state h (floor k w))))
+      ;; carve a few mountain ranges across the land for relief
+      (dotimes (i (max 1 (round (* w h) 800)))
+        (let ((x (gs-rand state w)) (y (+ 4 (gs-rand state (max 1 (- h 8))))))
+          (dotimes (step (+ 4 (gs-rand state 7)))
+            (let ((tile (tile-at map x y)))
+              (when (and tile (not (eq (tile-terrain tile) :ocean))
+                         (not (eq (tile-terrain tile) :arctic)))
+                (setf (tile-terrain tile) (if (zerop (gs-rand state 4)) :hills :mountains))))
+            (ecase (gs-rand state 4) (0 (incf x)) (1 (decf x)) (2 (incf y)) (3 (decf y)))
+            (setf x (wrap-x map x) y (max 0 (min (1- h) y)))))))))
 
 (defun find-land-near (map x0 y0)
   "Nearest non-ocean tile to (X0,Y0), spiralling outward; (values x y)."
