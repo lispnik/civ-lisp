@@ -111,6 +111,8 @@ The city centre is worked for free and, per Civ1, always yields at least
     ;; corruption: a government-dependent slice of trade is simply lost
     (when gov
       (let ((corrupt (government-def gov :corruption 0)))
+        (when (member :courthouse (city-buildings city))  ; courthouse halves it
+          (setf corrupt (floor corrupt 2)))
         (when (plusp corrupt) (decf tr (floor (* tr corrupt) 100)))))
     (values f s tr)))
 
@@ -370,8 +372,11 @@ help globally."
         (when (and ml (plusp ml))
           (calm (min ml (count-city-military state city)))))
       ;; luxuries: every 2 luxury arrows make one citizen happier
+      ;; (a marketplace/bank boost the luxury arrows just like the gold ones)
       (when owner
-        (cheer (floor (floor (* trade (player-luxury-rate owner)) 100) 2)))
+        (cheer (floor (city-luxury-output
+                       city (floor (* trade (player-luxury-rate owner)) 100))
+                      2)))
       ;; global-happiness wonders
       (when (wonder-built-p state :hanging-gardens) (cheer 1))
       (when (wonder-built-p state :cure-for-cancer) (cheer 1))
@@ -451,9 +456,47 @@ has superseded it), so it can no longer be built."
         0)))
 
 (defun city-growth-cap (city)
-  "Largest size CITY can reach with its water infrastructure: 8 without an
-aqueduct (Civ1), unbounded with one."
-  (if (member :aqueduct (city-buildings city)) most-positive-fixnum 8))
+  "Largest size CITY can reach with its water infrastructure: 8 unimproved, 12
+with an aqueduct, unbounded once a sewer system is added."
+  (let ((b (city-buildings city)))
+    (cond ((member :sewer-system b) most-positive-fixnum)
+          ((member :aqueduct b) 12)
+          (t 8))))
+
+(defun pct+50 (n) "N raised by 50% (Civ-style +50% improvement bonus)." (floor (* n 3) 2))
+
+(defun city-shield-output (state city base)
+  "BASE shields after the production multipliers: a factory adds +50%, a power
+plant (or the Hoover Dam, a free clean power plant in every owned city) adds a
+further +50% to a factory city, and a manufacturing plant adds +50% more."
+  (let* ((b (city-buildings city))
+         (factory (member :factory b))
+         (mfg (member :mfg-plant b))
+         (plant (or (member :power-plant b) (member :hydro-plant b)
+                    (member :nuclear-plant b)))
+         (hoover (player-wonder-p state (city-owner city) :hoover-dam))
+         (out base))
+    (when factory (setf out (pct+50 out)))
+    (cond (hoover (setf out (pct+50 out)))            ; Hoover: powers any city
+          ((and factory plant) (setf out (pct+50 out))))  ; a plant needs a factory
+    (when mfg (setf out (pct+50 out)))
+    out))
+
+(defun city-gold-output (city base)
+  "BASE tax gold after a marketplace, bank, and stock exchange (+50% each)."
+  (let ((b (city-buildings city)) (g base))
+    (when (member :marketplace b)   (setf g (pct+50 g)))
+    (when (member :bank b)          (setf g (pct+50 g)))
+    (when (member :stock-exchange b)(setf g (pct+50 g)))
+    g))
+
+(defun city-luxury-output (city base)
+  "BASE luxury after a marketplace and bank (+50% each); stock exchanges are
+gold-only, so they do not apply here."
+  (let ((b (city-buildings city)) (l base))
+    (when (member :marketplace b) (setf l (pct+50 l)))
+    (when (member :bank b)        (setf l (pct+50 l)))
+    l))
 
 (defun city-pollution-chance (shields buildings)
   "Percent chance (per turn) a city emits pollution, from its SHIELDS, raised by
@@ -566,10 +609,8 @@ across the map.  The more polluted tiles, the likelier and worse each event."
                    ((minusp (city-food-box city))            ; starvation
                     (when (> (city-size city) 1) (decf (city-size city)))
                     (setf (city-food-box city) 0))))
-           ;; production (Hoover Dam acts as a power plant in every owned city)
-           (incf (city-shield-box city)
-                 (if (player-wonder-p state (city-owner city) :hoover-dam)
-                     (floor (* shields 3) 2) shields))
+           ;; production: factories, power plants and the Hoover Dam multiply shields
+           (incf (city-shield-box city) (city-shield-output state city shields))
            (city-try-complete state city)
            ;; a celebrating republic/democracy city earns bonus trade
            (when celebrating
@@ -582,6 +623,8 @@ across the map.  The more polluted tiles, the likelier and worse each event."
              (let ((sci (* trade (player-science-rate p))))
                (when (member :library (city-buildings city))       ; library +50%
                  (setf sci (floor (* sci 3) 2)))
+               (when (member :university (city-buildings city))    ; university +50%
+                 (setf sci (floor (* sci 3) 2)))
                (when (member :great-library (city-buildings city)) ; great library +50%
                  (setf sci (floor (* sci 3) 2)))
                (when (member :copernicus-observatory (city-buildings city)) ; +50% in its city
@@ -590,7 +633,8 @@ across the map.  The more polluted tiles, the likelier and worse each event."
                  (setf sci (* sci 2)))
                (when (player-wonder-p state (city-owner city) :s-e-t-i-program) ; +50% civ-wide
                  (setf sci (floor (* sci 3) 2)))
-               (incf (player-gold p) (floor (* trade (player-tax-rate p)) 100))
+               (incf (player-gold p)
+                     (city-gold-output city (floor (* trade (player-tax-rate p)) 100)))
                (when (government-def (player-government p) :science)
                  (incf (player-beakers p) sci))))
            ;; dirty industry may blight a nearby tile with pollution

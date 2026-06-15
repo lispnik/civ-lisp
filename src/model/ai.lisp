@@ -115,23 +115,27 @@ Republic/Democracy suffer war-weariness."
            *ai-wonder-order*))
 
 (defparameter *ai-tech-goals*
-  '(:monarchy :bronze-working :currency :trade :masonry :writing :literacy
-    :the-republic :philosophy :mathematics :banking :university :democracy
-    :sanitation :gunpowder :industrialization :electronics :computers)
-  "Advances the AI beelines for, best first -- governments and economy/wonder
-techs.  The AI researches whichever prerequisite of the first unmet goal is
-within reach, so it actually arrives at Monarchy, Trade, the Republic, etc.")
+  '(:monarchy :bronze-working :currency :trade :construction :masonry :writing
+    :literacy :the-republic :philosophy :mathematics :banking :university
+    :democracy :gunpowder :industrialization :the-corporation :electronics
+    :computers)
+  "Advances the AI beelines for, best first -- governments plus the economy and
+wonder techs (Currency/Trade/Banking for gold, Construction for aqueducts,
+University for science, Industrialization for factories).  The AI researches
+whichever prerequisite of the first unmet goal is within reach, so it actually
+arrives at Monarchy, the Republic, factories, and the rest.")
 
 (defun ai-next-tech (player)
   "The advance the AI should research next: walk *AI-TECH-GOALS* and return the
-nearest researchable step toward the first goal it lacks, or NIL once all are in."
+nearest researchable step toward the first goal it lacks, or NIL once all are in.
+Only ever returns a real advance, so a stray goal name can't grant a phantom tech."
   (let ((have (player-techs player)))
     (labels ((toward (tech)                       ; deepest first-unmet prerequisite
                (or (some (lambda (pre) (unless (gethash pre have) (toward pre)))
                          (tech-def tech :prereqs))
                    tech)))
       (loop for goal in *ai-tech-goals*
-            unless (gethash goal have)
+            when (and (gethash goal *techs*) (not (gethash goal have)))
               return (toward goal)))))
 
 (defun ai-research (state player)
@@ -383,19 +387,45 @@ an adjacent sea tile, board it.  Returns non-NIL if UNIT boarded."
                             :dx (signum (signed-dx (gs-map state) (unit-x unit) (first spot)))
                             :dy (signum (- (second spot) (unit-y unit)))))))))
 
+(defparameter *ai-building-order*
+  '(:marketplace :library :aqueduct :university :bank :factory
+    :power-plant :sewer-system :stock-exchange :colosseum :courthouse)
+  "City improvements the AI raises in peacetime, most valuable first.")
+
+(defun ai-next-building (player city)
+  "The next worthwhile improvement CITY can build, or NIL.  Growth and happiness
+buildings are gated on size; a power plant waits for the factory it powers."
+  (find-if (lambda (bld)
+             (and (player-has-tech-p player (building-def bld :requires))
+                  (not (member bld (city-buildings city)))
+                  (case bld
+                    (:aqueduct     (>= (city-size city) 6))
+                    (:sewer-system (>= (city-size city) 11))
+                    (:colosseum    (>= (city-size city) 5))
+                    (:power-plant  (member :factory (city-buildings city)))
+                    (t t))))
+           *ai-building-order*))
+
 (defun ai-city-production (state player city)
-  "Keep cities content, expand while small, then build a library or defenders."
+  "Keep cities content, expand while small, then build up the economy or an army."
   (let* ((pid (player-id player))
          (at-war (ai-has-invasion-target-p state pid))
          (special (and at-war (ai-special-unit state player)))
          ;; the AI builds wonders in its largest, well-established city
          (wonder (and (eq city (ai-largest-city state pid))
                       (ai-best-wonder state player)))
+         (building (ai-next-building player city))
          (item (cond
                 ;; once committed to a wonder, see it through (don't fritter the
                 ;; shield box away on cheap units before it can ever complete)
                 ((and (eq (first (city-production city)) :wonder)
                       (not (wonder-built-p state (second (city-production city))))
+                      (city-defended-p state city))
+                 (city-production city))
+                ;; likewise finish an improvement already under way, rather than
+                ;; re-rolling to a cheap unit that would eat the shields first
+                ((and (eq (first (city-production city)) :building)
+                      (not (member (second (city-production city)) (city-buildings city)))
                       (city-defended-p state city))
                  (city-production city))
                 ;; an undefended city must raise a garrison before anything else
@@ -411,6 +441,11 @@ an adjacent sea tile, board it.  Returns non-NIL if UNIT boarded."
                 ;; the capital invests in a world wonder
                 ((and wonder (>= (city-size city) 4) (< (gs-rand state 100) 60))
                  (list :wonder wonder))
+                ;; develop the economy even in wartime: roughly half the time a
+                ;; defended city raises an improvement rather than another unit, so
+                ;; perpetual war doesn't keep every city stuck pumping warriors
+                ((and building (< (gs-rand state 100) (if at-war 45 80)))
+                 (list :building building))
                 ;; at war: a coastal city builds a transport for the invasion,
                 ;; then everyone pumps out attackers (to load and to defend)
                 ((and at-war (coastal-city-p state city)
@@ -427,9 +462,8 @@ an adjacent sea tile, board it.  Returns non-NIL if UNIT boarded."
                               (player-unit-list state pid))
                       (< (gs-rand state 100) 15))
                  '(:unit :caravan))
-                ((and (player-has-tech-p player :writing)
-                      (not (member :library (city-buildings city))))
-                 '(:building :library))
+                ;; any remaining improvement worth building
+                (building (list :building building))
                 ;; cheap filler that is never obsolete for this player
                 (t (list :unit (or (ai-best-attacker player) :warriors))))))
     (ai-cmd state (list :set-production :city (city-id city) :item item))))

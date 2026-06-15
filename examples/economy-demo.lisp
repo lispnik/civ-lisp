@@ -69,11 +69,20 @@
                           (civm:player-name p) gov
                           (hash-table-count (civm:player-techs p)) cities
                           (and ws ws))))
-              (format t "~%Wonders standing: ~S~%" wonders)
-              (format t "Civs past despotism: ~D~%" revolted)
-              (format t "Wrote docs/economy-final.png~%")
-              (format t "=> ~A~%"
-                      (if (and (>= revolted 3) wonders) "PASS" "FAIL")))))))))
+              ;; tally the economy infrastructure raised across every city
+              (let ((counts '()))
+                (dolist (b '(:marketplace :library :aqueduct :university :bank
+                             :factory :power-plant :stock-exchange :sewer-system
+                             :courthouse :colosseum :temple))
+                  (let ((n (loop for c being the hash-values of (civm:gs-cities state)
+                                 count (member b (civm:city-buildings c)))))
+                    (when (plusp n) (push (format nil "~(~A~)x~D" b n) counts))))
+                (format t "~%Wonders standing: ~S~%" wonders)
+                (format t "Infrastructure: ~{~A~^  ~}~%" (nreverse counts))
+                (format t "Civs past despotism: ~D~%" revolted)
+                (format t "Wrote docs/economy-final.png~%")
+                (format t "=> ~A~%"
+                        (if (and (>= revolted 3) wonders) "PASS" "FAIL"))))))))))
 
 ;; SDL video must run on the main thread (required on macOS).
 (sdl2:make-this-thread-main #'economy-demo)

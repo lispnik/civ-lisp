@@ -146,7 +146,8 @@ martial-law governments, and by a handful of wonders. If a city has more unhappy
 than happy citizens it falls into **civil disorder** (no production, trade or
 growth); get at least half its citizens happy and it **celebrates** — under a
 republic or democracy that triggers **"We Love the King" rapture growth**, +1
-population every turn (up to the size-8 cap, lifted by an **aqueduct**). The city
+population every turn (up to the size-8 cap, raised to 12 by an **aqueduct** and
+lifted entirely by a **sewer system**). The city
 menu shows the mood and flags both states. Your **government** (`V` to start a
 revolution — one turn of anarchy, then the new regime) sets the rules: despotism
 docks busy tiles and bridles the economy; a republic or democracy adds trade but
@@ -154,6 +155,18 @@ bans martial law and suffers **war weariness** — every military unit out in th
 field makes a citizen back home unhappy (one under a republic, two under a
 democracy). Corruption, rate caps and martial-law limits all vary by government,
 and the advance tree unlocks Monarchy, Communism, The Republic and Democracy.
+
+**City improvements** build up the economy, each with a live effect: a
+**marketplace** then a **bank** and **stock exchange** each add +50% gold (the
+first two boost luxuries too); a **library**, **university** and (wonder) Great
+Library each add +50% science; a **courthouse** halves corruption; a **temple**,
+**colosseum** and **cathedral** keep citizens content; and on the production
+side a **factory** adds +50% shields, a **power plant** (or hydro/nuclear plant,
+or the Hoover Dam) adds +50% more to a factory city, and a **manufacturing
+plant** adds +50% again — with **mass transit** and **recycling centers** to
+scrub the pollution that heavy industry brings. The AI builds these too: it
+beelines the economy advances and raises infrastructure in its cities even
+between wars.
 
 Terrain uses the original **edge-blending** scheme (CivOne's algorithm): a land
 tile is a generic base plus a TER257 overlay chosen by a bitmask of which

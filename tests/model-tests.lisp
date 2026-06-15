@@ -286,6 +286,74 @@
       (civ-model::city-try-complete s c)
       (is-true (unit-veteran (a-unit s 1 :trireme))))))
 
+(test city-economy
+  ;; production multipliers: factory +50%, a power plant +50% more (but only with
+  ;; a factory), a manufacturing plant +50% more again
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)) (base 8))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (is (= base (civm::city-shield-output s c base)))               ; no plant
+      (push :factory (city-buildings c))
+      (is (= (civm::pct+50 base) (civm::city-shield-output s c base))); +50%
+      (push :power-plant (city-buildings c))
+      (is (= (civm::pct+50 (civm::pct+50 base))                        ; +50% more
+             (civm::city-shield-output s c base)))
+      (push :mfg-plant (city-buildings c))
+      (is (= (civm::pct+50 (civm::pct+50 (civm::pct+50 base)))         ; +50% again
+             (civm::city-shield-output s c base)))))
+  ;; a power plant does nothing without a factory to power
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)) (base 8))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (push :power-plant (city-buildings c))
+      (is (= base (civm::city-shield-output s c base)))))
+  ;; gold multipliers: marketplace +50%, bank +50% more, stock exchange +50% again
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)) (base 8))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (is (= base (civm::city-gold-output c base)))
+      (push :marketplace (city-buildings c))
+      (is (= (civm::pct+50 base) (civm::city-gold-output c base)))
+      (push :bank (city-buildings c))
+      (is (= (civm::pct+50 (civm::pct+50 base)) (civm::city-gold-output c base)))
+      (push :stock-exchange (city-buildings c))
+      (is (= (civm::pct+50 (civm::pct+50 (civm::pct+50 base)))
+             (civm::city-gold-output c base)))
+      ;; luxury follows the marketplace and bank but NOT the stock exchange
+      (is (= (civm::pct+50 (civm::pct+50 base)) (civm::city-luxury-output c base)))))
+  ;; university boosts science by 50%, stacking with a library (+50% each)
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)) (p (player-by-id s 1)))
+      (civ-model::city-auto-work s c)
+      (multiple-value-bind (f sh tr) (civ-model::city-yields s c) (declare (ignore f sh))
+        (let ((base-sci (* tr (player-science-rate p))))
+          (setf (city-buildings c) (list :library :university))
+          (let ((b0 (player-beakers p)))
+            (civ-model::process-city s c)
+            (is (= (- (player-beakers p) b0)
+                   (civm::pct+50 (civm::pct+50 base-sci)))))))))   ; +50% +50%
+  ;; a courthouse halves the corruption a despotism loses, keeping more trade
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 3 3)))
+    (loop for y from 1 to 5 do (loop for x from 1 to 5    ; rivers everywhere -> trade
+                                     do (setf (tile-river (tile-at (gs-map s) x y)) t)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (setf (city-size c) 4)
+      (civ-model::city-auto-work s c)
+      (let ((without (nth-value 2 (civ-model::city-yields s c))))
+        (push :courthouse (city-buildings c))
+        (is (> (nth-value 2 (civ-model::city-yields s c)) without)))))
+  ;; water infrastructure lifts the size cap: 8 -> 12 (aqueduct) -> unbounded (sewer)
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (is (= 8 (civ-model::city-growth-cap c)))
+      (push :aqueduct (city-buildings c))
+      (is (= 12 (civ-model::city-growth-cap c)))
+      (push :sewer-system (city-buildings c))
+      (is (= most-positive-fixnum (civ-model::city-growth-cap c))))))
+
 (test ai-economy
   ;; ai-best-wonder picks the first buildable, unbuilt wonder it has tech for
   (let* ((s (bare-state 6 6)) (p (player-by-id s 1)))
