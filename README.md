@@ -154,7 +154,15 @@ fish, mountain gold, jungle gems, arctic seals) are drawn as overlays and feed
 into tile yields. Units and cities use SP257 sprites. The world is **generated**
 as continents grown out of open ocean with a **latitude climate** — arctic and
 tundra at the poles, temperate grassland/forest/hills between, jungle and swamp
-at the equator — across all eleven terrain types. It is an 80×50 **horizontal
+at the equator — across all eleven terrain types.
+
+Two freshly-generated 80×50 worlds (whole map, fog off — mountain ranges thread
+the continents, ice hugs the poles, fish dot the seas):
+
+![generated world](docs/worldgen-1.png)
+![generated world](docs/worldgen-2.png)
+
+It is an 80×50 **horizontal
 cylinder** (it wraps
 east–west, with poles top and bottom); the window is a **scrolling 20×15-tile
 viewport** (16 px tiles, scaled 2× → 640×480) whose camera follows the selected
