@@ -229,6 +229,89 @@
         (push :walls (city-buildings c))
         (is (> (civ-model::defense-strength s u) d0))))))     ; walls add more
 
+(test wonder-effects
+  ;; player-wonder-p sees a civ-wide wonder only in its owner's empire
+  (let* ((s (bare-state 8 8)) (st (add-unit s :settlers 1 4 4)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (is-false (civ-model::player-wonder-p s 1 :hoover-dam))
+      (push :hoover-dam (city-buildings c))
+      (is-true  (civ-model::player-wonder-p s 1 :hoover-dam))
+      (is-false (civ-model::player-wonder-p s 2 :hoover-dam))))   ; not the rival's
+  ;; Hoover Dam acts as a power plant: +50% shields in every owned city
+  (flet ((shield-gain (dam)
+           (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
+             (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+             (let ((c (a-city s)))
+               (civ-model::city-auto-work s c)
+               (when dam (push :hoover-dam (city-buildings c)))
+               (setf (city-production c) '(:wonder :pyramids)   ; too dear to finish
+                     (city-shield-box c) 0)
+               (civ-model::process-city s c)
+               (city-shield-box c)))))
+    (is (= (shield-gain t) (floor (* (shield-gain nil) 3) 2))))
+  ;; SETI program boosts science civ-wide by 50%
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)) (p (player-by-id s 1)))
+      (civ-model::city-auto-work s c)
+      (multiple-value-bind (f sh tr) (civ-model::city-yields s c) (declare (ignore f sh))
+        (let ((base-sci (* tr (player-science-rate p))))
+          (push :s-e-t-i-program (city-buildings c))
+          (let ((b0 (player-beakers p)))
+            (civ-model::process-city s c)
+            (is (= (- (player-beakers p) b0) (floor (* base-sci 3) 2))))))))
+  ;; Darwin's Voyage grants two free advances when completed
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let* ((c (a-city s)) (p (player-by-id s 1))
+           (n0 (hash-table-count (player-techs p))))
+      (setf (city-production c) '(:wonder :darwins-voyage) (city-shield-box c) 999)
+      (civ-model::city-try-complete s c)
+      (is-true (member :darwins-voyage (city-buildings c)))
+      (is (= 2 (- (hash-table-count (player-techs p)) n0)))))
+  ;; Magellan's Expedition gives the owner's ships +1 movement
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2))
+         (ship (add-unit s :trireme 1 3 3)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (push :magellans-expedition (city-buildings (a-city s)))
+    (civ-model::refresh-units s)
+    (is (= (1+ (unit-def :trireme :move)) (unit-moves-left ship))))
+  ;; the Lighthouse trains veteran ships
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (push :lighthouse (city-buildings c))
+      (setf (city-production c) '(:unit :trireme) (city-shield-box c) 999)
+      (civ-model::city-try-complete s c)
+      (is-true (unit-veteran (a-unit s 1 :trireme))))))
+
+(test ai-economy
+  ;; ai-best-wonder picks the first buildable, unbuilt wonder it has tech for
+  (let* ((s (bare-state 6 6)) (p (player-by-id s 1)))
+    (is-false (civ-model::ai-best-wonder s p))           ; no tech yet
+    (setf (gethash :masonry (player-techs p)) t)         ; unlocks pyramids
+    (is (eq :pyramids (civ-model::ai-best-wonder s p)))
+    (setf (gethash :pottery (player-techs p)) t)         ; unlocks hanging-gardens
+    (let* ((st (add-unit s :settlers 1 2 2)))            ; build the pyramids somewhere
+      (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+      (push :pyramids (city-buildings (a-city s))))
+    (is (eq :hanging-gardens (civ-model::ai-best-wonder s p))))  ; pyramids taken
+  ;; ai-best-government prefers the best form the player has tech for
+  (let* ((s (bare-state 6 6)) (p (player-by-id s 1)))
+    (is-false (civ-model::ai-best-government s p))        ; only despotism available
+    (setf (gethash :monarchy (player-techs p)) t)
+    (is (eq :monarchy (civ-model::ai-best-government s p)))
+    (setf (gethash :the-republic (player-techs p)) t
+          (gethash :code-of-laws (player-techs p)) t
+          (gethash :writing (player-techs p)) t)
+    (is (eq :republic (civ-model::ai-best-government s p)))
+    (setf (gethash :democracy (player-techs p)) t
+          (gethash :banking (player-techs p)) t
+          (gethash :invention (player-techs p)) t
+          (gethash :university (player-techs p)) t)
+    (is (eq :democracy (civ-model::ai-best-government s p)))))
+
 (test fortify-and-clear
   (let* ((s (bare-state 6 6)) (u (add-unit s :warriors 1 2 2)))
     (apply-command s (list :fortify :unit (unit-id u)))

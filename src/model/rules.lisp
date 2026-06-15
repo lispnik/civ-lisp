@@ -279,6 +279,11 @@ remaining HP (it heals back over later turns)."
   (loop for c being the hash-values of (gs-cities state)
         thereis (member key (city-buildings c))))
 
+(defun player-wonder-p (state pid key)
+  "T if a city owned by PID holds wonder KEY (a civ-wide wonder effect)."
+  (loop for c being the hash-values of (gs-cities state)
+        thereis (and (= (city-owner c) pid) (member key (city-buildings c)))))
+
 (defparameter *base-content*
   4 "Citizens that are content for free in a city; the rest start unhappy.")
 
@@ -342,7 +347,10 @@ help globally."
          (unhappy (max 0 (- size *base-content*)))
          (happy 0))
     ;; war weariness: units in the field flip content citizens to unhappy
-    (let ((flip (min content (city-military-unhappiness state city))))
+    ;; (Women's Suffrage acts as a Police Station, halving it)
+    (let* ((mu (city-military-unhappiness state city))
+           (mu (if (player-wonder-p state (city-owner city) :womens-suffrage) (floor mu 2) mu))
+           (flip (min content mu)))
       (decf content flip) (incf unhappy flip))
     (flet ((calm (n)                       ; up to N unhappy -> content
              (let ((k (min (max 0 n) unhappy))) (decf unhappy k) (incf content k)))
@@ -409,9 +417,19 @@ has superseded it), so it can no longer be built."
             (:unit (let ((nu (register-unit state :type (second item)
                                             :owner (city-owner city)
                                             :x (city-x city) :y (city-y city))))
-                     (when (member :barracks (city-buildings city))
-                       (setf (unit-veteran nu) t))))      ; barracks -> veterans
-            ((:building :wonder) (pushnew (second item) (city-buildings city)))
+                     (when (or (member :barracks (city-buildings city))   ; veterans:
+                               ;; the Lighthouse trains veteran ships
+                               (and (eq (unit-def (second item) :domain) :sea)
+                                    (player-wonder-p state (city-owner city) :lighthouse)))
+                       (setf (unit-veteran nu) t))))
+            ((:building :wonder)
+             (pushnew (second item) (city-buildings city))
+             ;; Darwin's Voyage grants two free advances on completion
+             (when (eq (second item) :darwins-voyage)
+               (let ((p (player-by-id state (city-owner city))))
+                 (dotimes (i 2)
+                   (let ((tech (first (researchable-techs p))))
+                     (when tech (setf (gethash tech (player-techs p)) t)))))))
             (:spaceship (incf (player-spaceship              ; assemble a ship part
                                (player-by-id state (city-owner city))))))
           (decf (city-shield-box city) cost)
@@ -548,8 +566,10 @@ across the map.  The more polluted tiles, the likelier and worse each event."
                    ((minusp (city-food-box city))            ; starvation
                     (when (> (city-size city) 1) (decf (city-size city)))
                     (setf (city-food-box city) 0))))
-           ;; production
-           (incf (city-shield-box city) shields)
+           ;; production (Hoover Dam acts as a power plant in every owned city)
+           (incf (city-shield-box city)
+                 (if (player-wonder-p state (city-owner city) :hoover-dam)
+                     (floor (* shields 3) 2) shields))
            (city-try-complete state city)
            ;; a celebrating republic/democracy city earns bonus trade
            (when celebrating
@@ -563,6 +583,12 @@ across the map.  The more polluted tiles, the likelier and worse each event."
                (when (member :library (city-buildings city))       ; library +50%
                  (setf sci (floor (* sci 3) 2)))
                (when (member :great-library (city-buildings city)) ; great library +50%
+                 (setf sci (floor (* sci 3) 2)))
+               (when (member :copernicus-observatory (city-buildings city)) ; +50% in its city
+                 (setf sci (floor (* sci 3) 2)))
+               (when (member :isaac-newtons-college (city-buildings city))  ; doubles its city
+                 (setf sci (* sci 2)))
+               (when (player-wonder-p state (city-owner city) :s-e-t-i-program) ; +50% civ-wide
                  (setf sci (floor (* sci 3) 2)))
                (incf (player-gold p) (floor (* trade (player-tax-rate p)) 100))
                (when (government-def (player-government p) :science)
@@ -696,9 +722,14 @@ before REFRESH-UNITS, so an unspent movement allowance marks a unit as rested."
    (gs-units state)))
 
 (defun refresh-units (state)
-  "Restore every unit's movement allowance at the start of a turn."
+  "Restore every unit's movement allowance at the start of a turn (Magellan's
+Expedition gives the owner's ships +1)."
   (maphash (lambda (id u) (declare (ignore id))
-             (setf (unit-moves-left u) (unit-def (unit-type u) :move 1)))
+             (let ((mv (unit-def (unit-type u) :move 1)))
+               (when (and (eq (unit-def (unit-type u) :domain) :sea)
+                          (player-wonder-p state (unit-owner u) :magellans-expedition))
+                 (incf mv))
+               (setf (unit-moves-left u) mv)))
            (gs-units state)))
 
 (defun process-terraform (state)

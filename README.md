@@ -65,6 +65,16 @@ section with their effect.
 *After completion — `Pyramids — boosts production` now shows under **Built:**,
 and AI cities (Akkad, Uruk) have grown alongside.*
 
+Every wonder now carries a **live effect**. Empire-wide: the **Pyramids** boost
+production, **Hoover Dam** acts as a power plant in every city (+50% shields),
+**Hanging Gardens** add content, the **SETI Program** adds +50% science, the
+**Lighthouse** trains veteran ships, **Magellan's Expedition** gives ships +1
+move, **Women's Suffrage** halves military unhappiness, and the **United Nations**
+stays the AI's hand against war. In their own city: the **Great Library**,
+**Copernicus' Observatory** and **Isaac Newton's College** pile on science, the
+**Colossus** boosts trade, and **Darwin's Voyage** grants two free advances the
+moment it completes.
+
 ## Controls
 
 | key | action |
@@ -181,7 +191,13 @@ and at war a coastal AI builds a **transport**, loads an invasion force,
 ferries it across the sea, and lands the troops on your shore. It also fields its
 **whole toolbox** — defending **aircraft** that fly home to refuel, **diplomats**
 that spy on adjacent cities, **caravans** that open trade routes, and **nuclear
-missiles** it flies at your cities and detonates.
+missiles** it flies at your cities and detonates. The AI also runs an
+**economy**, not just an army: it **beelines** the advances that matter
+(Monarchy, Trade, the Republic, the wonder techs), leads a **revolution** toward
+the best government it can adopt (Monarchy while at war, Republic or Democracy in
+peace), and invests its **largest city** in **world wonders** — whose effects are
+all live (see below). [`examples/economy-demo.lisp`](examples/economy-demo.lisp)
+plays a full six-AI game and reports the governments adopted and wonders raised.
 
 **Combat** is **war-gated**: you can't enter a tile held by a civ you're at
 peace with, so you **declare war** first (the diplomacy menu, `Y`). Moving into

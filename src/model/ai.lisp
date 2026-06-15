@@ -60,11 +60,85 @@ cities (strength measured by city count)."
                    ;; roaming force has nothing to protect, so it fights on)
                    ((and (at-war-p state pid oid) (plusp mine) (<= (* 2 mine) theirs))
                     (setf (relation state pid oid) :peace))
-                   ;; at peace, not weaker, and they have something to take -> pounce
+                   ;; at peace, not weaker, with something to take, and not
+                   ;; shielded by the United Nations -> pounce
                    ((and (eq (relation state pid oid) :peace)
                          (plusp theirs) (>= mine theirs)
+                         (not (player-wonder-p state oid :united-nations))
                          (< (gs-rand state 100) 3))
                     (setf (relation state pid oid) :war)))))))
+
+(defparameter *ai-gov-order* '(:democracy :republic :monarchy)
+  "Governments the AI prefers, best first.")
+
+(defun ai-best-government (state player)
+  "The best government PLAYER can adopt -- but only Monarchy while at war, since
+Republic/Democracy suffer war-weariness."
+  (let ((at-war (ai-has-invasion-target-p state (player-id player))))
+    (find-if (lambda (g) (and (player-has-tech-p player (government-def g :requires))
+                              (or (not at-war) (eq g :monarchy))))
+             *ai-gov-order*)))
+
+(defun ai-government (state player)
+  "Occasionally lead a revolution toward a better government."
+  (let ((target (ai-best-government state player)))
+    (when (and target
+               (not (eq (player-government player) target))
+               (not (eq (player-government player) :anarchy))
+               (zerop (player-anarchy-left player))
+               (< (gs-rand state 100) 8))
+      (ai-cmd state (list :set-government :player (player-id player) :to target)))))
+
+(defparameter *ai-wonder-order*
+  ;; cheapest first, so a modest empire can actually finish one before the game
+  ;; ends: 200-shield wonders, then the 300s, then the dearer late ones
+  '(:colossus :lighthouse                                            ; 200
+    :pyramids :hanging-gardens :great-library :copernicus-observatory ; 300
+    :michelangelos-chapel
+    :isaac-newtons-college :j-s-bachs-cathedral :magellans-expedition ; 400
+    :shakespeares-theatre
+    :hoover-dam :womens-suffrage :united-nations :s-e-t-i-program)    ; 600
+  "Wonders the AI will try to build, cheapest first.")
+
+(defun ai-largest-city (state pid)
+  "PID's most populous city (where the AI concentrates wonder-building), or NIL."
+  (let (best)
+    (loop for c being the hash-values of (gs-cities state)
+          when (= (city-owner c) pid)
+            do (when (or (null best) (> (city-size c) (city-size best))) (setf best c)))
+    best))
+
+(defun ai-best-wonder (state player)
+  "An unbuilt wonder PLAYER has the tech for, or NIL."
+  (find-if (lambda (w) (and (player-has-tech-p player (wonder-def w :requires))
+                            (not (wonder-built-p state w))))
+           *ai-wonder-order*))
+
+(defparameter *ai-tech-goals*
+  '(:monarchy :bronze-working :currency :trade :masonry :writing :literacy
+    :the-republic :philosophy :mathematics :banking :university :democracy
+    :sanitation :gunpowder :industrialization :electronics :computers)
+  "Advances the AI beelines for, best first -- governments and economy/wonder
+techs.  The AI researches whichever prerequisite of the first unmet goal is
+within reach, so it actually arrives at Monarchy, Trade, the Republic, etc.")
+
+(defun ai-next-tech (player)
+  "The advance the AI should research next: walk *AI-TECH-GOALS* and return the
+nearest researchable step toward the first goal it lacks, or NIL once all are in."
+  (let ((have (player-techs player)))
+    (labels ((toward (tech)                       ; deepest first-unmet prerequisite
+               (or (some (lambda (pre) (unless (gethash pre have) (toward pre)))
+                         (tech-def tech :prereqs))
+                   tech)))
+      (loop for goal in *ai-tech-goals*
+            unless (gethash goal have)
+              return (toward goal)))))
+
+(defun ai-research (state player)
+  "Steer this AI's research toward governments, trade, and wonder advances."
+  (declare (ignore state))
+  (let ((tech (ai-next-tech player)))
+    (when tech (setf (player-researching player) tech))))
 
 (defun ai-adjacent-enemy-city (state unit)
   "Coordinates (x y) of an at-war enemy city bordering UNIT, or NIL."
@@ -314,7 +388,16 @@ an adjacent sea tile, board it.  Returns non-NIL if UNIT boarded."
   (let* ((pid (player-id player))
          (at-war (ai-has-invasion-target-p state pid))
          (special (and at-war (ai-special-unit state player)))
+         ;; the AI builds wonders in its largest, well-established city
+         (wonder (and (eq city (ai-largest-city state pid))
+                      (ai-best-wonder state player)))
          (item (cond
+                ;; once committed to a wonder, see it through (don't fritter the
+                ;; shield box away on cheap units before it can ever complete)
+                ((and (eq (first (city-production city)) :wonder)
+                      (not (wonder-built-p state (second (city-production city))))
+                      (city-defended-p state city))
+                 (city-production city))
                 ;; an undefended city must raise a garrison before anything else
                 ((not (city-defended-p state city))
                  (list :unit (ai-best-defender player)))
@@ -325,6 +408,9 @@ an adjacent sea tile, board it.  Returns non-NIL if UNIT boarded."
                  '(:building :temple))
                 ((< (length (player-city-list state pid)) 3)
                  '(:unit :settlers))
+                ;; the capital invests in a world wonder
+                ((and wonder (>= (city-size city) 4) (< (gs-rand state 100) 60))
+                 (list :wonder wonder))
                 ;; at war: a coastal city builds a transport for the invasion,
                 ;; then everyone pumps out attackers (to load and to defend)
                 ((and at-war (coastal-city-p state city)
@@ -395,6 +481,8 @@ unit uses its whole movement allowance in one turn."
 (defun ai-take-turn (state player)
   "Issue this AI PLAYER's commands for the current turn."
   (ai-diplomacy state player)
+  (ai-research state player)
+  (ai-government state player)
   (ai-try-trade state player)
   (let ((pid (player-id player)))
     (dolist (u (player-unit-list state pid))
