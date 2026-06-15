@@ -512,9 +512,15 @@ across the map.  The more polluted tiles, the likelier and worse each event."
                                (>= happy (ceiling size 2)))))
         (cond
           (disorder
-           ;; civil disorder: no growth, no production, no economy this turn
-           nil)
+           ;; civil disorder: no growth, production or economy this turn, and
+           ;; prolonged unrest boils over into riots that shrink the city
+           (incf (city-disorder city))
+           (when (>= (city-disorder city) 3)
+             (when (> (city-size city) 1) (decf (city-size city)))
+             (setf (city-disorder city) 0)
+             (setf (gs-message state) (format nil "Riots shrink ~A!" (city-name city)))))
           (t
+           (setf (city-disorder city) 0)       ; order restored
            ;; growth: each citizen eats 2 food
            (let ((net (- food (* 2 size)))
                  (threshold (* 10 (1+ size)))
@@ -564,6 +570,68 @@ across the map.  The more polluted tiles, the likelier and worse each event."
 (defun process-cities (state)
   (maphash (lambda (id c) (declare (ignore id)) (process-city state c))
            (gs-cities state)))
+
+;;; --- random events ---------------------------------------------------------
+
+(defparameter *event-chance* 12 "Percent chance per turn that a world event fires.")
+
+(defun random-city (state &optional (test (constantly t)))
+  "A random city satisfying TEST, or NIL if none qualify."
+  (let ((cands (loop for c being the hash-values of (gs-cities state)
+                     when (funcall test c) collect c)))
+    (when cands (nth (gs-rand state (length cands)) cands))))
+
+(defun event-plague (state)
+  "A crowded city without an aqueduct loses population to plague."
+  (let ((c (random-city state (lambda (c) (and (>= (city-size c) 3)
+                                               (not (member :aqueduct (city-buildings c))))))))
+    (when c (decf (city-size c))
+            (setf (gs-message state) (format nil "Plague strikes ~A!" (city-name c))) t)))
+
+(defun event-famine (state)
+  "A failed harvest empties a city's granary and costs it a citizen."
+  (let ((c (random-city state (lambda (c) (>= (city-size c) 2)))))
+    (when c (decf (city-size c)) (setf (city-food-box c) 0)
+            (setf (gs-message state) (format nil "Famine in ~A!" (city-name c))) t)))
+
+(defun event-fire (state)
+  "Fire destroys one (non-palace) building in a city."
+  (let ((c (random-city state (lambda (c) (remove :palace (city-buildings c))))))
+    (when c
+      (let* ((losable (remove :palace (city-buildings c)))
+             (b (nth (gs-rand state (length losable)) losable)))
+        (setf (city-buildings c) (remove b (city-buildings c)))
+        (setf (gs-message state) (format nil "Fire razes the ~(~A~) in ~A!" b (city-name c)))
+        t))))
+
+(defun event-earthquake (state)
+  "An earthquake wrecks a mine/irrigation near a city, or leaves a scar (pollution)."
+  (let ((c (random-city state)))
+    (when c
+      (let* ((map (gs-map state))
+             (cells (cons (list (city-x c) (city-y c)) (neighbors map (city-x c) (city-y c))))
+             (cell (nth (gs-rand state (length cells)) cells))
+             (tl (tile-at map (first cell) (second cell))))
+        (when tl
+          (cond ((tile-mine tl) (setf (tile-mine tl) nil))
+                ((tile-irrigation tl) (setf (tile-irrigation tl) nil))
+                ((not (eq (tile-terrain tl) :ocean)) (setf (tile-pollution tl) t)))
+          (setf (gs-message state) (format nil "Earthquake near ~A!" (city-name c))) t)))))
+
+(defun event-rich-vein (state)
+  "Prospectors strike a rich mineral vein -- a windfall of shields."
+  (let ((c (random-city state)))
+    (when c (incf (city-shield-box c) (+ 20 (gs-rand state 30)))
+            (setf (gs-message state)
+                  (format nil "A rich mineral vein is found near ~A!" (city-name c))) t)))
+
+(defparameter *events*
+  (vector #'event-plague #'event-famine #'event-fire #'event-earthquake #'event-rich-vein))
+
+(defun process-events (state)
+  "Occasionally fire one random world event on a random eligible target."
+  (when (< (gs-rand state 100) *event-chance*)
+    (funcall (aref *events* (gs-rand state (length *events*))) state)))
 
 ;;; --- research --------------------------------------------------------------
 
@@ -739,6 +807,7 @@ combat phases here.)"
   (run-ai-players state)
   (process-cities state)
   (process-global-warming state); accumulated pollution may degrade terrain
+  (process-events state)        ; plague / famine / fire / quake / mineral find
   (process-economy state)       ; charge improvement upkeep (sell on bankruptcy)
   (process-revolution state)    ; end anarchy; adopt the chosen government
   (process-research state)

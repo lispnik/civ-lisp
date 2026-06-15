@@ -544,6 +544,15 @@ in the blast is now at war with the attacker."
           (cy (+ (unit-y u) (getf args :dy 0)))
           (owner (unit-owner u)))
       (unless (tile-at map cx cy) (fail "target out of bounds"))
+      ;; SDI Defense in or beside the target shoots the missile down
+      (when (loop for cell in (cons (list cx cy) (neighbors map cx cy))
+                  for tl = (tile-at map (first cell) (second cell))
+                  for cid = (and tl (tile-city tl))
+                  thereis (and cid (member :sdi-defense
+                                           (city-buildings (city-by-id state cid)))))
+        (destroy-unit state u)
+        (setf (gs-message state) "Nuclear missile shot down by SDI!")
+        (return-from cmd-nuke t))
       (flet ((act-of-war (against)
                (when (and (/= against owner) (not (barbarian-id-p state against)))
                  (setf (relation state owner against) :war))))
@@ -852,7 +861,10 @@ government :TO (which must be unlocked by an advance)."
        (let ((req (unit-def (second item) :requires)))
          (unless (player-has-tech-p owner req) (fail "requires tech ~(~A~)" req)))
        (when (unit-obsolete-p owner (second item))
-         (fail "~(~A~) is obsolete" (second item))))
+         (fail "~(~A~) is obsolete" (second item)))
+       (when (and (eq (second item) :nuclear)        ; nukes need the Manhattan Project
+                  (not (wonder-built-p state :manhattan-project)))
+         (fail "nuclear weapons require the Manhattan Project")))
       (:building
        (unless (gethash (second item) *buildings*) (fail "unknown building ~A" (second item)))
        (when (member (second item) (city-buildings c)) (fail "already built"))

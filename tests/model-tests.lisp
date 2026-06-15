@@ -908,6 +908,60 @@
         (civ-model::ai-military s raider)
         (is (= 2 (city-owner c)))))))              ; the AI marched in and took it
 
+;;; --- civil disorder, random events, Manhattan Project, SDI -----------------
+
+(test prolonged-disorder-causes-riots
+  (let ((s (bare-state 8 8)))
+    (let ((c (civ-model::register-city s :name "Unrest" :owner 1 :x 3 :y 3)))
+      (setf (city-size c) 7)                          ; big despotic city, no temple
+      (is-true (city-disorder-p s c))                 ; so it's in disorder
+      (let ((sz (city-size c)))
+        (dotimes (i 3) (civ-model::process-city s c)) ; three turns of unrest
+        (is (< (city-size c) sz))))))                  ; boils over into riots
+
+(test event-plague-shrinks-a-crowded-city
+  (let ((s (bare-state 8 8)))
+    (let ((c (civ-model::register-city s :name "Big" :owner 1 :x 3 :y 3)))
+      (setf (city-size c) 5)
+      (is-true (civ-model::event-plague s))
+      (is (= 4 (city-size c))))))
+
+(test event-fire-destroys-a-building
+  (let ((s (bare-state 8 8)))
+    (let ((c (civ-model::register-city s :name "Town" :owner 1 :x 3 :y 3)))
+      (setf (city-buildings c) (list :barracks :library))
+      (is-true (civ-model::event-fire s))
+      (is (= 1 (length (city-buildings c)))))))
+
+(test event-rich-vein-adds-shields
+  (let ((s (bare-state 8 8)))
+    (let* ((c (civ-model::register-city s :name "Mine" :owner 1 :x 3 :y 3))
+           (b (city-shield-box c)))
+      (is-true (civ-model::event-rich-vein s))
+      (is (> (city-shield-box c) b)))))
+
+(test nukes-need-the-manhattan-project
+  (let ((s (bare-state 8 8)))
+    (let ((c (civ-model::register-city s :name "Lab" :owner 1 :x 3 :y 3))
+          (p (player-by-id s 1)))
+      (setf (gethash :rocketry (player-techs p)) t)
+      (signals command-error                           ; not yet
+        (apply-command s (list :set-production :city (city-id c) :item '(:unit :nuclear))))
+      (push :manhattan-project (city-buildings c))     ; now the project exists
+      (apply-command s (list :set-production :city (city-id c) :item '(:unit :nuclear)))
+      (is (equal '(:unit :nuclear) (city-production c))))))
+
+(test sdi-shoots-down-a-nuke
+  (let ((s (bare-state 10 10)))
+    (setf (relation s 1 2) :war)
+    (let ((c (civ-model::register-city s :name "Shield" :owner 2 :x 6 :y 5)))
+      (setf (city-size c) 8)
+      (push :sdi-defense (city-buildings c))           ; defended by SDI
+      (let ((nuke (add-unit s :nuclear 1 5 5)))        ; adjacent
+        (apply-command s (list :nuke :unit (unit-id nuke)))
+        (is-false (unit-by-id s (unit-id nuke)))        ; missile destroyed
+        (is (= 8 (city-size c)))))))                     ; city unharmed
+
 ;;; --- nuclear weapons -------------------------------------------------------
 
 (test nuke-flattens-the-blast-area
