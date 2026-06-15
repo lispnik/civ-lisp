@@ -56,15 +56,28 @@
                     (< (gs-rand state 100) 2))      ; 2% per peace-partner per turn
             do (setf (relation state pid oid) :war))))
 
+(defun ai-adjacent-enemy-city (state unit)
+  "Coordinates (x y) of an at-war enemy city bordering UNIT, or NIL."
+  (loop for (x y tile) in (neighbors (gs-map state) (unit-x unit) (unit-y unit))
+        for cid = (tile-city tile)
+        when (and cid (at-war-p state (city-owner (city-by-id state cid)) (unit-owner unit)))
+          return (list x y)))
+
 (defun ai-military (state unit)
-  "Attack an adjacent enemy; else garrison (fortify) in an own city; else explore."
+  "Attack an adjacent enemy, walk into an adjacent undefended enemy city to take
+it, else garrison (fortify) in an own city, else explore."
   (let ((enemy (adjacent-enemy state unit))
+        (cityxy (ai-adjacent-enemy-city state unit))
         (tile (tile-at (gs-map state) (unit-x unit) (unit-y unit))))
     (cond
       (enemy
        (ai-cmd state (list :move-unit :unit (unit-id unit)
                            :dx (signum (- (unit-x enemy) (unit-x unit)))
                            :dy (signum (- (unit-y enemy) (unit-y unit))))))
+      (cityxy
+       (ai-cmd state (list :move-unit :unit (unit-id unit)
+                           :dx (signum (signed-dx (gs-map state) (unit-x unit) (first cityxy)))
+                           :dy (signum (- (second cityxy) (unit-y unit))))))
       ((and tile (tile-city tile) (eql (tile-owner tile) (unit-owner unit)))
        (unless (eq (unit-orders unit) :fortified)
          (ai-cmd state (list :fortify :unit (unit-id unit)))))

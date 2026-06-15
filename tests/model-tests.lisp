@@ -858,6 +858,55 @@
           (setf landed t) (return)))
       (is-true landed))))
 
+;;; --- city capture ----------------------------------------------------------
+
+(test capture-an-undefended-enemy-city
+  (let ((s (bare-state 8 8)))
+    (setf (relation s 1 2) :war)
+    (let ((c (civ-model::register-city s :name "Theirs" :owner 2 :x 4 :y 4)))
+      (setf (city-size c) 3)
+      (let ((w (add-unit s :warriors 1 3 4)))
+        (apply-command s (list :move-unit :unit (unit-id w) :dx 1 :dy 0))
+        (is (= 1 (city-owner c)))                ; the city flipped to us
+        (is (= 2 (city-size c)))                  ; shrunk by one
+        (is (= 4 (unit-x w)))))))                 ; our unit now garrisons it
+
+(test razing-a-size-one-city
+  (let ((s (bare-state 8 8)))
+    (setf (relation s 1 2) :war)
+    (let ((c (civ-model::register-city s :name "Hamlet" :owner 2 :x 4 :y 4)))  ; size 1
+      (let ((w (add-unit s :warriors 1 3 4)))
+        (apply-command s (list :move-unit :unit (unit-id w) :dx 1 :dy 0))
+        (is-false (city-by-id s (city-id c)))                       ; razed away
+        (is-false (tile-city (tile-at (gs-map s) 4 4)))             ; tile cleared
+        (is (= 4 (unit-x w)))))))                                    ; unit stands on the ruins
+
+(test cannot-enter-a-peaceful-citys-tile
+  (let ((s (bare-state 8 8)))                     ; relation defaults to peace
+    (civ-model::register-city s :name "Theirs" :owner 2 :x 4 :y 4)
+    (let ((w (add-unit s :warriors 1 3 4)))
+      (signals command-error
+        (apply-command s (list :move-unit :unit (unit-id w) :dx 1 :dy 0))))))
+
+(test capturing-the-last-city-wins-the-game
+  (let ((s (bare-state 8 8)))
+    (setf (relation s 1 2) :war)
+    (civ-model::register-city s :name "Last" :owner 2 :x 4 :y 4)   ; player 2's only foothold
+    (let ((w (add-unit s :warriors 1 3 4)))                         ; player 1 stays alive via it
+      (apply-command s (list :move-unit :unit (unit-id w) :dx 1 :dy 0))   ; raze the last city
+      (civ-model::process-victory s)
+      (is (eql 1 (gs-winner s)))
+      (is (eq :conquest (gs-victory s))))))
+
+(test ai-captures-an-adjacent-undefended-city
+  (let ((s (bare-state 8 8)))
+    (setf (relation s 1 2) :war)
+    (let ((c (civ-model::register-city s :name "Theirs" :owner 1 :x 4 :y 4)))
+      (setf (city-size c) 3)
+      (let ((raider (add-unit s :legion 2 3 4)))   ; an AI (player 2) legion next door
+        (civ-model::ai-military s raider)
+        (is (= 2 (city-owner c)))))))              ; the AI marched in and took it
+
 (test ai-expands
   ;; the AI should found and expand to several cities on its own
   (let ((s (make-new-game :seed 7)))

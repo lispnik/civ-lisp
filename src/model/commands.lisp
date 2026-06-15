@@ -517,6 +517,15 @@ Records the outcome in GS-MESSAGE."
                     (string-capitalize (symbol-name to)) cost))
       u)))
 
+(defun maybe-capture (state u tile)
+  "If land unit U has just entered an enemy city on TILE, capture (or raze) it.
+Only land units take cities; ships and aircraft can't hold ground."
+  (let ((cid (tile-city tile)))
+    (when (and cid (eq (unit-def (unit-type u) :domain) :land))
+      (let ((c (city-by-id state cid)))
+        (when (and c (/= (city-owner c) (unit-owner u)))
+          (capture-city state c (unit-owner u)))))))
+
 (defun cmd-move-unit (state command)
   (let* ((args (rest command))
          (u (or (unit-by-id state (getf args :unit)) (fail "no such unit")))
@@ -531,7 +540,10 @@ Records the outcome in GS-MESSAGE."
     (let* ((dest (tile-at map nx ny))
            (sea-dest (eq (tile-terrain dest) :ocean))
            (foreign (tile-enemies state dest (unit-owner u)))
-           (hostiles (tile-hostiles state dest (unit-owner u))))
+           (hostiles (tile-hostiles state dest (unit-owner u)))
+           (encity (let ((cid (tile-city dest)))      ; an enemy city on the dest tile
+                     (and cid (let ((c (city-by-id state cid)))
+                                (and (/= (city-owner c) (unit-owner u)) c))))))
       ;; terrain domain: land units can't enter ocean; sea units can't land;
       ;; air units go anywhere.  (rivers are land terrain, so land units cross them)
       (ecase (unit-def (unit-type u) :domain :land)
@@ -546,6 +558,10 @@ Records the outcome in GS-MESSAGE."
       (when (and foreign (not hostiles))
         (fail "at peace with ~(~A~); declare war first"
               (player-name (player-by-id state (unit-owner (first foreign))))))
+      ;; ...nor walk into a peaceful neighbour's (undefended) city
+      (when (and encity (not (at-war-p state (unit-owner u) (city-owner encity))))
+        (fail "at peace with ~(~A~); declare war first"
+              (player-name (player-by-id state (city-owner encity)))))
       (if hostiles
           ;; attack: fight the strongest defender, advance if the tile clears
           (progn
@@ -564,7 +580,8 @@ Records the outcome in GS-MESSAGE."
                     (push (unit-id u) (tile-units dest))
                     (setf (unit-x u) nx (unit-y u) ny)
                     (reveal-around (player-seen (player-by-id state (unit-owner u)))
-                                   state nx ny))))    ; clear fog as we advance
+                                   state nx ny)        ; clear fog as we advance
+                    (maybe-capture state u dest))))    ; take the city we just cleared
               result))
           ;; normal move (possibly onto friendly units)
           (progn
@@ -588,6 +605,8 @@ Records the outcome in GS-MESSAGE."
               (when (plusp (unit-def (unit-type u) :capacity 0))
                 (carry-passengers state old u))
               (decf (unit-moves-left u) (max 1 (min cost (unit-moves-left u))))
+              ;; walking into an undefended enemy city takes it
+              (maybe-capture state u dest)
               ;; stepping onto a tribal hut springs its surprise
               (when (and (tile-hut dest) (not (barbarian-id-p state (unit-owner u))))
                 (enter-hut state u dest))

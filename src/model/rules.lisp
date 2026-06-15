@@ -179,6 +179,42 @@ with -- i.e. (X,Y) lies in an enemy zone of control."
                    (and u (plusp (unit-def (unit-type u) :attack 0)))))
                (tile-units tile)))))
 
+(defun remove-city-routes (state cid)
+  "Drop any trade routes that touch city CID (it changed hands or was razed)."
+  (setf (gs-routes state)
+        (remove-if (lambda (pair) (or (eql (car pair) cid) (eql (cdr pair) cid)))
+                   (gs-routes state))))
+
+(defun raze-city (state city)
+  "Destroy CITY entirely (a too-small conquest), clearing its tile and routes."
+  (let ((tile (tile-at (gs-map state) (city-x city) (city-y city))))
+    (setf (tile-city tile) nil (tile-owner tile) nil))
+  (remove-city-routes state (city-id city))
+  (remhash (city-id city) (gs-cities state)))
+
+(defun capture-city (state city captor)
+  "CAPTOR (a player id) takes CITY: a size-1 city is razed; a larger one changes
+hands -- shrunk by one, production and stored food/shields reset, trade routes
+broken (its buildings and any wonders carry over).  Records GS-MESSAGE."
+  (let ((loser (city-owner city))
+        (tile (tile-at (gs-map state) (city-x city) (city-y city))))
+    (cond
+      ((<= (city-size city) 1)
+       (raze-city state city)
+       (setf (gs-message state) (format nil "~A razed." (city-name city))))
+      (t
+       (decf (city-size city))
+       (setf (city-owner city) captor
+             (tile-owner tile) captor
+             (city-production city) nil
+             (city-food-box city) 0
+             (city-shield-box city) 0
+             (city-worked city) '())
+       (remove-city-routes state (city-id city))
+       (setf (gs-message state)
+             (format nil "~A captured from ~(~A~)!" (city-name city)
+                     (player-name (player-by-id state loser))))))))
+
 (defun tile-enemies (state tile owner)
   "Units on TILE not belonging to OWNER (any other civilization)."
   (loop for id in (tile-units tile)
