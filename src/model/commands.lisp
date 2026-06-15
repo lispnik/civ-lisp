@@ -469,8 +469,10 @@ unit (current land passengers < total transport capacity there)."
 
 (defun carry-passengers (state old transport)
   "TRANSPORT has just moved to its new tile; bring up to its capacity of the land
-units left on OLD along with it (cargo rides for free)."
-  (when (eq (unit-def (unit-type transport) :carries) :land)
+units left on OLD along with it (cargo rides for free).  Only OCEAN passengers
+ride -- land units sharing a coastal *city* tile are its garrison, not cargo."
+  (when (and (eq (tile-terrain old) :ocean)
+             (eq (unit-def (unit-type transport) :carries) :land))
     (let ((cap (unit-def (unit-type transport) :capacity 0))
           (dest (tile-at (gs-map state) (unit-x transport) (unit-y transport)))
           (moved 0))

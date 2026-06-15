@@ -83,16 +83,139 @@
                                              (length *ai-city-names*)))))
         (ai-move-random state unit))))
 
+;;; --- sea invasion ----------------------------------------------------------
+
+(defun coastal-city-p (state city)
+  "T if CITY borders an ocean tile (so it can build and launch ships)."
+  (loop for (x y tile) in (neighbors (gs-map state) (city-x city) (city-y city))
+        thereis (eq (tile-terrain tile) :ocean)))
+
+(defun nearest-enemy-city (state pid fromx fromy)
+  "The city of a civ PID is at war with that is closest to (FROMX,FROMY), or NIL."
+  (let ((map (gs-map state)) best bestd)
+    (loop for c being the hash-values of (gs-cities state)
+          when (and (/= (city-owner c) pid) (at-war-p state pid (city-owner c)))
+            do (let ((d (+ (map-dx map (city-x c) fromx) (abs (- (city-y c) fromy)))))
+                 (when (or (null bestd) (< d bestd)) (setf best c bestd d))))
+    best))
+
+(defun ai-has-invasion-target-p (state pid)
+  "T if PID is at war with a non-barbarian civ that still holds a city."
+  (loop for o across (gs-players state)
+        thereis (and (/= (player-id o) pid)
+                     (not (eq (player-kind o) :barbarian))
+                     (at-war-p state pid (player-id o))
+                     (player-city-list state (player-id o)))))
+
+(defparameter *ai-attackers*
+  '(:armor :artillery :cannon :musketeers :knights :catapult :legion :phalanx :warriors)
+  "Land units, best first, the AI will build for an invasion / defense force.")
+
+(defun ai-best-attacker (player)
+  "The strongest land unit in *AI-ATTACKERS* PLAYER has the tech to build."
+  (find-if (lambda (u) (player-has-tech-p player (unit-def u :requires)))
+           *ai-attackers*))
+
+(defun ai-step-toward (state unit tx ty)
+  "Move UNIT one tile toward (TX,TY) -- diagonal first, then either axis.
+Returns non-NIL if it actually moved (terrain permitting)."
+  (let* ((map (gs-map state))
+         (sx (signum (signed-dx map (unit-x unit) tx)))
+         (sy (signum (- ty (unit-y unit))))
+         (tries (remove '(0 . 0)
+                        (remove-duplicates (list (cons sx sy) (cons sx 0) (cons 0 sy))
+                                           :test #'equal)
+                        :test #'equal)))
+    (some (lambda (d) (ai-cmd state (list :move-unit :unit (unit-id unit)
+                                          :dx (car d) :dy (cdr d))))
+          tries)))
+
+(defun ai-launch-to-water (state unit)
+  "Nose a ship sitting on a (coastal-city) land tile out onto adjacent open water."
+  (loop for (x y tile) in (neighbors (gs-map state) (unit-x unit) (unit-y unit))
+        when (eq (tile-terrain tile) :ocean)
+          do (return (ai-cmd state (list :move-unit :unit (unit-id unit)
+                                         :dx (signum (signed-dx (gs-map state) (unit-x unit) x))
+                                         :dy (signum (- y (unit-y unit))))))))
+
+(defun ai-cargo (state unit)
+  "The land units riding on UNIT's tile (its passengers)."
+  (loop for id in (tile-units (tile-at (gs-map state) (unit-x unit) (unit-y unit)))
+        for p = (unit-by-id state id)
+        when (and p (/= id (unit-id unit)) (eq (unit-def (unit-type p) :domain) :land))
+          collect p))
+
+(defun ai-transport (state unit)
+  "Drive a land-carrying ship: empty ones nose out to water and wait for troops;
+loaded ones sail at the nearest enemy city and put a passenger ashore on arrival."
+  (let* ((map (gs-map state))
+         (pid (unit-owner unit))
+         (cargo (ai-cargo state unit))
+         (target (nearest-enemy-city state pid (unit-x unit) (unit-y unit))))
+    (cond
+      ((or (null cargo) (null target))
+       ;; nothing aboard (or no one to invade): get off land into open water, then wait
+       (unless (eq (tile-terrain (tile-at map (unit-x unit) (unit-y unit))) :ocean)
+         (ai-launch-to-water state unit)))
+      (t
+       (let ((dist (+ (map-dx map (city-x target) (unit-x unit))
+                      (abs (- (city-y target) (unit-y unit)))))
+             (lands (loop for (x y tile) in (neighbors map (unit-x unit) (unit-y unit))
+                          unless (eq (tile-terrain tile) :ocean)
+                            collect (list x y))))
+         (if (and (<= dist 4) lands)
+             ;; at the enemy shore: send a passenger onto the land tile nearest the city
+             (let* ((best (first (sort lands #'<
+                                       :key (lambda (s)
+                                              (+ (map-dx map (first s) (city-x target))
+                                                 (abs (- (second s) (city-y target))))))))
+                    (p (first cargo)))
+               (ai-cmd state (list :move-unit :unit (unit-id p)
+                                   :dx (signum (signed-dx map (unit-x p) (first best)))
+                                   :dy (signum (- (second best) (unit-y p))))))
+             ;; otherwise sail toward the target
+             (ai-step-toward state unit (city-x target) (city-y target))))))))
+
+(defun only-defender-p (state unit)
+  "T if UNIT is the lone unit garrisoning one of its owner's cities."
+  (let ((tile (tile-at (gs-map state) (unit-x unit) (unit-y unit))))
+    (and tile (tile-city tile) (eql (tile-owner tile) (unit-owner unit))
+         (= 1 (length (tile-units tile))))))
+
+(defun ai-try-board (state unit)
+  "If there's an enemy worth invading and a friendly transport with room sits on
+an adjacent sea tile, board it.  Returns non-NIL if UNIT boarded."
+  (when (and (nearest-enemy-city state (unit-owner unit) (unit-x unit) (unit-y unit))
+             (not (adjacent-enemy state unit))     ; fight what's next to you first
+             (not (only-defender-p state unit)))
+    (let ((spot (loop for (x y tile) in (neighbors (gs-map state) (unit-x unit) (unit-y unit))
+                      when (and (eq (tile-terrain tile) :ocean)
+                                (sea-transport-room-p state tile (unit-owner unit)))
+                        return (list x y))))
+      (when spot
+        (ai-cmd state (list :move-unit :unit (unit-id unit)
+                            :dx (signum (signed-dx (gs-map state) (unit-x unit) (first spot)))
+                            :dy (signum (- (second spot) (unit-y unit)))))))))
+
 (defun ai-city-production (state player city)
   "Keep cities content, expand while small, then build a library or defenders."
-  (let ((item (cond
+  (let* ((pid (player-id player))
+         (at-war (ai-has-invasion-target-p state pid))
+         (item (cond
                 ;; a growing city needs a temple to stave off disorder
                 ((and (>= (city-size city) 4)
                       (player-has-tech-p player :ceremonial-burial)
                       (not (member :temple (city-buildings city))))
                  '(:building :temple))
-                ((< (length (player-city-list state (player-id player))) 3)
+                ((< (length (player-city-list state pid)) 3)
                  '(:unit :settlers))
+                ;; at war: a coastal city builds a transport for the invasion,
+                ;; then everyone pumps out attackers (to load and to defend)
+                ((and at-war (coastal-city-p state city)
+                      (player-has-tech-p player :industrialization)
+                      (not (find :transport (player-unit-list state pid) :key #'unit-type)))
+                 '(:unit :transport))
+                (at-war (list :unit (ai-best-attacker player)))
                 ((and (player-has-tech-p player :writing)
                       (not (member :library (city-buildings city))))
                  '(:building :library))
@@ -121,12 +244,17 @@ spreads among the civilizations."
   (ai-diplomacy state player)
   (ai-try-trade state player)
   (let ((pid (player-id player)))
-    ;; units: settlers settle/seek; everyone else explores
+    ;; units: settlers settle; ships ferry invasions; land troops board a
+    ;; waiting transport when there's an enemy to hit, else fight/explore
     (dolist (u (player-unit-list state pid))
       (when (unit-by-id state (unit-id u))         ; may have been consumed/killed
-        (if (eq (unit-type u) :settlers)
-            (ai-settler state u)
-            (ai-military state u))))
+        (cond
+          ((eq (unit-type u) :settlers) (ai-settler state u))
+          ((eq (unit-def (unit-type u) :carries) :land) (ai-transport state u))
+          ((and (eq (unit-def (unit-type u) :domain) :land)
+                (plusp (unit-def (unit-type u) :attack 0))
+                (ai-try-board state u)))           ; boarded -> nothing more this turn
+          (t (ai-military state u)))))
     ;; cities: pick production
     (dolist (c (player-city-list state pid))
       (ai-city-production state player c))))

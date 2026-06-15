@@ -158,7 +158,8 @@ rival **civilizations** (the default game has four) plus roving **barbarians**
 are each run by a simple **AI** that issues the same commands — founding and
 spacing out cities, setting production, exploring, researching, even swapping
 advances and declaring wars — and take their turns automatically when you end
-yours.
+yours. At war, a coastal AI builds a **transport**, loads an invasion force,
+ferries it across the sea, and lands the troops on your shore.
 
 **Combat** is **war-gated**: you can't enter a tile held by a civ you're at
 peace with, so you **declare war** first (the diplomacy menu, `Y`). Moving into

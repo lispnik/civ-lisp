@@ -727,6 +727,87 @@
       (civ-model::destroy-unit s tr)                                      ; the ship is sunk
       (is-false (unit-by-id s (unit-id w))))))                            ; cargo lost with it
 
+;;; --- AI sea invasion -------------------------------------------------------
+
+(test transport-launching-from-a-city-leaves-the-garrison
+  ;; a ship built in a coastal city must not drag the garrison out to sea
+  (let ((s (bare-state 8 8)))
+    (terrain! s 4 3 :ocean)                         ; water north of the city
+    (civ-model::register-city s :name "Port" :owner 1 :x 4 :y 4)
+    (let ((tr (add-unit s :transport 1 4 4))        ; transport sitting in the city
+          (g (add-unit s :warriors 1 4 4)))         ; the garrison
+      (apply-command s (list :move-unit :unit (unit-id tr) :dx 0 :dy -1))  ; sail north
+      (is (and (= 4 (unit-x g)) (= 4 (unit-y g))))   ; garrison stayed put
+      (is (= 3 (unit-y tr))))))                       ; ship left
+
+(test ai-builds-a-transport-to-invade
+  (let ((s (bare-state 10 10)))
+    (terrain! s 4 4 :ocean)                          ; sea beside the coastal city
+    (let ((p2 (player-by-id s 2)))
+      (setf (gethash :industrialization (player-techs p2)) t
+            (relation s 1 2) :war)
+      (civ-model::register-city s :name "Foe" :owner 1 :x 8 :y 8)   ; invasion target
+      (civ-model::register-city s :name "A" :owner 2 :x 1 :y 1)     ; >=3 cities so it
+      (civ-model::register-city s :name "B" :owner 2 :x 2 :y 2)     ;   isn't still settling
+      (let ((coastal (civ-model::register-city s :name "C" :owner 2 :x 3 :y 4)))
+        (civ-model::ai-city-production s p2 coastal)
+        (is (equal '(:unit :transport) (city-production coastal)))))))
+
+(test ai-land-unit-boards-a-friendly-transport
+  (let ((s (bare-state 10 10)))
+    (terrain! s 4 4 :ocean)
+    (setf (relation s 1 2) :war)
+    (civ-model::register-city s :name "Foe" :owner 1 :x 8 :y 8)     ; gives a target
+    (add-unit s :transport 2 4 4)                                   ; AI ship on the water
+    (let ((sol (add-unit s :legion 2 3 4)))                         ; AI legion on the shore
+      (civ-model::ai-try-board s sol)
+      (is (and (= 4 (unit-x sol)) (= 4 (unit-y sol)))))))           ; boarded
+
+(test ai-transport-sails-toward-the-enemy
+  (let ((s (bare-state 14 8)))
+    (loop for x from 1 to 9 do (terrain! s x 4 :ocean))             ; a sea lane
+    (setf (relation s 1 2) :war)
+    (let ((foe (civ-model::register-city s :name "Foe" :owner 1 :x 10 :y 4))
+          (tr (add-unit s :transport 2 5 4)))
+      (add-unit s :legion 2 5 4)                                    ; cargo aboard
+      (flet ((dist () (+ (map-dx (gs-map s) (city-x foe) (unit-x tr))
+                         (abs (- (city-y foe) (unit-y tr))))))
+        (let ((d0 (dist)))
+          (civ-model::ai-transport s tr)
+          (is (< (dist) d0)))))))                                   ; closed on the enemy
+
+(test ai-transport-puts-troops-ashore
+  (let ((s (bare-state 10 10)))
+    (terrain! s 4 5 :ocean)                                         ; the ship's tile
+    (setf (relation s 1 2) :war)
+    (civ-model::register-city s :name "Foe" :owner 1 :x 6 :y 5)     ; enemy just inland
+    (let ((tr (add-unit s :transport 2 4 5))
+          (leg (add-unit s :legion 2 4 5)))                         ; aboard
+      (civ-model::ai-transport s tr)
+      (is (not (and (= (unit-x leg) 4) (= (unit-y leg) 5))))        ; left the ship
+      (is (eq :grassland (tile-terrain (tile-at (gs-map s)          ; onto dry land
+                                                (unit-x leg) (unit-y leg))))))))
+
+(test ai-mounts-a-sea-invasion
+  ;; end to end: across a strait, the AI boards a unit, ferries it, and lands it
+  (let ((s (bare-state 12 6)))
+    (loop for x from 3 to 6 do                                      ; ocean columns 3..6
+      (dotimes (y 6) (terrain! s x y :ocean)))
+    (setf (relation s 1 2) :war)
+    (civ-model::register-city s :name "Foe" :owner 1 :x 8 :y 3)     ; enemy continent
+    (add-unit s :warriors 1 8 3)                                    ; a defender there
+    (add-unit s :transport 2 3 3)                                   ; AI ship, launched
+    (add-unit s :legion 2 2 2)                                      ; AI invader on home soil
+    (let ((landed nil))
+      (dotimes (i 15)
+        (end-turn s)
+        (when (loop for u being the hash-values of (gs-units s)
+                    thereis (and (= (unit-owner u) 2)
+                                 (eq (unit-def (unit-type u) :domain) :land)
+                                 (>= (unit-x u) 7)))                ; reached the far shore
+          (setf landed t) (return)))
+      (is-true landed))))
+
 (test ai-expands
   ;; the AI should found and expand to several cities on its own
   (let ((s (make-new-game :seed 7)))
