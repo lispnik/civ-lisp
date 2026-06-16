@@ -113,6 +113,12 @@ range to put a citizen to work it, and click the centre to hand the arrangement
 back to the governor's auto-optimiser. This lets you force a city to work its
 high-food tiles to grow, or its high-shield tiles to rush a wonder.
 
+Across the top runs a **City Resources** pane: one row of icons per resource —
+food (wheat), production (shields), trade (arrows), gold, science and happiness
+(citizen faces) — each split by a small separator into what the city **consumes**
+(food eaten, gold upkeep, unhappy citizens) on the left and its **surplus** (food
+toward growth, net profit, happy citizens) on the right.
+
 Along the bottom of the panel runs a **population bar**, one little citizen
 sprite per inhabitant (the original SP257 figures): happy, content and unhappy
 faces for the tile-workers, then the **specialists**. Citizens who aren't working

@@ -71,9 +71,11 @@
 ;; that the icon texture keys out.  (sx . sy) pixel coords into the sheet.
 (defparameter +icon-bg-key+ '(0 168 168) "Teal grid behind the resource icons.")
 (defparameter +icon-size+ 8)
-(defparameter +food-icon+   '(128 . 32))
-(defparameter +shield-icon+ '(136 . 32))
-(defparameter +trade-icon+  '(144 . 40))
+(defparameter +food-icon+    '(128 . 32))
+(defparameter +shield-icon+  '(136 . 32))
+(defparameter +science-icon+ '(144 . 32))
+(defparameter +gold-icon+    '(152 . 32))
+(defparameter +trade-icon+   '(144 . 40))
 
 (defun unit-sprite (type)
   (or (cdr (assoc type *unit-sprites*)) +default-unit-sprite+))
@@ -510,7 +512,7 @@ plus a row of every unit sharing the square (the selected one outlined cyan)."
 ;;; --- build menu ------------------------------------------------------------
 
 (defparameter *menu-x* 92 "Build-menu panel position (logical px).")
-(defparameter *menu-y* 52)
+(defparameter *menu-y* 64 "Lowered to leave a top band for the City Resources pane.")
 
 (defparameter *minimap-terrain-colors*
   '((:ocean 40 60 140) (:grassland 70 150 50) (:plains 150 150 70)
@@ -845,6 +847,85 @@ citizen icons (specialists clickable), and a work-radius map at bottom-left."
                        (sdl2:render-fill-rect ren (painter-dst painter))))))))
     ;; the clickable work-radius map sits bottom-left, clear of the build panel
     (draw-city-map painter state city +city-map-x+ +city-map-y+)))
+
+;;; --- the City Resources pane -----------------------------------------------
+;; A graphical readout, one row of icons per resource, with a small separator
+;; dividing what the city consumes (needed) from what it banks (surplus).
+
+(defparameter +res-pane-x+ 82 "City Resources pane: clears the status pane on the left.")
+(defparameter +res-pane-y+ 1)
+(defparameter +res-pane-w+ 236)
+(defparameter +res-row-h+ 8)
+
+(defun draw-icon-run (painter icon n x y)
+  "Draw N copies of resource ICON (sx . sy in the icon texture), 8px apart from
+(X,Y); return the x just past the last."
+  (dotimes (i n)
+    (blit painter (painter-icons painter) (car icon) (cdr icon)
+          +icon-size+ +icon-size+ (+ x (* i +icon-size+)) y))
+  (+ x (* n +icon-size+)))
+
+(defun draw-head-run (painter col n x y)
+  "Draw N citizen 'heads' (the top 8x8 of people-row column COL) 8px apart."
+  (dotimes (i n)
+    (blit painter (painter-sprites painter) (* col +people-cw+) +people-row-y+
+          +icon-size+ +icon-size+ (+ x (* i +icon-size+)) y))
+  (+ x (* n +icon-size+)))
+
+(defun draw-resource-row (painter y label needed-fn surplus-fn needed surplus)
+  "One pane row at logical Y: a short LABEL, then NEEDED icons, a 1px separator,
+then SURPLUS icons.  NEEDED-FN / SURPLUS-FN each draw a run and return the new x."
+  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+         (x0 (+ +res-pane-x+ 2))
+         (ix (+ x0 26))                              ; icons start after the label
+         (cap (floor (- +res-pane-w+ 30) +icon-size+))
+         (nn (min needed cap)) (ns (min surplus (max 0 (- cap nn 1)))))
+    (draw-text painter font label x0 (+ y 1) 210 210 220)
+    (let ((xn (funcall needed-fn painter ix y nn)))
+      (sdl2:set-render-draw-color ren 200 200 200 255)   ; the needed|surplus separator
+      (set-rect (painter-dst painter) (+ xn 1) y 1 +icon-size+)
+      (sdl2:render-fill-rect ren (painter-dst painter))
+      (funcall surplus-fn painter (+ xn 4) y ns))))
+
+(defun draw-city-resources (painter state city)
+  "The City Resources pane: food, shields, trade, gold, science and happiness,
+each a row of icons split by a separator into needed (consumed) and surplus."
+  (let ((font (painter-font painter)))
+    (when (and font (painter-icons painter))
+      (multiple-value-bind (food shields trade) (civm:city-yields state city)
+        (multiple-value-bind (happy content unhappy) (civm:city-happiness state city trade)
+          (let* ((ren (painter-ren painter))
+                 (size (civm:city-size city))
+                 (eaten (min food (* 2 size))) (grow (max 0 (- food (* 2 size))))
+                 (income (civm:city-tax-output state city trade))
+                 (upkeep (civm:city-upkeep city))
+                 (profit (max 0 (- income upkeep)))
+                 (beakers (floor (or (civm:city-research-output state city trade) 0) 100))
+                 (ph (+ 3 (* 7 +res-row-h+))))
+            (sdl2:set-render-draw-color ren 0 0 0 220)
+            (set-rect (painter-dst painter) +res-pane-x+ +res-pane-y+ +res-pane-w+ ph)
+            (sdl2:render-fill-rect ren (painter-dst painter))
+            (sdl2:set-render-draw-color ren 220 220 220 255)
+            (sdl2:render-draw-rect ren (painter-dst painter))
+            (draw-text painter font "City Resources" (+ +res-pane-x+ 2) (1+ +res-pane-y+)
+                       255 230 120)
+            (flet ((icons (icon) (lambda (p x y n) (draw-icon-run p icon n x y)))
+                   (heads (col) (lambda (p x y n) (draw-head-run p col n x y))))
+              (loop for (label nfn sfn need surp) in
+                    (list (list "Food"  (icons +food-icon+)    (icons +food-icon+)    eaten grow)
+                          (list "Prod"  (icons +shield-icon+)  (icons +shield-icon+)  0 shields)
+                          (list "Trade" (icons +trade-icon+)   (icons +trade-icon+)   0 trade)
+                          (list "Gold"  (icons +gold-icon+)    (icons +gold-icon+)    upkeep profit)
+                          (list "Sci"   (icons +science-icon+) (icons +science-icon+) 0 beakers)
+                          ;; happiness: unhappy faces | content then happy faces
+                          (list "Happy" (heads 4)
+                                (lambda (p x y n)         ; surplus side: content, then happy
+                                  (let ((nc (min content n)))
+                                    (draw-head-run p 0 (- n nc) (draw-head-run p 2 nc x y) y)))
+                                unhappy (+ content happy)))
+                    for row from 1
+                    do (draw-resource-row painter (+ +res-pane-y+ 2 (* row +res-row-h+))
+                                          label nfn sfn need surp)))))))))
 
 ;;; --- government menu (revolution) ------------------------------------------
 
@@ -1669,7 +1750,8 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
                (when u (draw-spy-menu painter state u))))
             ((and build-city (painter-font painter))
              (let ((c (civm:city-by-id state build-city)))
-               (when c (draw-build-menu painter state c)))))
+               (when c (draw-build-menu painter state c)
+                 (draw-city-resources painter state c)))))
       ;; HUD: a Civ1-style status pane -- date, population, gold, government and
       ;; tax/lux/science split, research progress, spaceship status -- with the
       ;; overview minimap below it.  Sits on the left edge, or the right with HUD-RIGHT.
