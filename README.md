@@ -226,12 +226,15 @@ toward it. The AI civilizations beeline their own priorities automatically.
 **Civilopedia.** Press `O` for a browsable in-game reference, read straight from
 the rule tables: every **advance** with its prerequisites, every **unit** with
 its attack/defense/move and cost, and every **building** and **wonder** with its
-cost, required advance, and effect. `←`/`→` switch sections, `↑`/`↓` scroll,
-`Esc` closes.
+cost, required advance, and effect. Entries you can't have yet — an unresearched
+advance, or a unit/building/wonder whose prerequisite advance you lack — are
+**dimmed**, so the bright entries are what's available to you now. `←`/`→` switch
+sections, `↑`/`↓` scroll, `Esc` closes.
 
 ![the Civilopedia, wonders section](docs/pedia-wonders.png)
 
-*The wonders section: cost, the advance that unlocks each, and its effect.*
+*The wonders section: cost, the advance that unlocks each, and its effect. The
+four whose advance this civ already has are bright; the rest are dimmed.*
 
 **City improvements** build up the economy, each with a live effect: a
 **marketplace** then a **bank** and **stock exchange** each add +50% gold (the

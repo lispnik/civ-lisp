@@ -749,51 +749,60 @@ SEL-th row is highlighted as the one being edited."
 (defun pedia-sorted-keys (table)
   (sort (loop for k being the hash-keys of table collect k) #'string< :key #'symbol-name))
 
-(defun pedia-lines (category)
-  "The reference lines for one Civilopedia CATEGORY, read from the def tables."
-  (ecase category
-    (:advances
-     (loop for k in (pedia-sorted-keys civm:*techs*)
-           for pre = (civm:tech-def k :prereqs)
-           collect (format nil "~A  <- ~A" (civm:tech-def k :name)
-                           (if pre (format nil "~{~A~^, ~}"
-                                           (mapcar (lambda (p) (civm:tech-def p :name)) pre))
-                               "(start)"))))
-    (:units
-     (loop for k in (pedia-sorted-keys civm:*units*)
-           collect (format nil "~(~A~)  ~D/~D/~D  ~Dsh~@[  <- ~A~]"
-                           k (civm:unit-def k :attack 0) (civm:unit-def k :defense 0)
-                           (civm:unit-def k :move 1) (civm:unit-def k :cost 0)
-                           (let ((r (civm:unit-def k :requires))) (and r (civm:tech-def r :name))))))
-    (:buildings
-     (loop for k in (pedia-sorted-keys civm:*buildings*)
-           collect (format nil "~(~A~)  ~Dsh up~D~@[ <- ~A~]~@[ -- ~A~]"
-                           k (civm:building-def k :cost 0) (civm:building-def k :upkeep 0)
-                           (let ((r (civm:building-def k :requires))) (and r (civm:tech-def r :name)))
-                           (civm:building-def k :effect))))
-    (:wonders
-     (loop for k in (pedia-sorted-keys civm:*wonders*)
-           collect (format nil "~(~A~)  ~Dsh~@[ <- ~A~]~@[ -- ~A~]"
-                           k (civm:wonder-def k :cost 0)
-                           (let ((r (civm:wonder-def k :requires))) (and r (civm:tech-def r :name)))
-                           (civm:wonder-def k :effect))))))
+(defun pedia-lines (category &optional player)
+  "(text . have-p) for each entry in CATEGORY, read from the def tables.  HAVE-P
+is whether PLAYER already has the advance (or can build the unit/building/wonder,
+i.e. holds the prerequisite advance); T for everything when PLAYER is NIL."
+  (flet ((can (req) (or (null player) (civm:player-has-tech-p player req))))
+    (ecase category
+      (:advances
+       (loop for k in (pedia-sorted-keys civm:*techs*)
+             for pre = (civm:tech-def k :prereqs)
+             collect (cons (format nil "~A  <- ~A" (civm:tech-def k :name)
+                                   (if pre (format nil "~{~A~^, ~}"
+                                                   (mapcar (lambda (p) (civm:tech-def p :name)) pre))
+                                       "(start)"))
+                           (or (null player) (civm:player-has-tech-p player k)))))
+      (:units
+       (loop for k in (pedia-sorted-keys civm:*units*)
+             collect (cons (format nil "~(~A~)  ~D/~D/~D  ~Dsh~@[  <- ~A~]"
+                                   k (civm:unit-def k :attack 0) (civm:unit-def k :defense 0)
+                                   (civm:unit-def k :move 1) (civm:unit-def k :cost 0)
+                                   (let ((r (civm:unit-def k :requires))) (and r (civm:tech-def r :name))))
+                           (can (civm:unit-def k :requires)))))
+      (:buildings
+       (loop for k in (pedia-sorted-keys civm:*buildings*)
+             collect (cons (format nil "~(~A~)  ~Dsh up~D~@[ <- ~A~]~@[ -- ~A~]"
+                                   k (civm:building-def k :cost 0) (civm:building-def k :upkeep 0)
+                                   (let ((r (civm:building-def k :requires))) (and r (civm:tech-def r :name)))
+                                   (civm:building-def k :effect))
+                           (can (civm:building-def k :requires)))))
+      (:wonders
+       (loop for k in (pedia-sorted-keys civm:*wonders*)
+             collect (cons (format nil "~(~A~)  ~Dsh~@[ <- ~A~]~@[ -- ~A~]"
+                                   k (civm:wonder-def k :cost 0)
+                                   (let ((r (civm:wonder-def k :requires))) (and r (civm:tech-def r :name)))
+                                   (civm:wonder-def k :effect))
+                           (can (civm:wonder-def k :requires))))))))
 
-(defun draw-pedia (painter cat scroll vw vh)
+(defun draw-pedia (painter state cat scroll vw vh)
   "The Civilopedia: a scrollable reference for CAT (advances/units/buildings/
-wonders), windowed at SCROLL.  VW x VH is the viewport in tiles."
+wonders), windowed at SCROLL.  Entries the human can't yet have (the advance is
+unresearched, or its prerequisite is) are dimmed.  VW x VH is the viewport."
   (let ((font (painter-font painter)))
     (when font
       (let* ((ren (painter-ren painter)) (h (gfont-height font))
              (category (aref *pedia-categories* cat))
-             (all (pedia-lines category))
+             (all (pedia-lines category (human-player state)))   ; (text . have-p)
              (n (length all))
              (rows (max 1 (- (floor (* vh *tile*) (1+ h)) 2)))   ; visible lines
              (top (max 0 (min scroll (max 0 (- n rows)))))
              (shown (subseq all top (min n (+ top rows))))
              (head (format nil "CIVILOPEDIA - ~:(~A~)   <- -> section   up/down scroll   Esc"
                            (symbol-name category)))
-             (foot (format nil "~D-~D of ~D" (1+ top) (min n (+ top rows)) n))
-             (texts (list* head foot shown))
+             (foot (format nil "~D-~D of ~D (dim = not yet available)" (1+ top)
+                           (min n (+ top rows)) n))
+             (texts (list* head foot (mapcar #'car shown)))
              (pw (min (* vw *tile*)
                       (+ 8 (reduce #'max texts :key (lambda (s) (text-width font s))))))
              (ph (+ 6 (* (+ 2 (length shown)) (1+ h))))
@@ -805,8 +814,10 @@ wonders), windowed at SCROLL.  VW x VH is the viewport in tiles."
         (sdl2:set-render-draw-color ren 200 200 120 255)
         (sdl2:render-draw-rect ren (painter-dst painter))
         (draw-text painter font head (+ px 4) (+ py 3) 255 230 120)
-        (loop for s in shown for i from 1
-              do (draw-text painter font s (+ px 4) (+ py 3 (* i (1+ h))) 210 220 230))
+        (loop for (text . have) in shown for i from 1
+              do (if have
+                     (draw-text painter font text (+ px 4) (+ py 3 (* i (1+ h))) 210 220 230)
+                     (draw-text painter font text (+ px 4) (+ py 3 (* i (1+ h))) 105 110 120)))
         (draw-text painter font foot (+ px 4) (+ py 3 (* (1+ (length shown)) (1+ h)))
                    160 160 160)))))
 
@@ -1390,7 +1401,7 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
         (draw-name-prompt painter (* vw *tile*) naming))
       ;; the Civilopedia reference overlay
       (when (and pedia (painter-font painter))
-        (draw-pedia painter (car pedia) (cdr pedia) vw vh))
+        (draw-pedia painter state (car pedia) (cdr pedia) vw vh))
       ;; help overlay, drawn last so it sits on top of everything
       (when (and help (painter-font painter))
         (draw-help painter state))
