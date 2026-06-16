@@ -972,6 +972,7 @@ does not already hold a city (matches CMD-FOUND-CITY's checks)."
                               :owner (unit-owner u)
                               :x (unit-x u) :y (unit-y u))))
         (setf (city-production c) '(:unit :warriors))   ; default build
+        (push (cons (gs-turn state) (unit-owner u)) (gs-foundings state))  ; for the replay
         ;; consume the settler
         (remhash (unit-id u) (gs-units state))
         (setf (tile-units tile) (remove (unit-id u) (tile-units tile)))

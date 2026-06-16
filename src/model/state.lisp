@@ -28,6 +28,8 @@
   (log '())                                ; chronicle of notable events (newest first)
   (difficulty :prince :type keyword)       ; AI handicap level (see *DIFFICULTIES*)
   (offers '())                             ; AI diplomatic offers awaiting the human's reply
+  (history '())                            ; per-turn (turn . ((pid . score)...)) for the replay
+  (foundings '())                          ; (turn . pid) each time a city is founded
   (phase :start :type keyword))
 
 (defparameter *difficulties*

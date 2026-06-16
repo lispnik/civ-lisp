@@ -986,6 +986,14 @@ relation has already moved on (e.g. an alliance offer once war has broken out)."
                        (:ceasefire (not (at-war-p state from me)))))))
              (gs-offers state))))))
 
+(defun record-history (state)
+  "Snapshot each civilization's score this turn for the end-game replay graph."
+  (push (cons (gs-turn state)
+              (loop for p across (gs-players state)
+                    unless (eq (player-kind p) :barbarian)
+                      collect (cons (player-id p) (player-score p))))
+        (gs-history state)))
+
 (defun update-scores (state)
   "Recompute every civilization's score, and credit a turn of peace to any civ
 that is at war with nobody."
@@ -1053,6 +1061,7 @@ combat phases here.)"
   (incf (gs-turn state))
   (setf (gs-year state) (turn->year (gs-turn state)))
   (update-scores state)         ; Civilization score + peace bonus
+  (record-history state)        ; snapshot scores for the replay graph
   (prune-offers state)          ; discard AI offers overtaken by events
   (process-victory state)       ; conquest or space-race win?
   state)

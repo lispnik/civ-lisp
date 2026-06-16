@@ -127,6 +127,7 @@ moment it completes.
 | click minimap | **recenter** the main view on that spot of the world |
 | Ctrl+M | dock the status pane + minimap on the opposite (left/right) edge |
 | O | open the **Civilopedia** (←/→ section, ↑/↓ scroll, Esc close) |
+| Q | open the **replay** — score line-graph + city foundings (Esc closes) |
 | 1–9 / click | in the build menu, choose a unit, improvement, or wonder (`*`) to build; Esc closes |
 | arrow keys / numpad | move the selected unit — the **numpad moves diagonally** too (1/3/7/9) |
 | Tab | cycle to the next active unit (skips fortified / out-of-moves) |
@@ -390,6 +391,16 @@ civilization ranked by score in its own colour.
 ![the end-game score summary](docs/score-summary.png)
 
 *Greece wins by conquest with 90 points; the also-rans are ranked beneath.*
+
+**Replay.** Press `Q` any time for a Civ1-style **replay graph**: each
+civilization's Civilization-score plotted over the turns as a coloured line, with
+a **tick per city founding** along the time axis (in the founding civ's colour),
+so you can watch empires rise, overtake one another, and expand.
+
+![the replay graph](docs/replay.png)
+
+*Six civilizations' scores climbing across 140 turns; the marks along the bottom
+are city foundings.*
 
 > **macOS / arm64 note:** cl-sdl2's high-level event accessors (`scancode-value`,
 > the `:x`/`:y` destructuring) read the wrong `SDL_Event` struct offsets against

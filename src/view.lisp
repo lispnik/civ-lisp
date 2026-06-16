@@ -686,7 +686,7 @@ celebration banner."
     "Enter  end turn"
     "S / L  save / load game"
     "Left-click  select unit/city; empty: recenter"
-    "O  Civilopedia (reference)   ~  console   K  Slynk   ?  help"
+    "O  Civilopedia   Q  replay graph   ~  console   K  Slynk   ?  help"
     "Esc  close menu / quit")
   "Lines shown in the help overlay (first line is the title).")
 
@@ -788,6 +788,64 @@ available entries come first (each group still name-sorted), then the dimmed one
                            (can (civm:wonder-def k :requires)))))))) ; end ecase
      ;; available first (still name-sorted), then the dimmed/unavailable ones
      (append (remove-if-not #'cdr pairs) (remove-if #'cdr pairs)))))
+
+(defun draw-replay (painter state vw vh)
+  "A Civ1-style replay: each civilization's Civilization-score plotted over the
+turns as a coloured line, with a tick per city founding along the bottom."
+  (let ((font (painter-font painter)))
+    (when font
+      (let* ((ren (painter-ren painter)) (h (gfont-height font))
+             (hist (reverse (civm:gs-history state)))   ; oldest turn first
+             (vieww (* vw *tile*)) (viewh (* vh *tile*)))
+        (sdl2:set-render-draw-color ren 0 0 0 245)
+        (set-rect (painter-dst painter) 8 8 (- vieww 16) (- viewh 16))
+        (sdl2:render-fill-rect ren (painter-dst painter))
+        (sdl2:set-render-draw-color ren 200 200 120 255)
+        (sdl2:render-draw-rect ren (painter-dst painter))
+        (draw-text painter font "REPLAY - Civilization score over time   (Esc closes)"
+                   14 12 255 230 120)
+        (if (null hist)
+            (draw-text painter font "No history yet -- end a few turns first." 14 30 210 210 210)
+            (let* ((civs (loop for p across (civm:gs-players state)
+                               unless (eq (civm:player-kind p) :barbarian) collect p))
+                   (t0 (car (first hist))) (t1 (car (car (last hist))))
+                   (span (max 1 (- t1 t0)))
+                   (maxsc (max 1 (loop for e in hist
+                                       maximize (loop for c in (cdr e) maximize (cdr c)))))
+                   (l 40) (r (- vieww 18)) (top 26) (bot (- viewh 26)))
+              (flet ((sx (turn) (+ l (round (* (- (max t0 (min t1 turn)) t0) (- r l)) span)))
+                     (sy (sc)   (- bot (round (* sc (- bot top)) maxsc))))
+                ;; axes + scale labels
+                (sdl2:set-render-draw-color ren 130 130 130 255)
+                (sdl2-ffi.functions:sdl-render-draw-line ren l top l bot)
+                (sdl2-ffi.functions:sdl-render-draw-line ren l bot r bot)
+                (draw-text painter font (format nil "~D" maxsc) 12 (- top 2) 150 150 150)
+                (draw-text painter font (year-text (civm:gs-year state)) (- r 36) (+ bot 4)
+                           150 150 150)
+                ;; each civ's score line
+                (dolist (p civs)
+                  (destructuring-bind (cr cg cb) (owner-color state (civm:player-id p))
+                    (sdl2:set-render-draw-color ren cr cg cb 255)
+                    (let ((prev nil))
+                      (dolist (e hist)
+                        (let ((sc (cdr (assoc (civm:player-id p) (cdr e)))))
+                          (when sc
+                            (let ((x (sx (car e))) (y (sy sc)))
+                              (when prev
+                                (sdl2-ffi.functions:sdl-render-draw-line
+                                 ren (car prev) (cdr prev) x y))
+                              (setf prev (cons x y)))))))))
+                ;; a tick per city founding, just above the time axis, by civ colour
+                (dolist (f (civm:gs-foundings state))
+                  (destructuring-bind (cr cg cb) (owner-color state (cdr f))
+                    (sdl2:set-render-draw-color ren cr cg cb 255)
+                    (set-rect (painter-dst painter) (sx (car f)) (- bot 5) 2 5)
+                    (sdl2:render-fill-rect ren (painter-dst painter))))
+                ;; legend
+                (loop for p in civs for i from 0
+                      do (destructuring-bind (cr cg cb) (owner-color state (civm:player-id p))
+                           (draw-text painter font (civm:player-name p)
+                                      (+ l 6 (* i 64)) top cr cg cb))))))))))
 
 (defun draw-pedia (painter state cat scroll vw vh)
   "The Civilopedia: a scrollable reference for CAT (advances/units/buildings/
@@ -1305,7 +1363,7 @@ points at as (values WX WY); otherwise NIL.  Mirrors DRAW-MINIMAP's layout."
 
 (defun render-game (painter state selected-id
                     &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu
-                         research-menu help console hud-right naming pedia
+                         research-menu help console hud-right naming pedia replay
                          overlay (cam-x 0) (cam-y 0) (vw 20) (vh 15))
   "Draw STATE through a VW x VH-tile viewport whose top-left world tile is
 (CAM-X, CAM-Y); the map wraps east-west.  With FOG, unexplored tiles are black,
@@ -1406,6 +1464,8 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
       ;; the Civilopedia reference overlay
       (when (and pedia (painter-font painter))
         (draw-pedia painter state (car pedia) (cdr pedia) vw vh))
+      (when (and replay (painter-font painter))
+        (draw-replay painter state vw vh))
       ;; help overlay, drawn last so it sits on top of everything
       (when (and help (painter-font painter))
         (draw-help painter state))

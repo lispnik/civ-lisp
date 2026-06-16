@@ -67,7 +67,7 @@
 (defconstant +sc-j+ 13)
 (defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
 (defconstant +sc-n+ 17) (defconstant +sc-o+ 18) (defconstant +sc-p+ 19)
-(defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
+(defconstant +sc-q+ 20) (defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
 (defconstant +sc-v+ 25) (defconstant +sc-u+ 24)
 (defconstant +sc-x+ 27) (defconstant +sc-y+ 28) (defconstant +sc-z+ 29)
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
@@ -380,6 +380,7 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                   (name-input "")     ; the city name being entered
                   (skip-text nil)     ; eat the TEXTINPUT from the key that opened a text box
                   (pedia nil)         ; Civilopedia: (category-index . scroll) while open
+                  (replay nil)        ; T while the replay/timeline graph is shown
                   (spy-menu nil)      ; T while the diplomat action menu is open
                   (help nil)          ; T while the help overlay is shown
                   (console nil)       ; T while the `~` Lisp console is open
@@ -641,6 +642,8 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                         (let ((n (length (pedia-lines
                                                           (aref *pedia-categories* (car pedia))))))
                                           (setf (cdr pedia) (min (max 0 (1- n)) (+ (cdr pedia) 5))))))))
+                                  ;; replay overlay open: any key (Esc/Q) dismisses it
+                                  (replay (setf replay nil))
                                   ;; `~` opens the console
                                   ((= sc +sc-grave+)
                                    (setf console t con-input "" skip-text t  ; eat the '`'
@@ -829,6 +832,7 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                   ((= sc +sc-rbracket+) (tax! 10))     ; tax up (more gold)
                                   ((= sc +sc-slash+) (setf help t))    ; ? : help
                                   ((= sc +sc-o+) (setf pedia (cons 0 0)))  ; Civilopedia
+                                  ((= sc +sc-q+) (setf replay t))          ; replay/timeline graph
                                   ((= sc +sc-s+)
                                    (civm:save-game state *save-path*)
                                    (sdl2:set-window-title win "civ-lisp — game saved"))
@@ -868,6 +872,8 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                   (naming)
                                   ;; Civilopedia is keyboard-navigated
                                   (pedia)
+                                  ;; the replay overlay is dismissed from the keyboard
+                                  (replay)
                                   ;; government menu open: click a row to pick it
                                   (gov-menu
                                    (let ((g (gov-menu-pick painter state
@@ -973,6 +979,7 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                     :diplo-menu diplo-menu :trade-menu trade-menu
                                     :research-menu research-menu :hud-right hud-right
                                     :naming (and naming name-input) :pedia pedia
+                                    :replay replay
                                     :spy-menu spy-menu :help help
                                     :console (and console (cons con-input con-output))
                                     :cam-x cam-x :cam-y cam-y
