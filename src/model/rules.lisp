@@ -74,7 +74,44 @@ city shrinks, and pad any forced extras (citizens with no tile) as entertainers.
                                          :initial-element :entertainer)))
                 (t have)))))
 
+(defun set-specialist-count (city n)
+  "Force CITY's specialist list to exactly N long, keeping the chosen jobs and
+padding any new slots as entertainers."
+  (let ((have (city-specialists city)))
+    (setf (city-specialists city)
+          (cond ((> (length have) n) (subseq have 0 (max 0 n)))
+                ((< (length have) n)
+                 (append have (make-list (- n (length have)) :initial-element :entertainer)))
+                (t have)))))
+
+(defun city-radius-tiles (state city)
+  "The (x y) tiles CITY's citizens may work -- the 8 neighbours of its centre."
+  (mapcar (lambda (c) (list (first c) (second c)))
+          (neighbors (gs-map state) (city-x city) (city-y city))))
+
+(defun city-apply-manual-work (state city)
+  "Hand-assignment mode: the worked tiles are exactly the player's locks (those
+still in range and within the population), and the remaining citizens are
+specialists."
+  (let* ((radius (city-radius-tiles state city))
+         (worked (remove-duplicates
+                  (remove-if-not (lambda (tl) (member tl radius :test #'equal))
+                                 (city-tile-locks city))
+                  :test #'equal))
+         (worked (subseq worked 0 (min (length worked) (city-size city)))))
+    (setf (city-tile-locks city) worked
+          (city-worked city) worked)
+    (set-specialist-count city (- (city-size city) (length worked)))))
+
 (defun city-auto-work (state city)
+  "Settle CITY's citizens on tiles.  In hand-assignment mode the player's chosen
+tiles stand; otherwise the governor optimises (and any surplus / no-tile citizens
+become specialists)."
+  (if (city-manual-tiles city)
+      (city-apply-manual-work state city)
+      (city-optimize-work state city)))
+
+(defun city-optimize-work (state city)
   "Assign the city's working citizens to surrounding tiles and settle its
 specialists.  Citizens who can't be given a tile (none left in range) become
 specialists; the rest work tiles -- first securing subsistence (each citizen

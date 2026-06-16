@@ -1848,6 +1848,55 @@
     (let ((c2 (civ-model::list->city (civ-model::city->list c))))
       (is (equal '(:taxman :scientist) (city-specialists c2))))))
 
+(test manual-tile-frees-citizen-to-specialist
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 4)
+    (civ-model::city-auto-work s c)
+    (is (= 4 (length (city-worked c))))
+    (let ((tl (first (city-worked c))))
+      (apply-command s (list :work-tile :city (city-id c)
+                             :x (first tl) :y (second tl)))     ; click a worked tile
+      (is-true (city-manual-tiles c))                            ; enters manual mode
+      (is (= 3 (length (city-worked c))))                        ; that tile is freed
+      (is (= 1 (length (city-specialists c))))                   ; its citizen -> specialist
+      (is-false (member tl (city-worked c) :test #'equal)))))
+
+(test manual-tile-assigns-idle-tile
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 3)
+    (civ-model::city-auto-work s c)
+    (let* ((radius (civ-model::city-radius-tiles s c))
+           (idle (find-if-not (lambda (tl) (member tl (city-worked c) :test #'equal)) radius))
+           (worked (first (city-worked c))))
+      (apply-command s (list :work-tile :city (city-id c)         ; free a worker first
+                             :x (first worked) :y (second worked)))
+      (is (= 1 (length (city-specialists c))))
+      (apply-command s (list :work-tile :city (city-id c)         ; put it on an idle tile
+                             :x (first idle) :y (second idle)))
+      (is (= 3 (length (city-worked c))))                         ; specialist took the tile
+      (is (= 0 (length (city-specialists c))))
+      (is-true (member idle (city-worked c) :test #'equal)))))
+
+(test manual-tile-auto-hands-back-to-governor
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 4)
+    (apply-command s (list :work-tile :city (city-id c) :x 2 :y 1))
+    (is-true (city-manual-tiles c))
+    (apply-command s (list :work-tile :city (city-id c) :auto t))
+    (is-false (city-manual-tiles c))
+    (is (null (city-tile-locks c)))))
+
+(test manual-tiles-round-trip-through-save
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-manual-tiles c) t (city-tile-locks c) '((2 1) (3 3)))
+    (let ((c2 (civ-model::list->city (civ-model::city->list c))))
+      (is-true (city-manual-tiles c2))
+      (is (equal '((2 1) (3 3)) (city-tile-locks c2))))))
+
 (test government-trade-advantage
   (let* ((s (bare-state 6 6))
          (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))

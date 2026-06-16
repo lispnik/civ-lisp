@@ -398,7 +398,9 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                  (goto-mode nil))
             (sdl2-ffi.functions:sdl-free-surface cursor-sheet)
             (setf (painter-font painter) font
-                  (painter-nuke painter) (load-atlas ren *nuke-image* +nuke-bg-key+))
+                  (painter-nuke painter) (load-atlas ren *nuke-image* +nuke-bg-key+)
+                  ;; resource icons sit on a teal grid; key it out for clean blits
+                  (painter-icons painter) (load-atlas ren *sprites-image* +icon-bg-key+))
             (sdl2-ffi.functions:sdl-set-cursor torch-cursor)
             (sdl2:show-cursor)
             (sdl2:raise-window win)        ; bring the window to the front / focus it
@@ -976,12 +978,18 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                    (let* ((c (civm:city-by-id state build-city))
                                           (lx (floor (ev-mouse-x ev) scale))
                                           (ly (floor (ev-mouse-y ev) scale))
-                                          (face (and c (specialist-pick painter state c lx ly))))
+                                          (face (and c (specialist-pick painter state c lx ly)))
+                                          (tilepick (and c (city-map-pick painter state c lx ly))))
                                      (cond
                                        ((integerp face)       ; a specialist icon: cycle its job
                                         (try (list :set-specialists :city build-city
                                                    :op :cycle :index face)))
                                        ((eq face :mood))       ; a citizen face: ignore, stay open
+                                       ((eq tilepick :auto)    ; the city centre: governor resumes
+                                        (try (list :work-tile :city build-city :auto t)))
+                                       ((consp tilepick)       ; a work-radius tile: work / free it
+                                        (try (list :work-tile :city build-city
+                                                   :x (first tilepick) :y (second tilepick))))
                                        (t                     ; a line picks production; else close
                                         (let ((pick (build-menu-pick painter state c ly)))
                                           (when pick
@@ -1050,6 +1058,7 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                   (sdl2:destroy-texture (painter-sprites painter))
                   (sdl2:destroy-texture (painter-terrain painter))
                   (when (painter-nuke painter) (sdl2:destroy-texture (painter-nuke painter)))
+                  (when (painter-icons painter) (sdl2:destroy-texture (painter-icons painter)))
                   (sdl2-ffi.functions:sdl-free-cursor torch-cursor)
                   (sdl2-ffi.functions:sdl-free-cursor go-cursor)
                   (sdl2-image:quit)))))))))))))

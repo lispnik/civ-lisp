@@ -102,9 +102,16 @@ tech, so only what's been researched appears.*
 The menu doubles as a Civ1-style **city screen**: alongside the buildable roster
 it reads out the city's food balance and granary store, the current production
 and its progress, the trade split into tax/luxury/science, the workforce, the
-garrison, and the improvements already built. A small **work-radius map** in the
-bottom-left shows the 21-tile fat cross around the city, with the tiles its
-citizens are working brightened and the centre tile boxed in white.
+garrison, and the improvements already built. A **work-radius map** in the
+bottom-left shows the 21-tile fat cross around the city as real terrain, the
+centre tile holding the city and each worked tile framed in yellow and annotated
+with its **yield icons** (food, shields, trade — the original SP257 symbols).
+
+Like Civ1, you **manage the tiles by clicking them**: click a worked tile to free
+it (its citizen leaves the land and becomes a specialist), click an idle tile in
+range to put a citizen to work it, and click the centre to hand the arrangement
+back to the governor's auto-optimiser. This lets you force a city to work its
+high-food tiles to grow, or its high-shield tiles to rush a wonder.
 
 Along the bottom of the panel runs a **population bar**, one little citizen
 sprite per inhabitant (the original SP257 figures): happy, content and unhappy
@@ -122,9 +129,10 @@ entertainers to head off riots.
 ![Rome's city screen](docs/city-screen.png)
 
 *Size-7 Rome with `Workers 5  specialists: 1 elvis 1 sci`: a Temple at `8/40`
-shields, a Warriors garrison, Barracks/Granary/Marketplace/Palace built, the work
-map showing the five worked tiles, and a population bar of one happy and four
-content workers followed by the Elvis and scientist specialists.*
+shields, a Warriors garrison, Barracks/Granary/Marketplace/Palace built, a
+population bar of one happy and four content workers followed by the Elvis and
+scientist specialists, and the work-radius map showing the five worked tiles
+(framed in yellow with their food/trade yield icons) around the city centre.*
 
 Production accumulates shields each turn until the item completes. Below, after
 Rome has grown and worked its tiles for ~150 turns, the Pyramids are done: they

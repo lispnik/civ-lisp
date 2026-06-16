@@ -57,4 +57,7 @@
   (worked '())                    ; list of (x y) tiles citizens are working
   (specialists '())               ; citizens not working tiles: a list of
                                   ; :entertainer / :taxman / :scientist keywords
+  (manual-tiles nil)              ; T once the player hand-assigns tiles: the
+                                  ; governor stops auto-optimising the worked set
+  (tile-locks '())                ; in manual mode, the (x y) tiles the player works
   (disorder 0 :type fixnum))      ; consecutive turns in civil disorder

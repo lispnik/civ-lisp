@@ -41,6 +41,7 @@
         :food-box (city-food-box c) :shield-box (city-shield-box c)
         :buildings (city-buildings c) :production (city-production c)
         :worked (city-worked c) :specialists (city-specialists c)
+        :manual-tiles (city-manual-tiles c) :tile-locks (city-tile-locks c)
         :disorder (city-disorder c)))
 
 (defun list->city (cl)
@@ -53,6 +54,8 @@
           (city-production c) (getf cl :production)
           (city-worked c) (getf cl :worked)
           (city-specialists c) (getf cl :specialists)
+          (city-manual-tiles c) (getf cl :manual-tiles)
+          (city-tile-locks c) (getf cl :tile-locks)
           (city-disorder c) (or (getf cl :disorder) 0))
     c))
 

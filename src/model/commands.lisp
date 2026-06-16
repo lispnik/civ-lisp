@@ -26,6 +26,7 @@ on an illegal move."
     (:found-city     (cmd-found-city state command))
     (:set-production (cmd-set-production state command))
     (:set-specialists (cmd-set-specialists state command))
+    (:work-tile      (cmd-work-tile state command))
     (:fortify        (cmd-fortify state command))
     (:wake           (cmd-wake state command))
     (:disband-unit   (cmd-disband-unit state command))
@@ -1046,5 +1047,30 @@ After the change the city re-optimises its tile assignment."
                 (when (and i (< -1 i (length (city-specialists c))))
                   (setf (nth i (city-specialists c))
                         (next-specialist (nth i (city-specialists c))))))))
+    (city-auto-work state c)
+    c))
+
+(defun cmd-work-tile (state command)
+  "Hand-manage CITY's tiles like the Civ1 city screen.  With :auto T, hand control
+back to the governor.  Otherwise toggle tile (:x,:y): a worked tile is freed (its
+citizen becomes a specialist) and an idle tile is worked (a specialist takes it).
+The first manual touch seeds the locks from the current worked set."
+  (let* ((args (rest command))
+         (c (or (city-by-id state (getf args :city)) (fail "no such city"))))
+    (cond
+      ((getf args :auto)
+       (setf (city-manual-tiles c) nil (city-tile-locks c) '()))
+      (t
+       (unless (city-manual-tiles c)                ; enter manual mode
+         (setf (city-manual-tiles c) t
+               (city-tile-locks c) (copy-list (city-worked c))))
+       (let* ((tile (list (getf args :x) (getf args :y)))
+              (radius (city-radius-tiles state c)))
+         (cond
+           ((member tile (city-tile-locks c) :test #'equal)   ; worked -> free it
+            (setf (city-tile-locks c) (remove tile (city-tile-locks c) :test #'equal)))
+           ((and (member tile radius :test #'equal)            ; idle, workable, and a
+                 (< (length (city-tile-locks c)) (city-size c)))  ; citizen is free
+            (push tile (city-tile-locks c)))))))
     (city-auto-work state c)
     c))

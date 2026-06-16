@@ -67,6 +67,14 @@
 (defparameter +fort-sprite+ '(14 . 7))         ; SP257 col 14, row 7 (tile_007_014): field fort
 (defparameter +hut-sprite+ '(15 . 7))           ; SP257 col 15, row 7 (tile_007_015): tribal hut
 
+;; resource icons: 8x8 cells in cols 8-9 of row 2, on a teal (0 168 168) grid
+;; that the icon texture keys out.  (sx . sy) pixel coords into the sheet.
+(defparameter +icon-bg-key+ '(0 168 168) "Teal grid behind the resource icons.")
+(defparameter +icon-size+ 8)
+(defparameter +food-icon+   '(128 . 32))
+(defparameter +shield-icon+ '(136 . 32))
+(defparameter +trade-icon+  '(144 . 40))
+
 (defun unit-sprite (type)
   (or (cdr (assoc type *unit-sprites*)) +default-unit-sprite+))
 
@@ -131,7 +139,7 @@ on naval sprites -- is real art and is left alone).")
 ;;; --- painter (reuses two rects to avoid per-draw allocation) ---------------
 
 (defstruct (painter (:constructor make-painter (ren sprites terrain src dst)))
-  ren sprites terrain src dst (font nil) (nuke nil))
+  ren sprites terrain src dst (font nil) (nuke nil) (icons nil))
 
 ;; defined in font.lisp (loaded after this file)
 (declaim (ftype (function (t t t t t t t t) t) draw-text))
@@ -156,6 +164,13 @@ on naval sprites -- is real art and is left alone).")
 
 (defun draw-sprite (p col row dx dy)
   (blit p (painter-sprites p) (* col *tile*) (* row *tile*) *tile* *tile* dx dy))
+
+(defun blit-scaled (p tex sx sy sw sh dx dy dw dh)
+  "Copy the SW x SH region at (SX,SY) of TEX to a DW x DH box at (DX,DY), scaling."
+  (set-rect (painter-src p) sx sy sw sh)
+  (set-rect (painter-dst p) dx dy dw dh)
+  (sdl2:render-copy (painter-ren p) tex
+                    :source-rect (painter-src p) :dest-rect (painter-dst p)))
 
 (defun draw-marker (p px py w h rgb)
   "Fill a small W x H rectangle near the top-left of the tile drawn at (PX,PY)."
@@ -635,12 +650,32 @@ the workforce (tile workers vs. specialists), and the garrison."
                 (format nil "Workers ~D  (+/- specialists)" (civm:city-worker-count city)))
             (if garrison (format nil "Garrison ~{~A~^ ~}" garrison) "Garrison: none")))))
 
+(defparameter +city-map-x+ 2 "Work-radius map origin (bottom-left of the screen).")
+(defparameter +city-map-y+ 158)
+(defparameter +city-map-cell+ 16 "The work map uses full 16px terrain tiles.")
+
+(defun draw-tile-yield (painter food shields trade px py)
+  "Cluster small food/shield/trade icons (left-to-right, top-to-bottom, 3 per
+row, capped at 9) over the tile drawn at (PX,PY) to show what it produces."
+  (when (painter-icons painter)
+    (let ((sz 5) (slots '()))
+      (dotimes (i food)    (push +food-icon+ slots))
+      (dotimes (i shields) (push +shield-icon+ slots))
+      (dotimes (i trade)   (push +trade-icon+ slots))
+      (loop for coord in (nreverse slots) for k from 0 below 9
+            for col = (mod k 3) for row = (floor k 3)
+            do (blit-scaled painter (painter-icons painter)
+                            (car coord) (cdr coord) +icon-size+ +icon-size+
+                            (+ px 1 (* col sz)) (+ py 1 (* row sz)) sz sz)))))
+
 (defun draw-city-map (painter state city px py)
-  "A small map of CITY's work radius (the 21-tile fat cross) at screen (PX,PY):
-each tile coloured by terrain, worked tiles brightened, the centre marked."
-  (let* ((ren (painter-ren painter)) (map (civm:gs-map state)) (cell 11)
-         (worked (civm:city-worked city)) (span (* 5 cell)))
-    (sdl2:set-render-draw-color ren 0 0 0 230)           ; backdrop so it reads over terrain
+  "CITY's work radius as a Civ1-style mini terrain map at (PX,PY): the 21-tile
+fat cross drawn with real terrain tiles, the centre showing the city, worked
+tiles framed in yellow and annotated with their yield icons, idle tiles dimmed."
+  (let* ((ren (painter-ren painter)) (map (civm:gs-map state)) (cell +city-map-cell+)
+         (gov (civm:city-gov state city)) (worked (civm:city-worked city))
+         (span (* 5 cell)))
+    (sdl2:set-render-draw-color ren 0 0 0 235)            ; backdrop + frame
     (set-rect (painter-dst painter) (1- px) (1- py) (+ span 1) (+ span 1))
     (sdl2:render-fill-rect ren (painter-dst painter))
     (sdl2:set-render-draw-color ren 220 220 220 255)
@@ -650,22 +685,36 @@ each tile coloured by terrain, worked tiles brightened, the centre marked."
             unless (and (= 2 (abs dx)) (= 2 (abs dy)))   ; the fat cross drops corners
               do (let* ((x (civm:wrap-x map (+ (civm:city-x city) dx)))
                         (y (+ (civm:city-y city) dy))
-                        (tile (and (>= y 0) (civm:tile-at map x y)))
-                        (col (and tile (cdr (assoc (civm:tile-terrain tile)
-                                                   *minimap-terrain-colors*))))
+                        (tile (and (>= y 0) (< y (civm:map-height map)) (civm:tile-at map x y)))
                         (sx (+ px (* (+ dx 2) cell))) (sy (+ py (* (+ dy 2) cell)))
                         (center (and (zerop dx) (zerop dy)))
-                        (workp (or center (member (list x y) worked :test #'equal))))
-                   (when col
-                     (destructuring-bind (r g b) col
-                       (unless workp (setf r (floor r 2) g (floor g 2) b (floor b 2)))
-                       (sdl2:set-render-draw-color ren r g b 255)
-                       (set-rect (painter-dst painter) sx sy (1- cell) (1- cell))
-                       (sdl2:render-fill-rect ren (painter-dst painter))))
-                   (when center
-                     (sdl2:set-render-draw-color ren 255 255 255 255)
-                     (set-rect (painter-dst painter) sx sy (1- cell) (1- cell))
-                     (sdl2:render-draw-rect ren (painter-dst painter))))))))
+                        (workp (member (list x y) worked :test #'equal)))
+                   (when tile
+                     (draw-terrain-tile painter state x y sx sy)
+                     (cond
+                       (center
+                        (draw-sprite painter (car +city-sprite+) (cdr +city-sprite+) sx sy)
+                        (draw-frame painter sx sy '(255 255 255)))
+                       (workp
+                        (multiple-value-bind (f s tr) (civm:tile-yield tile gov)
+                          (draw-tile-yield painter f s tr sx sy))
+                        (draw-frame painter sx sy '(255 240 60)))
+                       (t (dim-tile painter sx sy)))))))))
+
+(defun city-map-pick (painter state city lx ly)
+  "Resolve a click (LX,LY) against the work-radius map: :auto for the city centre
+(hand control back to the governor), the (x y) world tile for a workable cell, or
+NIL if the click missed the map."
+  (declare (ignore painter))
+  (let ((span (* 5 +city-map-cell+)))
+    (when (and (<= +city-map-x+ lx (+ +city-map-x+ span))
+               (<= +city-map-y+ ly (+ +city-map-y+ span)))
+      (let ((dx (- (floor (- lx +city-map-x+) +city-map-cell+) 2))
+            (dy (- (floor (- ly +city-map-y+) +city-map-cell+) 2)))
+        (unless (and (= 2 (abs dx)) (= 2 (abs dy)))      ; the dropped corners
+          (if (and (zerop dx) (zerop dy)) :auto
+              (list (civm:wrap-x (civm:gs-map state) (+ (civm:city-x city) dx))
+                    (+ (civm:city-y city) dy))))))))
 
 ;;; --- the citizen population bar (SP257 'people' row, y=128) ----------------
 ;; The people sprites are 8px wide / 16px tall, packed nine-across at row y=128:
@@ -709,8 +758,8 @@ per specialist (carrying its index, so a click can cycle its job)."
             do (push (cons (cdr (assoc job *specialist-icons*)) i) faces))
       (nreverse faces))))
 
-(defparameter *specialist-hint* "[+/-] hire/return  click a citizen to switch job"
-  "City-screen footer explaining the specialist controls.")
+(defparameter *specialist-hint* "[+/-] specialists  map: click=work/free, centre=auto"
+  "City-screen footer explaining the specialist and tile-management controls.")
 
 (defun build-menu-texts (state city)
   "All text rows of the city screen, top to bottom, plus the pieces a caller
@@ -796,9 +845,8 @@ citizen icons (specialists clickable), and a work-radius map at bottom-left."
                        (sdl2:set-render-draw-color ren r g b 255)
                        (set-rect (painter-dst painter) dx (+ y +people-ch+ -1) +people-cw+ 1)
                        (sdl2:render-fill-rect ren (painter-dst painter))))))))
-    ;; the work-radius map sits bottom-left, clear of the wide build panel
-    ;; (logical viewport is 15 rows * 16 px = 240 tall)
-    (draw-city-map painter state city 3 (- (* 15 *tile*) (* 5 11) 3))))
+    ;; the clickable work-radius map sits bottom-left, clear of the build panel
+    (draw-city-map painter state city +city-map-x+ +city-map-y+)))
 
 ;;; --- government menu (revolution) ------------------------------------------
 
