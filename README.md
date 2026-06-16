@@ -126,6 +126,7 @@ moment it completes.
 | Y / E | open the **diplomacy** (war / peace / alliance / gift) / **trade** (tech & gold) menu |
 | research chooser | opens automatically when your research is idle — pick the next advance (1–9 / click; Esc takes the default) |
 | , / . | shift the **luxury** rate down / up (trades against science) |
+| [ / ] | shift the **tax** rate down / up — gold vs **science** (capped by your government) |
 | Enter | end turn |
 | S / L | **save** / **load** the game (single quicksave slot) |
 | ~ / K | open the **Lisp console** / start–stop a **Slynk** server (connect from Emacs) |

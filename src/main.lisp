@@ -10,7 +10,8 @@
 ;;;;   R / I / M / T : road (then railroad) / irrigate / mine / fort
 ;;;;   C : clear forest      P : clean pollution
 ;;;;   G  : goto (then click)         Enter : end turn
-;;;;   V  : revolution    Y : diplomacy    E : trade    , / . : luxury rate
+;;;;   V  : revolution    Y : diplomacy    E : trade
+;;;;   , / . : luxury rate    [ / ] : tax rate (science takes the remainder)
 ;;;;   Z / X : diplomat steal tech / sabotage   D : diplomat (spy) action menu
 ;;;;   H / J : caravan help build wonder / establish a trade route
 ;;;;   ?  : help overlay        ~ : Lisp console (evals a form; Esc closes)
@@ -71,6 +72,7 @@
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
 (defconstant +sc-tab+ 43)
 (defconstant +sc-comma+ 54) (defconstant +sc-period+ 55)   ; luxury down / up
+(defconstant +sc-lbracket+ 47) (defconstant +sc-rbracket+ 48)  ; tax down / up
 (defconstant +sc-slash+ 56)             ; '/' (Shift+/ = '?'): toggle help
 (defconstant +sc-right+ 79) (defconstant +sc-left+ 80)
 (defconstant +sc-down+ 81) (defconstant +sc-up+ 82)
@@ -401,6 +403,20 @@ or an error message."
                                         :tax (civm:player-tax-rate p)
                                         :luxury lux :science sci))
                              (retitle))))
+                       (tax! (delta)
+                         ;; shift DELTA percent between science and tax (gold);
+                         ;; luxury stays put, the government caps each rate
+                         (let* ((pid (first (human-player-ids state)))
+                                (p (civm:player-by-id state pid))
+                                (cap (civm:government-def
+                                      (civm:player-government p) :max-rate 100))
+                                (tax (max 0 (min cap (+ (civm:player-tax-rate p) delta))))
+                                (sci (- 100 (civm:player-luxury-rate p) tax)))
+                           (when (<= 0 sci cap)
+                             (try (list :set-rates :player pid
+                                        :tax tax :luxury (civm:player-luxury-rate p)
+                                        :science sci))
+                             (retitle))))
                        (espionage! (cmd ok-msg)
                          ;; a selected diplomat's steal/sabotage on an adjacent
                          ;; enemy city; report the result (incl. being caught)
@@ -685,6 +701,8 @@ or an error message."
                                         win (format nil "civ-lisp — Slynk error: ~A" e)))))
                                   ((= sc +sc-comma+) (lux! -10))       ; luxury down
                                   ((= sc +sc-period+) (lux! 10))       ; luxury up
+                                  ((= sc +sc-lbracket+) (tax! -10))    ; tax down (more science)
+                                  ((= sc +sc-rbracket+) (tax! 10))     ; tax up (more gold)
                                   ((= sc +sc-slash+) (setf help t))    ; ? : help
                                   ((= sc +sc-s+)
                                    (civm:save-game state *save-path*)
