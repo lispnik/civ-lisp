@@ -794,6 +794,16 @@ was, or NIL if the click missed the bar entirely."
         (when (< -1 i (length faces))
           (or (cdr (nth i faces)) :mood))))))
 
+(defparameter +build-panel-max-w+ 168
+  "Cap the build panel width so the Units pane has room on the right.")
+
+(defun fit-text (font s maxw)
+  "S truncated from the right to fit MAXW logical pixels."
+  (if (<= (text-width font s) maxw) s
+      (loop for n from (1- (length s)) downto 0
+            when (<= (text-width font (subseq s 0 n)) maxw)
+              return (subseq s 0 n))))
+
 (defun draw-build-menu (painter state city)
   "The city screen: the production list (1-9 to choose, picking unchanged), a
 Civ1-style readout (food/shields/trade, mood, garrison), a population bar of
@@ -803,8 +813,9 @@ citizen icons (specialists clickable), and a work-radius map at bottom-left."
     (multiple-value-bind (texts lines built mood detail title)
         (build-menu-texts state city)
       (let* ((faces (city-people-faces state city))
-             (pw (max (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s))))
-                      (+ 4 (* (length faces) +people-cw+))))     ; fit the people bar too
+             (pw (min +build-panel-max-w+
+                      (max (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s))))
+                           (+ 4 (* (length faces) +people-cw+)))))  ; fit the people bar too
              (ph (+ 4 (* (length texts) (1+ h)) (1+ +people-ch+)))) ; + the bar's height
         (sdl2:set-render-draw-color ren 0 0 0 230)
         (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
@@ -812,7 +823,7 @@ citizen icons (specialists clickable), and a work-radius map at bottom-left."
         (sdl2:set-render-draw-color ren 220 220 220 255)
         (sdl2:render-draw-rect ren (painter-dst painter))
         (flet ((line (text row r g b)
-                 (draw-text painter font text (+ *menu-x* 2)
+                 (draw-text painter font (fit-text font text (- pw 3)) (+ *menu-x* 2)
                             (+ *menu-y* 2 (* row (1+ h))) r g b)))
           (line title 0 255 230 120)                           ; title
           (loop for (i item label) in lines                    ; buildable (rows 1..N)
@@ -975,6 +986,63 @@ half level a granary keeps after the city grows."
           (set-rect (painter-dst painter) (+ +store-pane-x+ 2) gy
                     (* +store-cols+ +icon-size+) 1)
           (sdl2:render-fill-rect ren (painter-dst painter)))))))
+
+;;; --- the Units (buildable-unit roster) pane --------------------------------
+;; A Civ1-style list of the units the city can build: each unit's sprite and
+;; its cost in shields, down the right edge of the screen.
+
+(defparameter +units-pane-x+ 264)
+(defparameter +units-pane-w+ 54)
+(defparameter +units-pane-y+ 64)
+(defparameter +units-row-h+ 17)
+
+(defun city-buildable-units (state city)
+  "The unit types CITY may currently build, in menu order."
+  (loop for item in (buildable-items state city)
+        when (eq (first item) :unit) collect (second item)))
+
+(defun draw-units-pane (painter state city)
+  "A pane of the buildable units: each unit's sprite, a shield icon, and its
+shield cost -- styled after the Civ1 production list."
+  (let ((font (painter-font painter)))
+    (when font
+      (let* ((ren (painter-ren painter)) (h (gfont-height font))
+             (units (city-buildable-units state city))
+             (x +units-pane-x+) (y +units-pane-y+)
+             (ph (+ 3 h (* (max 1 (length units)) +units-row-h+))))
+        (when units
+          (sdl2:set-render-draw-color ren 0 0 0 230)
+          (set-rect (painter-dst painter) x y +units-pane-w+ ph)
+          (sdl2:render-fill-rect ren (painter-dst painter))
+          (sdl2:set-render-draw-color ren 220 220 220 255)
+          (sdl2:render-draw-rect ren (painter-dst painter))
+          (draw-text painter font "Units" (+ x 2) (1+ y) 255 230 120)
+          (loop for u in units for i from 0
+                for ry = (+ y 2 h (* i +units-row-h+))
+                for cur = (equal (civm:city-production city) (list :unit u))
+                do (let ((spr (unit-sprite u)))
+                     ;; paint the owner's colour behind the sprite, as DRAW-UNIT does
+                     (destructuring-bind (r g b) (owner-color state (civm:city-owner city))
+                       (sdl2:set-render-draw-color ren r g b 255)
+                       (set-rect (painter-dst painter) (+ x 2) ry *tile* *tile*)
+                       (sdl2:render-fill-rect ren (painter-dst painter)))
+                     (draw-sprite painter (car spr) (cdr spr) (+ x 2) ry))
+                   ;; a shield icon then the cost number, like Civ1
+                   (when (painter-icons painter)
+                     (blit painter (painter-icons painter) (car +shield-icon+) (cdr +shield-icon+)
+                           +icon-size+ +icon-size+ (+ x 21) (+ ry 4)))
+                   (draw-text painter font (format nil "~D" (item-cost (list :unit u)))
+                              (+ x 31) (+ ry 5)
+                              (if cur 120 235) 255 (if cur 120 235))))))))
+
+(defun units-pane-pick (painter state city lx ly)
+  "The (:unit type) production item for the Units-pane row at (LX,LY), or NIL."
+  (let* ((font (painter-font painter)) (h (gfont-height font))
+         (units (city-buildable-units state city)))
+    (when (and units (<= +units-pane-x+ lx (+ +units-pane-x+ +units-pane-w+)))
+      (let ((i (floor (- ly (+ +units-pane-y+ 2 h)) +units-row-h+)))
+        (when (< -1 i (length units))
+          (list :unit (nth i units)))))))
 
 ;;; --- government menu (revolution) ------------------------------------------
 
@@ -1801,7 +1869,8 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
              (let ((c (civm:city-by-id state build-city)))
                (when c (draw-build-menu painter state c)
                  (draw-city-resources painter state c)
-                 (draw-food-storage painter state c)))))
+                 (draw-food-storage painter state c)
+                 (draw-units-pane painter state c)))))
       ;; HUD: a Civ1-style status pane -- date, population, gold, government and
       ;; tax/lux/science split, research progress, spaceship status -- with the
       ;; overview minimap below it.  Sits on the left edge, or the right with HUD-RIGHT.

@@ -979,7 +979,8 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                           (lx (floor (ev-mouse-x ev) scale))
                                           (ly (floor (ev-mouse-y ev) scale))
                                           (face (and c (specialist-pick painter state c lx ly)))
-                                          (tilepick (and c (city-map-pick painter state c lx ly))))
+                                          (tilepick (and c (city-map-pick painter state c lx ly)))
+                                          (unitpick (and c (units-pane-pick painter state c lx ly))))
                                      (cond
                                        ((integerp face)       ; a specialist icon: cycle its job
                                         (try (list :set-specialists :city build-city
@@ -990,6 +991,9 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                        ((consp tilepick)       ; a work-radius tile: work / free it
                                         (try (list :work-tile :city build-city
                                                    :x (first tilepick) :y (second tilepick))))
+                                       (unitpick              ; a Units-pane row: build that unit
+                                        (try (list :set-production :city build-city :item unitpick))
+                                        (setf build-city nil))
                                        (t                     ; a line picks production; else close
                                         (let ((pick (build-menu-pick painter state c ly)))
                                           (when pick

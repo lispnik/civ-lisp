@@ -123,6 +123,10 @@ On the left, a **Food Store** pane is the granary box: a grid of food icons for
 the food banked toward the next citizen (bright = stored, dim = still needed),
 with a yellow line at the half level a granary keeps when the city grows.
 
+Down the right edge, a **Units** pane lists the units the city can build, each as
+its sprite (on the nation's colour) with a shield icon and its build cost in
+shields — click one to set it building.
+
 Along the bottom of the panel runs a **population bar**, one little citizen
 sprite per inhabitant (the original SP257 figures): happy, content and unhappy
 faces for the tile-workers, then the **specialists**. Citizens who aren't working
