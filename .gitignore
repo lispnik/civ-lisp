@@ -10,3 +10,4 @@ ocicl/
 
 # quicksave slot (S in-game)
 /civ-save.lisp
+civ-halloffame.lisp

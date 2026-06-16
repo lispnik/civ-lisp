@@ -1160,9 +1160,9 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
             ((plusp (civm:player-spaceship p))
              (format nil "SHIP ~D/~D parts" (civm:player-spaceship p) civm:*spaceship-parts*))))))
 
-(defun draw-banner (painter state view-w)
-  "End-of-game panel: the VICTORY / DEFEAT verdict plus the final Civilization
-score standings, ranked highest first, each civ in its colour."
+(defun draw-banner (painter state view-w &optional hof)
+  "End-of-game panel: the VICTORY / DEFEAT verdict, the final Civilization-score
+standings (ranked, each civ in its colour), and the Hall of Fame's best games."
   (let* ((font (painter-font painter)) (ren (painter-ren painter))
          (human (human-player state))
          (win (and human (eql (civm:gs-winner state) (civm:player-id human))))
@@ -1179,10 +1179,17 @@ score standings, ranked highest first, each civ in its colour."
                                              i (civm:player-name p)
                                              (max 1 (- 16 (length (civm:player-name p))))
                                              (civm:player-score p)))))
-         (lines (list* verdict "Final score:" (mapcar #'second rows)))
+         (hof-rows (when hof
+                     (loop for r in (subseq hof 0 (min 5 (length hof))) for i from 1
+                           collect (format nil "~D. ~A~v@T~D  ~:(~A~)" i (getf r :civ)
+                                           (max 1 (- 14 (length (getf r :civ))))
+                                           (getf r :score 0)
+                                           (symbol-name (getf r :difficulty :prince))))))
+         (lines (append (list* verdict "Final score:" (mapcar #'second rows))
+                        (when hof-rows (cons "Hall of Fame:" hof-rows))))
          (tw (reduce #'max lines :key (lambda (s) (text-width font s))))
          (pw (+ 8 tw)) (ph (+ 6 (* (length lines) (1+ h))))
-         (px (max 0 (floor (- view-w pw) 2))) (py 60))
+         (px (max 0 (floor (- view-w pw) 2))) (py 30))
     (sdl2:set-render-draw-color ren 0 0 0 238)
     (set-rect (painter-dst painter) px py pw ph)
     (sdl2:render-fill-rect ren (painter-dst painter))
@@ -1194,7 +1201,11 @@ score standings, ranked highest first, each civ in its colour."
       (line "Final score:" 1 220 220 160)
       (loop for (p label) in rows for i from 2
             do (destructuring-bind (r g b) (owner-color state (civm:player-id p))
-                 (line label i r g b))))))
+                 (line label i r g b)))
+      (when hof-rows
+        (let ((base (+ 2 (length rows))))
+          (line "Hall of Fame:" base 220 200 140)
+          (loop for s in hof-rows for k from 1 do (line s (+ base k) 200 200 210)))))))
 
 (defun offer-prompt-text (state offer)
   "The headline for an AI diplomatic OFFER awaiting the human's reply."
@@ -1369,7 +1380,7 @@ points at as (values WX WY); otherwise NIL.  Mirrors DRAW-MINIMAP's layout."
 (defun render-game (painter state selected-id
                     &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu
                          research-menu help console hud-right naming pedia replay
-                         overlay (cam-x 0) (cam-y 0) (vw 20) (vh 15))
+                         hall-of-fame overlay (cam-x 0) (cam-y 0) (vw 20) (vh 15))
   "Draw STATE through a VW x VH-tile viewport whose top-left world tile is
 (CAM-X, CAM-Y); the map wraps east-west.  With FOG, unexplored tiles are black,
 explored-but-unseen tiles are dimmed, and units/cities show only while visible."
@@ -1459,7 +1470,7 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
                             :fog fog :cam-x cam-x :cam-y cam-y :vw vw :vh vh)))))
       ;; victory / defeat banner
       (when (and (civm:gs-winner state) (painter-font painter))
-        (draw-banner painter state (* vw *tile*)))
+        (draw-banner painter state (* vw *tile*) hall-of-fame))
       ;; an AI diplomatic offer awaiting the human's reply (not once the game is over)
       (when (and (civm:gs-offers state) (not (civm:gs-winner state)) (painter-font painter))
         (draw-offer-prompt painter state (* vw *tile*)))

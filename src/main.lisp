@@ -89,6 +89,38 @@
   (merge-pathnames "civ-save.lisp" (asdf:system-source-directory :civ-lisp))
   "Single-slot quicksave file (S saves, L loads).")
 
+(defparameter *hof-path*
+  (merge-pathnames "civ-halloffame.lisp" (asdf:system-source-directory :civ-lisp))
+  "Hall of Fame: the best finished games, ranked by score.")
+
+(defun read-hall-of-fame ()
+  "The saved Hall of Fame records (a list of plists), or NIL."
+  (handler-case
+      (when (probe-file *hof-path*)
+        (with-open-file (in *hof-path*) (read in nil nil)))
+    (error () nil)))
+
+(defun record-hall-of-fame (state)
+  "Append the human's finished-game result and keep the top ten by score.
+Returns the updated record list."
+  (let ((human (human-player state)))
+    (when human
+      (let* ((rec (list :civ (civm:player-name human)
+                        :score (civm:player-score human)
+                        :difficulty (civm:gs-difficulty state)
+                        :year (civm:gs-year state)
+                        :won (eql (civm:gs-winner state) (civm:player-id human))
+                        :victory (civm:gs-victory state)))
+             (all (subseq (sort (cons rec (read-hall-of-fame)) #'>
+                                :key (lambda (r) (getf r :score 0)))
+                          0 (min 10 (1+ (length (read-hall-of-fame)))))))
+        (handler-case
+            (with-open-file (out *hof-path* :direction :output
+                                            :if-exists :supersede :if-does-not-exist :create)
+              (prin1 all out))
+          (error () nil))
+        all))))
+
 (defun human-city-at (state tx ty)
   "City id of a human-owned city on tile (TX,TY), or NIL."
   (let ((tile (civm:tile-at (civm:gs-map state) tx ty)))
@@ -381,6 +413,8 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                   (skip-text nil)     ; eat the TEXTINPUT from the key that opened a text box
                   (pedia nil)         ; Civilopedia: (category-index . scroll) while open
                   (replay nil)        ; T while the replay/timeline graph is shown
+                  (hof nil)           ; Hall of Fame records, read once the game ends
+                  (recorded nil)      ; T once this game's result has been recorded
                   (spy-menu nil)      ; T while the diplomat action menu is open
                   (help nil)          ; T while the help overlay is shown
                   (console nil)       ; T while the `~` Lisp console is open
@@ -755,6 +789,9 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                    (try '(:end-turn))
                                    (clrhash *waited*) (setf *wait-seq* 0)
                                    (setf selected (first-human-unit state))
+                                   ;; game just ended? record it in the Hall of Fame
+                                   (when (and (civm:gs-winner state) (not recorded))
+                                     (setf hof (record-hall-of-fame state) recorded t))
                                    (prompt-research!)   ; choose the next advance
                                    (retitle))
                                   ((= sc +sc-w+)
@@ -979,7 +1016,7 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                     :diplo-menu diplo-menu :trade-menu trade-menu
                                     :research-menu research-menu :hud-right hud-right
                                     :naming (and naming name-input) :pedia pedia
-                                    :replay replay
+                                    :replay replay :hall-of-fame hof
                                     :spy-menu spy-menu :help help
                                     :console (and console (cons con-input con-output))
                                     :cam-x cam-x :cam-y cam-y

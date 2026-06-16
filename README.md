@@ -396,6 +396,15 @@ civilization ranked by score in its own colour.
 
 *Greece wins by conquest with 90 points; the also-rans are ranked beneath.*
 
+Each finished game is also recorded to a **Hall of Fame** (`civ-halloffame.lisp`),
+which keeps the **ten best games by score** — civ, score, difficulty, and year —
+and lists the top five right under the final standings, so a hard-won Emperor
+game earns a lasting place on the board.
+
+![the final standings with the Hall of Fame](docs/hall-of-fame.png)
+
+*Below this game's standings, the Hall of Fame ranks the best games played so far.*
+
 **Replay.** Press `Q` any time for a Civ1-style **replay graph**: each
 civilization's Civilization-score plotted over the turns as a coloured line, with
 a **tick per city founding** along the time axis (in the founding civ's colour),
