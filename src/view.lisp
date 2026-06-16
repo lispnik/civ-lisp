@@ -711,14 +711,17 @@ celebration banner."
 
 ;;; --- new-game setup screen -------------------------------------------------
 
-(defun draw-setup (painter view-w view-h rows sel)
+(defun draw-setup (painter view-w view-h rows sel &optional resume)
   "The new-game setup screen.  ROWS is a list of (label value) string pairs; the
-SEL-th row is highlighted as the one being edited."
+SEL-th row is highlighted as the one being edited.  With RESUME, a hint to
+continue the autosaved game is shown."
   (let ((font (painter-font painter)))
     (when font
       (let* ((ren (painter-ren painter)) (h (gfont-height font))
              (title "NEW GAME")
-             (foot "Up/Down: choose    Left/Right: change    Enter: start    Esc: quit")
+             (foot (if resume
+                       "Up/Down  Left/Right  Enter: start    R: resume last game    Esc: quit"
+                       "Up/Down: choose    Left/Right: change    Enter: start    Esc: quit"))
              (labelw (reduce #'max rows :key (lambda (r) (text-width font (first r)))))
              (lines (mapcar (lambda (r) (format nil "~A   ~A" (first r) (second r))) rows))
              (pw (+ 24 (max (text-width font foot) (text-width font title)

@@ -93,6 +93,10 @@
   (merge-pathnames "civ-halloffame.lisp" (asdf:system-source-directory :civ-lisp))
   "Hall of Fame: the best finished games, ranked by score.")
 
+(defparameter *autosave-path*
+  (merge-pathnames "civ-autosave.lisp" (asdf:system-source-directory :civ-lisp))
+  "Written at the end of every turn; the setup screen offers to resume it.")
+
 (defun read-hall-of-fame ()
   "The saved Hall of Fame records (a list of plists), or NIL."
   (handler-case
@@ -311,6 +315,7 @@ NIL if the player quits.  Choose civilization, difficulty, rivals, and map size.
          (diffs (mapcar #'car civm:*difficulties*))
          (civ 0) (diff 2) (rivals 3) (size 1)   ; defaults: Prince, 3 rivals, Standard
          (sel 0)
+         (can-resume (probe-file *autosave-path*))   ; an autosaved game to continue
          (ev (autowrap:alloc 'sdl2-ffi:sdl-event))
          (result :pending))
     (labels ((nat (k) (string-capitalize (symbol-name k)))
@@ -351,13 +356,15 @@ NIL if the player quits.  Choose civilization, difficulty, rivals, and map size.
                        (cond
                          ((= sc +sc-escape+) (setf result nil))
                          ((or (= sc +sc-return+) (= sc +sc-kp-enter+)) (setf result (build)))
+                         ((and can-resume (= sc +sc-r+)) (setf result :resume))
                          ((= sc +sc-up+)    (setf sel (mod (1- sel) 4)))
                          ((= sc +sc-down+)  (setf sel (mod (1+ sel) 4)))
                          ((= sc +sc-left+)  (change -1))
                          ((= sc +sc-right+) (change 1))))))))
               (sdl2:set-render-draw-color ren 16 24 48 255)
               (sdl2:render-clear ren)
-              (draw-setup painter (* *view-cols* *tile*) (* *view-rows* *tile*) (rows) sel)
+              (draw-setup painter (* *view-cols* *tile*) (* *view-rows* *tile*) (rows) sel
+                          can-resume)
               (sdl2:render-present ren)
               (sdl2:delay 16))
             (and (not (eq result :pending)) result))
@@ -396,7 +403,9 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
             (sdl2:raise-window win)        ; bring the window to the front / focus it
             (let ((cfg (setup-screen painter win ren)))   ; choose civ/difficulty/map
              (when cfg                                    ; NIL = quit at the setup screen
-              (let* ((state (apply #'civm:make-new-game cfg))
+              (let* ((state (if (eq cfg :resume)
+                                (civm:load-game *autosave-path*)   ; continue last game
+                                (apply #'civm:make-new-game cfg)))
                      (selected (first-human-unit state)))
                (setf *state* state)          ; publish the live game for the console / SLY
                (sdl2-ffi.functions:sdl-set-cursor torch-cursor)
@@ -792,6 +801,7 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                    ;; game just ended? record it in the Hall of Fame
                                    (when (and (civm:gs-winner state) (not recorded))
                                      (setf hof (record-hall-of-fame state) recorded t))
+                                   (ignore-errors (civm:save-game state *autosave-path*)) ; autosave
                                    (prompt-research!)   ; choose the next advance
                                    (retitle))
                                   ((= sc +sc-w+)

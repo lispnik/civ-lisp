@@ -149,7 +149,7 @@ moment it completes.
 | , / . | shift the **luxury** rate down / up (trades against science) |
 | [ / ] | shift the **tax** rate down / up — gold vs **science** (capped by your government) |
 | Enter | end turn |
-| S / L | **save** / **load** the game (single quicksave slot) |
+| S / L | **save** / **load** the game (single quicksave slot; also autosaves each turn) |
 | ~ / K | open the **Lisp console** / start–stop a **Slynk** server (connect from Emacs) |
 | ? | toggle the **help** overlay (a keybinding cheat-sheet) |
 | Esc | close a menu / cancel a pending Go; otherwise quit |
@@ -187,7 +187,9 @@ improvements (priciest first) until solvent.
 
 Press `S` to **save** and `L` to **load** — because the whole `civ-model` state
 is flat, serializable data (the RNG included), a loaded game continues rolling
-identically, so save/load is fully deterministic.
+identically, so save/load is fully deterministic. The game also **autosaves**
+every turn, and the setup screen offers **`R` to resume** that autosaved game —
+so quitting (or a crash) never loses more than the current turn.
 
 **Founding a city** (`B` with a settler) prompts for its **name**, prefilled with
 the next unused name from your **nation's roster** — Rome, Caesarea, Carthage… for
