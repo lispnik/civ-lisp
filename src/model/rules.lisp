@@ -937,6 +937,21 @@ There is no year 0: a step that lands on it advances to 1 AD."
 peace, less pollution; never below zero)."
   (max 0 (reduce #'+ (score-breakdown state player) :key #'cdr :initial-value 0)))
 
+(defun prune-offers (state)
+  "Drop AI offers that no longer make sense -- the suitor was eliminated, or the
+relation has already moved on (e.g. an alliance offer once war has broken out)."
+  (let ((me (human-id state)))
+    (setf (gs-offers state)
+          (when me
+            (remove-if
+             (lambda (o)
+               (let* ((from (getf o :from)) (p (player-by-id state from)))
+                 (or (null p) (not (player-alive-p state p))
+                     (ecase (getf o :kind)
+                       (:alliance  (not (eq (relation state from me) :peace)))
+                       (:ceasefire (not (at-war-p state from me)))))))
+             (gs-offers state))))))
+
 (defun update-scores (state)
   "Recompute every civilization's score, and credit a turn of peace to any civ
 that is at war with nobody."
@@ -1004,5 +1019,6 @@ combat phases here.)"
   (incf (gs-turn state))
   (setf (gs-year state) (turn->year (gs-turn state)))
   (update-scores state)         ; Civilization score + peace bonus
+  (prune-offers state)          ; discard AI offers overtaken by events
   (process-victory state)       ; conquest or space-race win?
   state)

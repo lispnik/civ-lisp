@@ -42,6 +42,7 @@ on an illegal move."
     (:break-alliance (cmd-break-alliance state command))
     (:propose-ceasefire (cmd-propose-ceasefire state command))
     (:demand-tribute (cmd-demand-tribute state command))
+    (:resolve-offer  (cmd-resolve-offer state command))
     (:propose-trade  (cmd-propose-trade state command))
     (:set-research   (cmd-set-research state command))
     (:steal-tech     (cmd-steal-tech state command))
@@ -789,6 +790,19 @@ confident one refuses."
     (let ((amount (min *tribute-amount* (player-gold pb))))
       (decf (player-gold pb) amount)
       (incf (player-gold pa) amount))
+    state))
+
+(defun cmd-resolve-offer (state command)
+  "The human accepts (:ACCEPT t) or declines a pending AI offer of :KIND from civ
+:FROM.  Accepting applies the relation change; either way the offer is cleared."
+  (let* ((args (rest command))
+         (me (getf args :player 1)) (from (getf args :from)) (kind (getf args :kind)))
+    (unless (player-by-id state from) (fail "no such player"))
+    (when (getf args :accept)
+      (ecase kind
+        (:alliance  (setf (relation state from me) :alliance))
+        (:ceasefire (setf (relation state from me) :peace) (set-truce state from me))))
+    (remove-offer state from kind)
     state))
 
 ;;; --- trade (gold + tech) ---------------------------------------------------

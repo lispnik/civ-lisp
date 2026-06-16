@@ -37,6 +37,7 @@
    #:*spaceship-parts* #:*spaceship-flight* #:*spaceship-part-cost*
    ;; diplomacy
    #:gs-relations #:relation #:at-war-p #:allied-p #:truce-active-p #:barbarian-id-p
+   #:gs-offers #:human-id
    #:best-trade-with #:*tech-trade-value*
    ;; espionage
    #:gs-embassies #:has-embassy-p #:adjacent-enemy-city #:adjacent-enemy-unit

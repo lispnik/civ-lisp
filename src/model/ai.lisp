@@ -85,13 +85,17 @@ by temperament + difficulty), and -- by temperament -- offer alliances to peers.
             do (let ((theirs (length (player-city-list state oid))))
                  (cond
                    ;; at war and clearly losing -> sue for a cease-fire (a truce,
-                   ;; so the pounce rule won't immediately re-open the war); a
-                   ;; city-less roaming force has nothing to protect, so fights on
+                   ;; so the pounce rule won't immediately re-open the war).  Against
+                   ;; the human it is an OFFER they may decline; an AI rival agrees
+                   ;; at once.  A city-less roaming force fights on.
                    ((and (at-war-p state pid oid) (plusp mine) (<= (* 2 mine) theirs))
-                    (setf (relation state pid oid) :peace)
-                    (set-truce state pid oid)
-                    (gs-note state "~A and ~A agree a cease-fire"
-                             (player-name player) (player-name other)))
+                    (if (eq (player-kind other) :human)
+                        (add-offer state pid :ceasefire)
+                        (progn
+                          (setf (relation state pid oid) :peace)
+                          (set-truce state pid oid)
+                          (gs-note state "~A and ~A agree a cease-fire"
+                                   (player-name player) (player-name other)))))
                    ;; at peace, not weaker, with something to take, not shielded by
                    ;; the United Nations, and no cease-fire in force -> pounce
                    ((and (eq (relation state pid oid) :peace)
@@ -102,16 +106,18 @@ by temperament + difficulty), and -- by temperament -- offer alliances to peers.
                             (+ (ai-trait player :war-chance 3)
                                (1- (difficulty-level state)))))
                     (setf (relation state pid oid) :war))
-                   ;; at peace with a worthy fellow AI -> by temperament, seek an
-                   ;; alliance (mutual; the human is left to propose their own)
-                   ((and (eq (player-kind other) :ai)
-                         (eq (relation state pid oid) :peace)
+                   ;; at peace with a worthy peer -> by temperament, seek an
+                   ;; alliance.  The human gets an offer to weigh; an AI peer
+                   ;; decides at once.
+                   ((and (eq (relation state pid oid) :peace)
                          (plusp theirs) (>= theirs (floor mine 2))
-                         (< (gs-rand state 100) (floor (ai-trait player :ally-chance 0) 6))
-                         (ai-accepts-alliance-p state player other))
-                    (setf (relation state pid oid) :alliance)
-                    (gs-note state "~A and ~A form an alliance"
-                             (player-name player) (player-name other))))))))
+                         (< (gs-rand state 100) (floor (ai-trait player :ally-chance 0) 6)))
+                    (if (eq (player-kind other) :human)
+                        (add-offer state pid :alliance)
+                        (when (ai-accepts-alliance-p state player other)
+                          (setf (relation state pid oid) :alliance)
+                          (gs-note state "~A and ~A form an alliance"
+                                   (player-name player) (player-name other))))))))))
 
 (defparameter *ai-gov-order* '(:democracy :republic :monarchy)
   "Governments the AI prefers, best first.")

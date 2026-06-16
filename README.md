@@ -311,13 +311,20 @@ weighs it — a civ welcomes an ally at least as strong as itself), **break** on
 **gift 50 gold** as a goodwill gesture. Allies can't attack each other, and the
 AI won't pounce on an ally (you can still betray one by declaring war). The AIs
 also conduct **their own diplomacy** — forming alliances and agreeing cease-fires
-among themselves as the game unfolds. `E` opens a **trade** menu to swap advances
-or buy/sell them for gold.
+among themselves as the game unfolds — and they **make offers to you**: a friendly
+civ proposes an alliance, and one losing a war to you sues for a cease-fire. Such
+an offer pops up a prompt you answer with **Y** (accept) or **N** (decline); it
+isn't applied unless you agree. `E` opens a **trade** menu to swap advances or
+buy/sell them for gold.
 
 ![the diplomacy menu](docs/diplo-menu.png)
 
 *Per-rival diplomacy: at war with Egypt (make peace / cease-fire), allied with
 Zulu (break / declare war), at peace with Greece (war / alliance / tribute / gift).*
+
+![an incoming AI offer](docs/offer-prompt.png)
+
+*An AI's offer is yours to accept or decline.*
 
 **Diplomats** (`Z`/`X`/`D`) run
 the full espionage suite — steal tech, sabotage, establish an embassy,

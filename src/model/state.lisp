@@ -27,6 +27,7 @@
   (message nil)                            ; transient last-event text (e.g. a hut outcome)
   (log '())                                ; chronicle of notable events (newest first)
   (difficulty :prince :type keyword)       ; AI handicap level (see *DIFFICULTIES*)
+  (offers '())                             ; AI diplomatic offers awaiting the human's reply
   (phase :start :type keyword))
 
 (defparameter *difficulties*
@@ -91,6 +92,29 @@
   "Record a cease-fire between A and B lasting *CEASEFIRE-TURNS* turns."
   (setf (gethash (rel-key a b) (gs-truces state))
         (+ (gs-turn state) *ceasefire-turns*)))
+
+;;; --- diplomatic offers awaiting the human's reply --------------------------
+
+(defun human-id (state)
+  "The id of the human player, or NIL in an all-AI game."
+  (let ((p (find :human (gs-players state) :key #'player-kind)))
+    (and p (player-id p))))
+
+(defun pending-offer-p (state from kind)
+  "T if an offer of KIND from civ FROM is already awaiting the human's reply."
+  (find-if (lambda (o) (and (= (getf o :from) from) (eq (getf o :kind) kind)))
+           (gs-offers state)))
+
+(defun add-offer (state from kind)
+  "Queue a diplomatic offer (KIND from civ FROM) for the human to accept/decline."
+  (unless (pending-offer-p state from kind)
+    (setf (gs-offers state) (append (gs-offers state) (list (list :from from :kind kind))))))
+
+(defun remove-offer (state from kind)
+  "Drop the queued offer of KIND from civ FROM."
+  (setf (gs-offers state)
+        (remove-if (lambda (o) (and (= (getf o :from) from) (eq (getf o :kind) kind)))
+                   (gs-offers state))))
 (defun unit-by-id (state id) (gethash id (gs-units state)))
 (defun city-by-id (state id) (gethash id (gs-cities state)))
 

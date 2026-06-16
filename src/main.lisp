@@ -596,6 +596,20 @@ or an error message."
                                                      :item (second pick)))))
                                       (setf build-city nil))
                                      ((= sc +sc-escape+) (setf build-city nil))))
+                                  ;; an AI offer is pending: Y accepts, N/Esc declines
+                                  ;; (modal -- other keys wait until you answer)
+                                  ((civm:gs-offers state)
+                                   (let* ((o (first (civm:gs-offers state)))
+                                          (me (first (human-player-ids state))))
+                                     (cond
+                                       ((= sc +sc-y+)
+                                        (try (list :resolve-offer :player me
+                                                   :from (getf o :from) :kind (getf o :kind)
+                                                   :accept t)))
+                                       ((or (= sc +sc-n+) (= sc +sc-escape+))
+                                        (try (list :resolve-offer :player me
+                                                   :from (getf o :from) :kind (getf o :kind)
+                                                   :accept nil))))))
                                   ((= sc +sc-escape+)
                                    (if goto-mode (progn (torch!) (retitle))
                                        (setf running nil)))
@@ -704,6 +718,9 @@ or an error message."
                                 (cond
                                   ;; help overlay up: a click dismisses it
                                   (help (setf help nil))
+                                  ;; an AI offer is pending: answer it with Y/N, not
+                                  ;; the mouse -- swallow clicks until then
+                                  ((civm:gs-offers state))
                                   ;; government menu open: click a row to pick it
                                   (gov-menu
                                    (let ((g (gov-menu-pick painter state

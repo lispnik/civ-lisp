@@ -1013,6 +1013,31 @@ score standings, ranked highest first, each civ in its colour."
             do (destructuring-bind (r g b) (owner-color state (civm:player-id p))
                  (line label i r g b))))))
 
+(defun offer-prompt-text (state offer)
+  "The headline for an AI diplomatic OFFER awaiting the human's reply."
+  (let ((name (civm:player-name (civm:player-by-id state (getf offer :from)))))
+    (ecase (getf offer :kind)
+      (:alliance  (format nil "~A proposes an alliance." name))
+      (:ceasefire (format nil "~A offers a cease-fire." name)))))
+
+(defun draw-offer-prompt (painter state view-w)
+  "A modal asking the human to accept or decline the first pending AI offer."
+  (let* ((font (painter-font painter)) (offer (first (civm:gs-offers state))))
+    (when (and font offer)
+      (let* ((ren (painter-ren painter)) (h (gfont-height font))
+             (l1 (offer-prompt-text state offer))
+             (l2 "[Y] accept    [N] decline")
+             (pw (+ 8 (max (text-width font l1) (text-width font l2))))
+             (ph (+ 6 (* 2 (1+ h))))
+             (px (max 0 (floor (- view-w pw) 2))) (py 70))
+        (sdl2:set-render-draw-color ren 0 0 0 238)
+        (set-rect (painter-dst painter) px py pw ph)
+        (sdl2:render-fill-rect ren (painter-dst painter))
+        (sdl2:set-render-draw-color ren 230 220 120 255)
+        (sdl2:render-draw-rect ren (painter-dst painter))
+        (draw-text painter font l1 (+ px 4) (+ py 3) 255 240 180)
+        (draw-text painter font l2 (+ px 4) (+ py 3 (1+ h)) 200 220 255)))))
+
 (defun draw-explosion-frame (painter frame px py)
   "Blit detonation FRAME (0..+NUKE-FRAMES+-1) from the nuke sheet, scaled to a
 3x3-tile burst centred on the tile drawn at screen pixel (PX,PY)."
@@ -1210,6 +1235,9 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
       ;; victory / defeat banner
       (when (and (civm:gs-winner state) (painter-font painter))
         (draw-banner painter state (* vw *tile*)))
+      ;; an AI diplomatic offer awaiting the human's reply (not once the game is over)
+      (when (and (civm:gs-offers state) (not (civm:gs-winner state)) (painter-font painter))
+        (draw-offer-prompt painter state (* vw *tile*)))
       ;; help overlay, drawn last so it sits on top of everything
       (when (and help (painter-font painter))
         (draw-help painter state))

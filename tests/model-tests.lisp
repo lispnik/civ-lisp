@@ -1951,6 +1951,42 @@ shield special) so the city keeps producing instead of starving."
     (signals command-error (apply-command s (list :demand-tribute :player 1 :against 2)))
     (is (= 100 (player-gold (player-by-id s 2))))))                 ; nothing paid
 
+(test ai-offers-the-human-a-cease-fire
+  ;; an AI losing a war to the human offers a cease-fire -- queued, not applied,
+  ;; until the human answers
+  (let ((s (bare-state 6 6)))
+    (dolist (x '(1 2 3 4)) (civ-model::register-city s :name (format nil "C~D" x)
+                                                       :owner 1 :x x :y 1))  ; strong human
+    (civ-model::register-city s :name "Ur" :owner 2 :x 1 :y 4)              ; weak AI
+    (apply-command s (list :declare-war :player 1 :against 2))
+    (civ-model::ai-diplomacy s (player-by-id s 2))     ; the AI takes its diplomacy turn
+    (is-true (civ-model::pending-offer-p s 2 :ceasefire))
+    (is-true (at-war-p s 1 2))                          ; nothing changes until accepted
+    (apply-command s (list :resolve-offer :player 1 :from 2 :kind :ceasefire :accept t))
+    (is (eq :peace (relation s 1 2)))
+    (is-true (civ-model::truce-active-p s 1 2))
+    (is-false (civ-model::pending-offer-p s 2 :ceasefire))))
+
+(test resolving-diplomatic-offers
+  ;; declining leaves relations untouched; accepting an alliance forms it
+  (let ((s (bare-state 6 6)))
+    (civ-model::add-offer s 2 :alliance)
+    (apply-command s (list :resolve-offer :player 1 :from 2 :kind :alliance :accept nil))
+    (is (eq :peace (relation s 1 2)))
+    (is-false (civ-model::pending-offer-p s 2 :alliance))
+    (civ-model::add-offer s 2 :alliance)
+    (apply-command s (list :resolve-offer :player 1 :from 2 :kind :alliance :accept t))
+    (is (eq :alliance (relation s 1 2)))))
+
+(test stale-offers-are-pruned
+  ;; an alliance offer is voided once war breaks out
+  (let ((s (bare-state 6 6)))
+    (add-unit s :warriors 2 5 5)                        ; keep the AI alive
+    (civ-model::add-offer s 2 :alliance)
+    (apply-command s (list :declare-war :player 1 :against 2))
+    (civ-model::prune-offers s)
+    (is-false (civ-model::pending-offer-p s 2 :alliance))))
+
 (test allies-cannot-attack-each-other
   (let* ((s (bare-state 6 6 :seed 1))
          (a (add-unit s :legion 1 2 2))
