@@ -106,21 +106,25 @@ garrison, and the improvements already built. A small **work-radius map** in the
 bottom-left shows the 21-tile fat cross around the city, with the tiles its
 citizens are working brightened and the centre tile boxed in white.
 
-Citizens who aren't working a tile are **specialists**. Press `+` / `-` to hire
-a specialist (pulling a citizen off a tile) or send one back to work, and click a
-specialist's coloured dot to cycle its job: an **entertainer** (magenta) makes
-2 luxury — handy to break a city out of disorder — a **taxman** (gold) makes
-2 gold, and a **scientist** (cyan) makes 2 beakers. Specialists are always
-content, and a big city whose work radius is full of other cities' tiles puts its
-surplus citizens to work as specialists automatically. The AI manages its own:
-taxmen when its treasury is thin, scientists otherwise, and entertainers to head
-off riots.
+Along the bottom of the panel runs a **population bar**, one little citizen
+sprite per inhabitant (the original SP257 figures): happy, content and unhappy
+faces for the tile-workers, then the **specialists**. Citizens who aren't working
+a tile are specialists — press `+` / `-` to hire one (pulling a citizen off a
+tile) or send one back to work, and click a specialist's figure to cycle its job
+(its coloured underline shows it's clickable): an **entertainer** (Elvis, magenta)
+makes 2 luxury — handy to break a city out of disorder — a **taxman** (gold)
+makes 2 gold, and a **scientist** (Einstein, cyan) makes 2 beakers. Specialists
+are always content, and a big city whose work radius is full of other cities'
+tiles puts its surplus citizens to work as specialists automatically. The AI
+manages its own: taxmen when its treasury is thin, scientists otherwise, and
+entertainers to head off riots.
 
 ![Rome's city screen](docs/city-screen.png)
 
 *Size-7 Rome with `Workers 5  specialists: 1 elvis 1 sci`: a Temple at `8/40`
-shields, a Warriors garrison, Barracks/Granary/Marketplace/Palace built, and the
-work map showing the five worked tiles around the centre.*
+shields, a Warriors garrison, Barracks/Granary/Marketplace/Palace built, the work
+map showing the five worked tiles, and a population bar of one happy and four
+content workers followed by the Elvis and scientist specialists.*
 
 Production accumulates shields each turn until the item completes. Below, after
 Rome has grown and worked its tiles for ~150 turns, the Pyramids are done: they

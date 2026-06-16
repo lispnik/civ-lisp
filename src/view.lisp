@@ -667,7 +667,49 @@ each tile coloured by terrain, worked tiles brightened, the centre marked."
                      (set-rect (painter-dst painter) sx sy (1- cell) (1- cell))
                      (sdl2:render-draw-rect ren (painter-dst painter))))))))
 
-(defparameter *specialist-hint* "[+/-] hire/return  click a dot to switch job"
+;;; --- the citizen population bar (SP257 'people' row, y=128) ----------------
+;; The people sprites are 8px wide / 16px tall, packed nine-across at row y=128:
+;; happy m/f (0,1), content m/f (2,3), unhappy m/f (4,5), then the specialists
+;; taxman (6), scientist (7) and entertainer (8).
+
+(defparameter +people-row-y+ 128 "Top of the SP257 'people' row in the sprite sheet.")
+(defparameter +people-cw+ 8  "A citizen icon's width in the sheet.")
+(defparameter +people-ch+ 16 "A citizen icon's height in the sheet.")
+(defparameter +happy-icons+   '(0 1) "Sprite columns for happy male/female citizens.")
+(defparameter +content-icons+ '(2 3) "Sprite columns for content male/female citizens.")
+(defparameter +unhappy-icons+ '(4 5) "Sprite columns for unhappy male/female citizens.")
+(defparameter *specialist-icons* '((:taxman . 6) (:scientist . 7) (:entertainer . 8))
+  "Specialist job -> sprite column in the people row.")
+
+(defun draw-people-icon (painter idx dx dy)
+  "Blit citizen icon IDX (a column in the people row) at logical (DX,DY)."
+  (blit painter (painter-sprites painter)
+        (* idx +people-cw+) +people-row-y+ +people-cw+ +people-ch+ dx dy))
+
+(defun city-people-faces (state city)
+  "Ordered citizen icons for CITY's population bar.  Each entry is
+(sprite-index . specialist-index-or-NIL): tile-working citizens shown as
+happy/content/unhappy faces (specialists set aside as content), then one icon
+per specialist (carrying its index, so a click can cycle its job)."
+  (multiple-value-bind (h c u)
+      (civm:city-happiness state city (nth-value 2 (civm:city-yields state city)))
+    (declare (ignore c))
+    (let* ((spec (civm:city-specialists city))
+           (workers (max 0 (- (civm:city-size city) (length spec))))
+           (nu (min u workers))                 ; unhappy are always tile-workers
+           (nh (min h (- workers nu)))           ; then happy
+           (nc (- workers nh nu))                ; the rest are content
+           (faces '()))
+      (flet ((mood (n icons)
+               (dotimes (i n) (push (cons (nth (mod i 2) icons) nil) faces))))
+        (mood nh +happy-icons+)
+        (mood nc +content-icons+)
+        (mood nu +unhappy-icons+))
+      (loop for job in spec for i from 0
+            do (push (cons (cdr (assoc job *specialist-icons*)) i) faces))
+      (nreverse faces))))
+
+(defparameter *specialist-hint* "[+/-] hire/return  click a citizen to switch job"
   "City-screen footer explaining the specialist controls.")
 
 (defun build-menu-texts (state city)
@@ -684,34 +726,37 @@ needs to colour them.  Returns (values texts lines built mood detail title)."
                     (when built (cons "Built:" built)) mood (list *specialist-hint*))
             lines built mood detail title)))
 
-(defun specialist-face-row (painter state city)
-  "Logical (values X Y CELL N) of the clickable specialist-face row: it sits just
-below the panel's text, holds N little square 'faces', one per specialist."
+(defun people-bar-row (painter state city)
+  "Logical (values X0 Y FACES): the population bar sits just below the panel
+text; FACES is CITY-PEOPLE-FACES, one 8px icon each from X0."
   (let* ((h (gfont-height (painter-font painter)))
          (texts (build-menu-texts state city)))
     (values (+ *menu-x* 2)
             (+ *menu-y* 2 (* (length texts) (1+ h)))
-            (1+ h)
-            (length (civm:city-specialists city)))))
+            (city-people-faces state city))))
 
 (defun specialist-pick (painter state city lx ly)
-  "Index of the specialist 'face' at logical click (LX,LY) on the city screen, or
-NIL.  Clicking a face cycles that specialist's job."
-  (multiple-value-bind (x0 y cell n) (specialist-face-row painter state city)
-    (when (and (<= y ly (+ y cell)) (>= lx x0) (plusp n))
-      (let ((i (floor (- lx x0) cell)))
-        (when (< -1 i n) i)))))
+  "Resolve a click (LX,LY) against the population bar: an integer specialist
+index if a specialist icon was clicked, :mood if a (non-clickable) citizen face
+was, or NIL if the click missed the bar entirely."
+  (multiple-value-bind (x0 y faces) (people-bar-row painter state city)
+    (when (and (<= y ly (+ y +people-ch+)) (>= lx x0))
+      (let ((i (floor (- lx x0) +people-cw+)))
+        (when (< -1 i (length faces))
+          (or (cdr (nth i faces)) :mood))))))
 
 (defun draw-build-menu (painter state city)
   "The city screen: the production list (1-9 to choose, picking unchanged), a
-Civ1-style readout (food/shields/trade, mood, garrison), a row of clickable
-specialist faces, and a small map of the worked tiles at bottom-left."
+Civ1-style readout (food/shields/trade, mood, garrison), a population bar of
+citizen icons (specialists clickable), and a work-radius map at bottom-left."
   (let* ((font (painter-font painter)) (ren (painter-ren painter))
          (h (gfont-height font)))
     (multiple-value-bind (texts lines built mood detail title)
         (build-menu-texts state city)
-      (let* ((pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
-             (ph (+ 4 (* (1+ (length texts)) (1+ h)))))   ; +1 row for the faces
+      (let* ((faces (city-people-faces state city))
+             (pw (max (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s))))
+                      (+ 4 (* (length faces) +people-cw+))))     ; fit the people bar too
+             (ph (+ 4 (* (length texts) (1+ h)) (1+ +people-ch+)))) ; + the bar's height
         (sdl2:set-render-draw-color ren 0 0 0 230)
         (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
         (sdl2:render-fill-rect ren (painter-dst painter))
@@ -736,17 +781,21 @@ specialist faces, and a small map of the worked tiles at bottom-left."
                            (if (zerop k) 200 120)
                            (if (zerop k) 120 120))
                      (incf row))
-            (line *specialist-hint* row 150 150 160)))))        ; controls footer
-    ;; the clickable specialist faces, one little square per specialist
-    (multiple-value-bind (x0 y cell n) (specialist-face-row painter state city)
-      (dotimes (i n)
-        (let* ((job (nth i (civm:city-specialists city)))
-               (col (cdr (assoc job *specialist-colors*))))
-          (when col
-            (destructuring-bind (r g b) col
-              (sdl2:set-render-draw-color ren r g b 255)
-              (set-rect (painter-dst painter) (+ x0 (* i cell)) y (- cell 2) (- cell 2))
-              (sdl2:render-fill-rect ren (painter-dst painter)))))))
+            (line *specialist-hint* row 150 150 160)))))       ; controls footer
+    ;; the population bar: a citizen icon per inhabitant, specialists last and
+    ;; underlined in their job colour to show they're clickable
+    (multiple-value-bind (x0 y faces) (people-bar-row painter state city)
+      (loop for (idx . spec) in faces for i from 0
+            for dx = (+ x0 (* i +people-cw+))
+            do (draw-people-icon painter idx dx y)
+               (when spec
+                 (let* ((job (nth spec (civm:city-specialists city)))
+                        (col (cdr (assoc job *specialist-colors*))))
+                   (when col
+                     (destructuring-bind (r g b) col
+                       (sdl2:set-render-draw-color ren r g b 255)
+                       (set-rect (painter-dst painter) dx (+ y +people-ch+ -1) +people-cw+ 1)
+                       (sdl2:render-fill-rect ren (painter-dst painter))))))))
     ;; the work-radius map sits bottom-left, clear of the wide build panel
     ;; (logical viewport is 15 rows * 16 px = 240 tall)
     (draw-city-map painter state city 3 (- (* 15 *tile*) (* 5 11) 3))))

@@ -978,9 +978,10 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                           (ly (floor (ev-mouse-y ev) scale))
                                           (face (and c (specialist-pick painter state c lx ly))))
                                      (cond
-                                       (face                  ; click a face: cycle its job
+                                       ((integerp face)       ; a specialist icon: cycle its job
                                         (try (list :set-specialists :city build-city
                                                    :op :cycle :index face)))
+                                       ((eq face :mood))       ; a citizen face: ignore, stay open
                                        (t                     ; a line picks production; else close
                                         (let ((pick (build-menu-pick painter state c ly)))
                                           (when pick
