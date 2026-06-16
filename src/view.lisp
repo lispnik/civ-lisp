@@ -655,18 +655,18 @@ the workforce (tile workers vs. specialists), and the garrison."
 (defparameter +city-map-cell+ 16 "The work map uses full 16px terrain tiles.")
 
 (defun draw-tile-yield (painter food shields trade px py)
-  "Cluster small food/shield/trade icons (left-to-right, top-to-bottom, 3 per
-row, capped at 9) over the tile drawn at (PX,PY) to show what it produces."
+  "Cluster the food/shield/trade icons (at native 8px, two per row, capped at a
+2x2 = 4) over the tile drawn at (PX,PY) to show what it produces."
   (when (painter-icons painter)
-    (let ((sz 5) (slots '()))
+    (let ((sz +icon-size+) (slots '()))
       (dotimes (i food)    (push +food-icon+ slots))
       (dotimes (i shields) (push +shield-icon+ slots))
       (dotimes (i trade)   (push +trade-icon+ slots))
-      (loop for coord in (nreverse slots) for k from 0 below 9
-            for col = (mod k 3) for row = (floor k 3)
-            do (blit-scaled painter (painter-icons painter)
-                            (car coord) (cdr coord) +icon-size+ +icon-size+
-                            (+ px 1 (* col sz)) (+ py 1 (* row sz)) sz sz)))))
+      (loop for coord in (nreverse slots) for k from 0 below 4
+            for col = (mod k 2) for row = (floor k 2)
+            do (blit painter (painter-icons painter)
+                     (car coord) (cdr coord) +icon-size+ +icon-size+
+                     (+ px (* col sz)) (+ py (* row sz)))))))
 
 (defun draw-city-map (painter state city px py)
   "CITY's work radius as a Civ1-style mini terrain map at (PX,PY): the 21-tile
