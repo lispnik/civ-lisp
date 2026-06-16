@@ -317,7 +317,18 @@ or open a trade route (a gold windfall plus recurring trade).
 unit standing — or the **space race**: build the **Apollo Program**, then with
 **Space Flight** (the structurals) and **Fusion Power** (the ship's fuel)
 assemble ten **spaceship parts**; the ship launches and, after its flight,
-arrives for the win. A **VICTORY / DEFEAT** banner declares the result.
+arrives for the win.
+
+**Score.** As in Civilization (1991), every civ earns a running **score** —
+**+2** per happy citizen and **+1** per content one, **+3** per advance, **+5**
+per wonder, **+1** for each turn spent at war with nobody, and **−1** per
+polluted tile around its cities (never below zero). When the game ends, the
+**VICTORY / DEFEAT** verdict is followed by the **final standings**, every
+civilization ranked by score in its own colour.
+
+![the end-game score summary](docs/score-summary.png)
+
+*Greece wins by conquest with 90 points; the also-rans are ranked beneath.*
 
 > **macOS / arm64 note:** cl-sdl2's high-level event accessors (`scancode-value`,
 > the `:x`/`:y` destructuring) read the wrong `SDL_Event` struct offsets against

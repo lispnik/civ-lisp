@@ -873,6 +873,75 @@ There is no year 0: a step that lands on it advances to 1 AD."
 ;; compiles without forward-reference warnings
 (declaim (ftype (function (t) t) run-ai-players process-goto))
 
+;;; --- score (Civilization, 1991) --------------------------------------------
+;;;
+;;; Civ1 rewards a happy, advanced, peaceful civilization: points for each
+;;; content/happy citizen, for the advances you have discovered and the wonders
+;;; you have raised, a bonus for every turn you keep the peace, and a penalty for
+;;; the pollution you let accumulate.  We track it the same way and store it in
+;;; PLAYER-SCORE each turn so the end-of-game table can rank the civilizations.
+
+(defparameter *score-per-happy*     2 "Points per happy citizen.")
+(defparameter *score-per-content*   1 "Points per content citizen.")
+(defparameter *score-per-tech*      3 "Points per advance discovered.")
+(defparameter *score-per-wonder*    5 "Points per world wonder built.")
+(defparameter *score-per-peace*     1 "Points per turn spent at war with nobody.")
+(defparameter *score-per-pollution* 1 "Points lost per polluted tile around your cities.")
+
+(defun player-wonder-count (state pid)
+  "How many world wonders stand in PID's cities."
+  (loop for c being the hash-values of (gs-cities state)
+        when (= (city-owner c) pid)
+          sum (count-if (lambda (b) (gethash b *wonders*)) (city-buildings c))))
+
+(defun player-citizen-mood (state pid)
+  "Total (values HAPPY CONTENT) citizens across PID's cities."
+  (let ((happy 0) (content 0))
+    (loop for c being the hash-values of (gs-cities state)
+          when (= (city-owner c) pid)
+            do (multiple-value-bind (h ct u)
+                   (city-happiness state c (nth-value 2 (city-yields state c)))
+                 (declare (ignore u))
+                 (incf happy h) (incf content ct)))
+    (values happy content)))
+
+(defun player-pollution-near (state pid)
+  "Polluted tiles within the work radius of PID's cities (the mess you own)."
+  (let ((map (gs-map state)) (n 0))
+    (loop for c being the hash-values of (gs-cities state)
+          when (= (city-owner c) pid)
+            do (loop for (x y tile) in (neighbors map (city-x c) (city-y c))
+                     do (progn x y) (when (tile-pollution tile) (incf n))))
+    n))
+
+(defun score-breakdown (state player)
+  "An alist ((label . points) ...) of PLAYER's Civilization score components."
+  (let ((pid (player-id player)))
+    (multiple-value-bind (happy content) (player-citizen-mood state pid)
+      (list (cons "Happy citizens"  (* *score-per-happy* happy))
+            (cons "Content citizens" (* *score-per-content* content))
+            (cons "Advances"        (* *score-per-tech* (hash-table-count (player-techs player))))
+            (cons "Wonders"         (* *score-per-wonder* (player-wonder-count state pid)))
+            (cons "Peace"           (* *score-per-peace* (player-peace-turns player)))
+            (cons "Pollution"       (- (* *score-per-pollution*
+                                          (player-pollution-near state pid))))))))
+
+(defun compute-score (state player)
+  "PLAYER's total Civilization score (Civ1-style: people, knowledge, wonders,
+peace, less pollution; never below zero)."
+  (max 0 (reduce #'+ (score-breakdown state player) :key #'cdr :initial-value 0)))
+
+(defun update-scores (state)
+  "Recompute every civilization's score, and credit a turn of peace to any civ
+that is at war with nobody."
+  (loop for p across (gs-players state)
+        for pid = (player-id p)
+        unless (eq (player-kind p) :barbarian)
+          do (when (loop for o across (gs-players state)
+                         never (at-war-p state pid (player-id o)))
+               (incf (player-peace-turns p)))
+             (setf (player-score p) (compute-score state p))))
+
 ;;; --- victory ---------------------------------------------------------------
 
 (defparameter *spaceship-parts* 10 "Parts that complete a spaceship.")
@@ -928,5 +997,6 @@ combat phases here.)"
 
   (incf (gs-turn state))
   (setf (gs-year state) (turn->year (gs-turn state)))
+  (update-scores state)         ; Civilization score + peace bonus
   (process-victory state)       ; conquest or space-race win?
   state)

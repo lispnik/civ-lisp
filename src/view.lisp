@@ -974,23 +974,40 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
              (format nil "SHIP ~D/~D parts" (civm:player-spaceship p) civm:*spaceship-parts*))))))
 
 (defun draw-banner (painter state view-w)
-  "A VICTORY / DEFEAT banner centred in the VIEW-W-wide viewport."
+  "End-of-game panel: the VICTORY / DEFEAT verdict plus the final Civilization
+score standings, ranked highest first, each civ in its colour."
   (let* ((font (painter-font painter)) (ren (painter-ren painter))
          (human (human-player state))
          (win (and human (eql (civm:gs-winner state) (civm:player-id human))))
          (who (civm:player-name (civm:player-by-id state (civm:gs-winner state))))
          (kind (string-downcase (symbol-name (civm:gs-victory state))))
-         (msg (if win (format nil "VICTORY by ~A!" kind)
-                  (format nil "DEFEAT -- ~A wins by ~A" who kind)))
-         (tw (text-width font msg)) (h (gfont-height font))
-         (px (max 0 (floor (- view-w (+ tw 8)) 2))) (py 100))
-    (sdl2:set-render-draw-color ren 0 0 0 235)
-    (set-rect (painter-dst painter) px py (+ tw 8) (+ 6 h))
+         (verdict (if win (format nil "VICTORY by ~A!" kind)
+                      (format nil "DEFEAT -- ~A wins by ~A" who kind)))
+         (h (gfont-height font))
+         (standings (sort (loop for p across (civm:gs-players state)
+                                unless (eq (civm:player-kind p) :barbarian) collect p)
+                          #'> :key #'civm:player-score))
+         (rows (loop for p in standings for i from 1
+                     collect (list p (format nil "~D. ~A~v@T~D"
+                                             i (civm:player-name p)
+                                             (max 1 (- 16 (length (civm:player-name p))))
+                                             (civm:player-score p)))))
+         (lines (list* verdict "Final score:" (mapcar #'second rows)))
+         (tw (reduce #'max lines :key (lambda (s) (text-width font s))))
+         (pw (+ 8 tw)) (ph (+ 6 (* (length lines) (1+ h))))
+         (px (max 0 (floor (- view-w pw) 2))) (py 60))
+    (sdl2:set-render-draw-color ren 0 0 0 238)
+    (set-rect (painter-dst painter) px py pw ph)
     (sdl2:render-fill-rect ren (painter-dst painter))
     (sdl2:set-render-draw-color ren (if win 90 230) (if win 220 70) 90 255)
     (sdl2:render-draw-rect ren (painter-dst painter))
-    (draw-text painter font msg (+ px 4) (+ py 3)
-               (if win 120 255) (if win 255 120) 120)))
+    (flet ((line (text row r g b)
+             (draw-text painter font text (+ px 4) (+ py 3 (* row (1+ h))) r g b)))
+      (line verdict 0 (if win 120 255) (if win 255 120) 120)
+      (line "Final score:" 1 220 220 160)
+      (loop for (p label) in rows for i from 2
+            do (destructuring-bind (r g b) (owner-color state (civm:player-id p))
+                 (line label i r g b))))))
 
 (defun draw-explosion-frame (painter frame px py)
   "Blit detonation FRAME (0..+NUKE-FRAMES+-1) from the nuke sheet, scaled to a

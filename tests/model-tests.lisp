@@ -411,6 +411,34 @@
         (is (= 130000 (civ-model::civ-population s 1)))
         (is (= 0 (civ-model::civ-population s 2)))))))         ; rival has no cities
 
+(test civilization-score
+  ;; Civ1-style score: advances, wonders, peace, citizens, less pollution
+  (let* ((s (bare-state 8 8)) (st (add-unit s :settlers 1 4 4)) (p (player-by-id s 1)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (setf (gethash :pottery (player-techs p)) t
+            (gethash :masonry (player-techs p)) t)        ; 2 advances -> 6 pts
+      (push :pyramids (city-buildings c))                  ; 1 wonder -> 5 pts
+      (setf (player-peace-turns p) 10))                    ; peace -> 10 pts
+    (let* ((bd (civ-model::score-breakdown s p))
+           (total (reduce #'+ bd :key #'cdr)))
+      (is (= 6  (cdr (assoc "Advances" bd :test #'string=))))
+      (is (= 5  (cdr (assoc "Wonders"  bd :test #'string=))))
+      (is (= 10 (cdr (assoc "Peace"    bd :test #'string=))))
+      (is (= (max 0 total) (civ-model::compute-score s p)))   ; total, floored at 0
+      (is (>= (civ-model::compute-score s p) 21)))))           ; 6+5+10 + citizens
+
+(test peace-bonus-accrues-only-at-peace
+  (let* ((s (bare-state 6 6)) (p (player-by-id s 1)))
+    (civ-model::update-scores s)
+    (is (= 1 (player-peace-turns p)))            ; at peace with everyone -> +1
+    (apply-command s (list :declare-war :player 1 :against 2))
+    (civ-model::update-scores s)
+    (is (= 1 (player-peace-turns p)))            ; now at war -> no peace credit
+    (apply-command s (list :make-peace :player 1 :against 2))
+    (civ-model::update-scores s)
+    (is (= 2 (player-peace-turns p)))))          ; peace restored -> +1 again
+
 (test ai-economy
   ;; ai-best-wonder picks the first buildable, unbuilt wonder it has tech for
   (let* ((s (bare-state 6 6)) (p (player-by-id s 1)))

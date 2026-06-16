@@ -64,7 +64,7 @@
         :techs (loop for k being the hash-keys of (player-techs p) collect k)
         :researching (player-researching p) :beakers (player-beakers p)
         :seen (loop for k being the hash-keys of (player-seen p) collect k)
-        :score (player-score p)
+        :score (player-score p) :peace-turns (player-peace-turns p)
         :spaceship (player-spaceship p) :landing (player-landing p)))
 
 (defun list->player (pl)
@@ -80,6 +80,7 @@
           (player-researching p) (getf pl :researching)
           (player-beakers p) (getf pl :beakers)
           (player-score p) (getf pl :score)
+          (player-peace-turns p) (or (getf pl :peace-turns) 0)
           (player-spaceship p) (or (getf pl :spaceship) 0)
           (player-landing p) (or (getf pl :landing) 0))
     (dolist (k (getf pl :techs)) (setf (gethash k (player-techs p)) t))
