@@ -953,6 +953,70 @@ with a blinking caret (the bitmap font has no underscore glyph)."
                         :source-rect (painter-src painter)
                         :dest-rect (painter-dst painter)))))
 
+(defparameter *minimap-terrain-colors*
+  '((:ocean 40 60 140) (:grassland 70 150 50) (:plains 150 150 70)
+    (:forest 34 90 40) (:hills 110 120 55) (:mountains 120 110 100)
+    (:desert 205 180 110) (:tundra 165 165 140) (:arctic 235 235 245)
+    (:swamp 70 95 80) (:jungle 60 115 50))
+  "Flat per-terrain colours for the overview minimap.")
+
+(defun minimap-scale (w h)
+  "Pixels per tile for the minimap, sized to fit roughly a 132x100 px box."
+  (max 1 (min 3 (floor 132 w) (floor 100 h))))
+
+(defun draw-minimap (painter state mx my &key fog (cam-x 0) (cam-y 0) (vw 20) (vh 15))
+  "A Civ1-style overview map with its top-left at screen pixel (MX,MY): one block
+per tile coloured by terrain (dimmed where explored but currently unseen, black
+where unexplored), cities in their owner's colour, and a white rectangle marking
+the visible viewport (which wraps east-west with the map)."
+  (let* ((ren (painter-ren painter))
+         (map (civm:gs-map state))
+         (w (civm:map-width map)) (h (civm:map-height map))
+         (s (minimap-scale w h))
+         (human (and fog (human-player state)))
+         (vis (and human (civm:visible-set state human)))
+         (mw (* w s)) (mh (* h s)))
+    ;; backdrop + light frame
+    (sdl2:set-render-draw-color ren 0 0 0 210)
+    (set-rect (painter-dst painter) (1- mx) (1- my) (+ mw 2) (+ mh 2))
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (sdl2:set-render-draw-color ren 180 180 180 255)
+    (sdl2:render-draw-rect ren (painter-dst painter))
+    ;; terrain blocks (skip tiles the human has never seen -- they stay black)
+    (dotimes (y h)
+      (dotimes (x w)
+        (when (or (not human) (civm:seen-p state human x y))
+          (let ((col (cdr (assoc (civm:tile-terrain (civm:tile-at map x y))
+                                 *minimap-terrain-colors*))))
+            (when col
+              (destructuring-bind (r g b) col
+                (unless (or (not human) (gethash (+ x (* y w)) vis))   ; explored, unseen
+                  (setf r (floor r 2) g (floor g 2) b (floor b 2)))
+                (sdl2:set-render-draw-color ren r g b 255)
+                (set-rect (painter-dst painter) (+ mx (* x s)) (+ my (* y s)) s s)
+                (sdl2:render-fill-rect ren (painter-dst painter))))))))
+    ;; cities, in their owner's colour (only where the human can see them)
+    (maphash (lambda (id c) (declare (ignore id))
+               (let ((cx (civm:city-x c)) (cy (civm:city-y c)))
+                 (when (or (not human) (civm:seen-p state human cx cy))
+                   (destructuring-bind (r g b) (owner-color state (civm:city-owner c))
+                     (sdl2:set-render-draw-color ren r g b 255)
+                     (set-rect (painter-dst painter) (+ mx (* cx s)) (+ my (* cy s))
+                               (max 2 s) (max 2 s))
+                     (sdl2:render-fill-rect ren (painter-dst painter))))))
+             (civm:gs-cities state))
+    ;; viewport rectangle (wraps east-west, so draw it in up to two segments)
+    (sdl2:set-render-draw-color ren 255 255 255 255)
+    (flet ((seg (x0 ncols)
+             (when (plusp ncols)
+               (set-rect (painter-dst painter) (+ mx (* x0 s)) (+ my (* cam-y s))
+                         (* ncols s) (* vh s))
+               (sdl2:render-draw-rect ren (painter-dst painter)))))
+      (let ((vx (mod cam-x w)))
+        (if (<= (+ vx vw) w)
+            (seg vx vw)
+            (progn (seg vx (- w vx)) (seg 0 (- (+ vx vw) w))))))))
+
 (defun render-game (painter state selected-id
                     &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu help console
                          overlay (cam-x 0) (cam-y 0) (vw 20) (vh 15))
@@ -1035,14 +1099,18 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
                                           (gov-hud-text state)
                                           (science-hud-text state)
                                           (spaceship-hud-text state))))
-                 (tw (reduce #'max lines :key (lambda (s) (text-width font s)))))
+                 (tw (reduce #'max lines :key (lambda (s) (text-width font s))))
+                 (box-h (+ 1 (* (length lines) (1+ fh)))))
             (sdl2:set-render-draw-color ren 0 0 0 190)
-            (set-rect (painter-dst painter) 0 0 (+ tw 2) (+ 1 (* (length lines) (1+ fh))))
+            (set-rect (painter-dst painter) 0 0 (+ tw 2) box-h)
             (sdl2:render-fill-rect ren (painter-dst painter))
             (loop for s in lines for i from 0
                   do (draw-text painter font s 1 (+ 1 (* i (1+ fh)))
                                 (if (zerop i) 255 200) (if (zerop i) 255 220)
-                                (if (zerop i) 255 255))))))
+                                (if (zerop i) 255 255)))
+            ;; overview minimap, just below the status text
+            (draw-minimap painter state 1 (+ box-h 2)
+                          :fog fog :cam-x cam-x :cam-y cam-y :vw vw :vh vh))))
       ;; victory / defeat banner
       (when (and (civm:gs-winner state) (painter-font painter))
         (draw-banner painter state (* vw *tile*)))

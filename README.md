@@ -44,6 +44,17 @@ next advance. A spaceship line appears once one is in flight.
 *Despotism Rome in 3700 BC: population 30,000, 144 gold, a 50/0/50 tax split, and
 Writing 56% researched.*
 
+Below the readout sits an **overview minimap**: one block per tile coloured by
+terrain, cities as dots in their owner's colour, and a white rectangle marking
+the part of the world currently on screen. Under fog of war, tiles you have
+never seen stay black and explored-but-unseen tiles are dimmed, so the minimap
+doubles as your exploration record.
+
+![the overview minimap](docs/minimap-shot.png)
+
+*The whole world at a glance — green land, blue sea, rival cities as coloured
+dots, and the viewport box showing where the main view is looking.*
+
 ### Selecting a unit
 
 Selecting a unit opens a Civ1-style info box in the bottom-left: the owner and
