@@ -324,7 +324,9 @@ and irrigate it (more food, so cities grow large)."
       (t (let ((spot (nearest-irrigable-tile state pid (unit-x unit) (unit-y unit))))
            (if spot
                (ai-step-toward state unit (first spot) (second spot))
-               (ai-move-random state unit)))))))
+               ;; the land is fully irrigated: disband this engineer so it stops
+               ;; eating its home city's food (rather than roaming forever)
+               (ai-cmd state (list :disband-unit :unit (unit-id unit)))))))))
 
 ;;; --- sea invasion ----------------------------------------------------------
 
@@ -540,6 +542,16 @@ buildings are gated on size; a power plant waits for the factory it powers."
                     (t t))))
            *ai-building-order*))
 
+(defun ai-unit-affordable-p (state city)
+  "T if CITY's production can sustain one more unit's shield support and still
+have a shield to spare, so the AI doesn't build right up to the edge where a
+small production dip would force a disband next turn."
+  (let* ((shields (nth-value 1 (city-yields state city)))
+         (production (city-shield-output state city shields))
+         (n (count-if #'unit-costs-support-p (city-supported-units state city)))
+         (free (if (free-support-p state city) (city-size city) 0)))
+    (> production (max 0 (- (1+ n) free)))))   ; leave >= 1 shield of headroom
+
 (defun ai-city-production (state player city)
   "Keep cities content, expand while small, then build up the economy or an army."
   (let* ((pid (player-id player))
@@ -574,11 +586,10 @@ buildings are gated on size; a power plant waits for the factory it powers."
                 ((< (length (player-city-list state pid))
                     (ai-trait player :min-cities 3))
                  '(:unit :settlers))
-                ;; built out and not at war: keep a couple of settlers as engineers
-                ;; to irrigate the land (more engineers just starve cities of the
-                ;; production they need to grow), so cities gain food to grow
+                ;; built out and not at war: keep a settler or two working as
+                ;; engineers to irrigate the land, so cities gain food to grow
                 ((and (not at-war) (>= (city-size city) 4)
-                      (< (count :settlers (player-unit-list state pid) :key #'unit-type) 3)
+                      (< (count :settlers (player-unit-list state pid) :key #'unit-type) 2)
                       (< (gs-rand state 100) 10))
                  '(:unit :settlers))
                 ;; the capital invests in a world wonder -- how eagerly depends on
@@ -614,6 +625,20 @@ buildings are gated on size; a power plant waits for the factory it powers."
                 (building (list :building building))
                 ;; cheap filler that is never obsolete for this player
                 (t (list :unit (or (ai-best-attacker player) :warriors))))))
+    ;; support-awareness: never commit a *defended* city to a support-costing
+    ;; unit it can't sustain -- build an improvement (or hold the current one)
+    ;; instead, so the AI doesn't churn out units that get disbanded and rob the
+    ;; city of the production it needs to grow.  (A garrison is still mandatory.)
+    (when (and (eq (first item) :unit)
+               (not (member (second item) '(:diplomat :caravan)))   ; those are free
+               (city-defended-p state city)
+               (not (ai-unit-affordable-p state city)))
+      (setf item (cond (building (list :building building))
+                       ((and (eq (first (city-production city)) :building)
+                             (not (member (second (city-production city))
+                                          (city-buildings city))))
+                        (city-production city))
+                       (t item))))                ; nothing better -- keep the unit
     (ai-cmd state (list :set-production :city (city-id city) :item item))))
 
 (defun ai-try-trade (state player)

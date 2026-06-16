@@ -1939,16 +1939,6 @@
     (home-units s c 2 :warriors)
     (is (equal '(0 1) (mapcar #'cdr (civ-model::city-unit-support-list s c))))))
 
-(test settler-food-upkeep-by-government
-  (let* ((s (bare-state 6 6 :terrain :grassland))
-         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
-         (p (player-by-id s 1)))
-    (setf (city-size c) 1)
-    (home-units s c 1 :settlers)
-    (is (= 1 (civ-model::city-settler-food s c)))          ; despotism: 1 food
-    (setf (player-government p) :monarchy)
-    (is (= 2 (civ-model::city-settler-food s c)))))         ; else: 2 food
-
 (test over-supported-city-disbands-the-farthest-unit
   (let* ((s (bare-state 8 8 :terrain :grassland))
          (c (civ-model::register-city s :name "A" :owner 1 :x 3 :y 3))

@@ -131,9 +131,10 @@ within a despotism/anarchy city's free allowance show 0).
 Unit support follows Civ1: every unit a city builds is **homed** there and costs
 **1 shield per turn**, deducted from the city's production. Under despotism and
 anarchy the first *size* units are free; under every other government every unit
-costs its shield. Diplomats and caravans are always free, and settlers also eat
-food (1 under despotism/anarchy, 2 otherwise). If a city can no longer pay for
-its army, the **unit farthest from home is disbanded**.
+costs its shield. Diplomats and caravans are always free. If a city can no longer
+pay for its army, the **unit farthest from home is disbanded**. The AI is
+support-aware — it won't build a unit its home city can't sustain — so its
+production goes to growth instead of churning out units that just get disbanded.
 
 Along the bottom of the panel runs a **population bar**, one little citizen
 sprite per inhabitant (the original SP257 figures): happy, content and unhappy

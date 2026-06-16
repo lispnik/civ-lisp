@@ -757,11 +757,6 @@ each supported unit costs 1.  Diplomats and caravans are always free."
         (max 0 (- n (city-size city)))
         n)))
 
-(defun city-settler-food (state city)
-  "Food CITY owes for its settlers: 1 each under anarchy/despotism, else 2."
-  (let ((settlers (count :settlers (city-supported-units state city) :key #'unit-type)))
-    (* settlers (if (free-support-p state city) 1 2))))
-
 (defun city-unit-support-list (state city)
   "List of (unit . shields) for CITY's supported units: each costs 1 shield,
 except diplomats/caravans and the first SIZE units under anarchy/despotism, which
@@ -809,8 +804,8 @@ are free (0).  This is the data the city screen's Units pane displays."
              (setf (gs-message state) (format nil "Riots shrink ~A!" (city-name city)))))
           (t
            (setf (city-disorder city) 0)       ; order restored
-           ;; growth: each citizen eats 2 food, plus settler food upkeep
-           (let ((net (- food (+ (* 2 size) (city-settler-food state city))))
+           ;; growth: each citizen eats 2 food
+           (let ((net (- food (* 2 size)))
                  (threshold (* 10 (1+ size)))
                  (cap (city-growth-cap city))
                  ;; "We Love the King" rapture growth: a celebrating republic or
