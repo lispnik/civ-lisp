@@ -1668,6 +1668,23 @@
     (civ-model::process-city s c)
     (is (= 0 (player-beakers p)))))                     ; no science under anarchy
 
+(test research-completes-without-going-negative
+  ;; learning an advance must not overdraw the beaker pool: the cost is read once,
+  ;; before the new tech raises RESEARCH-COST (regression -- it used to subtract
+  ;; the post-learning cost, leaving science negative for several turns)
+  (let* ((s (bare-state 6 6)) (p (player-by-id s 1)))
+    (setf (player-researching p) :alphabet
+          (player-beakers p) (civ-model::research-cost p))   ; exactly enough
+    (civ-model::process-research s)
+    (is-true (player-has-tech-p p :alphabet))                ; learned it
+    (is (= 0 (player-beakers p)))                            ; spent exactly the cost, no debt
+    ;; an overflow carries over intact (and still never negative)
+    (setf (player-researching p) :pottery
+          (player-beakers p) (+ (civ-model::research-cost p) 250))
+    (civ-model::process-research s)
+    (is-true (player-has-tech-p p :pottery))
+    (is (= 250 (player-beakers p)))))
+
 (test set-rates-validation
   (let* ((s (bare-state 6 6))
          (p (player-by-id s 1)))

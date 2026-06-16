@@ -770,8 +770,8 @@ with a blinking caret (the bitmap font has no underscore glyph)."
         (if tech
             (format nil "Sci ~A ~D%"
                     (civm:tech-def tech :name)
-                    (min 99 (floor (* (civm:player-beakers p) 100)
-                                   (max 1 (civm:research-cost p)))))
+                    (max 0 (min 99 (floor (* (civm:player-beakers p) 100)
+                                          (max 1 (civm:research-cost p))))))
             "Sci (choosing)")))))
 
 ;;; --- diplomacy menu --------------------------------------------------------

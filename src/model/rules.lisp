@@ -735,10 +735,11 @@ size N holds 10,000 x N(N+1)/2 citizens (10k, 30k, 60k, 100k, 150k, ...)."
   (loop for p across (gs-players state) do
     (unless (player-researching p)
       (setf (player-researching p) (first (researchable-techs p))))
-    (let ((tech (player-researching p)))
-      (when (and tech (>= (player-beakers p) (research-cost p)))
-        (setf (gethash tech (player-techs p)) t)
-        (decf (player-beakers p) (research-cost p))
+    (let ((tech (player-researching p))
+          (cost (research-cost p)))            ; snapshot before the tech lands --
+      (when (and tech (>= (player-beakers p) cost))   ; learning it raises the cost,
+        (setf (gethash tech (player-techs p)) t)      ; so RESEARCH-COST must be read
+        (decf (player-beakers p) cost)                ; once, not again after the incf
         (setf (player-researching p) (first (researchable-techs p)))))))
 
 (declaim (ftype (function (t) t) clamp-rates))   ; defined in commands.lisp
