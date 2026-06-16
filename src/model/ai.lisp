@@ -285,38 +285,45 @@ on the nearest enemy city; else garrison an own city or explore."
          (ai-cmd state (list :fortify :unit (unit-id unit)))))
       (t (ai-move-random state unit)))))
 
-(defun ai-irrigable-here-p (state unit)
-  "T if UNIT stands on open, un-irrigated land that irrigation would improve."
-  (let ((tile (tile-at (gs-map state) (unit-x unit) (unit-y unit))))
-    (and tile (not (tile-city tile)) (not (tile-irrigation tile))
-         (member (tile-terrain tile) '(:grassland :plains :desert :hills)))))
+(defun ai-irrigable-tile-p (tile)
+  "T if TILE is open land that irrigation would still improve."
+  (and tile (not (tile-city tile)) (not (tile-irrigation tile))
+       (member (tile-terrain tile) '(:grassland :plains :desert :hills))))
+
+(defun nearest-irrigable-tile (state pid fromx fromy)
+  "Coords (x y) of the closest un-irrigated tile bordering one of PID's cities,
+or NIL -- the next bit of land worth farming."
+  (let ((map (gs-map state)) best bestd)
+    (loop for c being the hash-values of (gs-cities state)
+          when (= (city-owner c) pid)
+            do (loop for (x y tile) in (neighbors map (city-x c) (city-y c))
+                     when (ai-irrigable-tile-p tile)
+                       do (let ((d (+ (map-dx map x fromx) (abs (- y fromy)))))
+                            (when (or (null bestd) (< d bestd))
+                              (setf best (list x y) bestd d)))))
+    best))
 
 (defun ai-settler (state unit)
   "While expanding, found a city on good open ground; once the empire is built
-out, work as an engineer -- irrigate the land around the cities (more food, so
-they grow) -- and otherwise move toward home to find tiles to improve."
+out, work as an engineer -- seek out the nearest un-irrigated tile by the cities
+and irrigate it (more food, so cities grow large)."
   (let* ((pid (unit-owner unit))
          (tile (tile-at (gs-map state) (unit-x unit) (unit-y unit)))
          (expand (max 7 (ai-trait (player-by-id state pid) :min-cities 3))))
     (cond
       ;; still expanding: found a city on good, spaced-out ground here, else roam
-      ;; in search of a site (do NOT settle into engineering work yet)
       ((< (length (player-city-list state pid)) expand)
        (if (and tile (not (eq (tile-terrain tile) :ocean)) (not (tile-city tile))
                 (not (city-near-p state (unit-x unit) (unit-y unit) 3)))
            (ai-cmd state (list :found-city :unit (unit-id unit) :name (next-city-name state pid)))
            (ai-move-random state unit)))
-      ;; built out: work as an engineer -- irrigate the tile we're on if it
-      ;; borders one of our cities, so they gain the food to grow
-      ((and (ai-irrigable-here-p state unit)
-            (city-near-p state (unit-x unit) (unit-y unit) 2))
+      ;; engineer: irrigate where we stand (if it's by a city), else march to the
+      ;; nearest farmable tile
+      ((and (ai-irrigable-tile-p tile) (city-near-p state (unit-x unit) (unit-y unit) 2))
        (ai-cmd state (list :irrigate :unit (unit-id unit))))
-      ;; otherwise head home to find land worth improving
-      (t (let ((cid (nearest-city-id state pid (unit-x unit) (unit-y unit))))
-           (if (and cid (> (max (map-dx (gs-map state) (city-x (city-by-id state cid)) (unit-x unit))
-                                (abs (- (city-y (city-by-id state cid)) (unit-y unit)))) 2))
-               (ai-step-toward state unit (city-x (city-by-id state cid))
-                               (city-y (city-by-id state cid)))
+      (t (let ((spot (nearest-irrigable-tile state pid (unit-x unit) (unit-y unit))))
+           (if spot
+               (ai-step-toward state unit (first spot) (second spot))
                (ai-move-random state unit)))))))
 
 ;;; --- sea invasion ----------------------------------------------------------
@@ -513,8 +520,8 @@ an adjacent sea tile, board it.  Returns non-NIL if UNIT boarded."
                             :dy (signum (- (second spot) (unit-y unit)))))))))
 
 (defparameter *ai-building-order*
-  '(:granary :marketplace :aqueduct :colosseum :library :sewer-system :university
-    :bank :factory :power-plant :stock-exchange :courthouse)
+  '(:granary :marketplace :aqueduct :colosseum :cathedral :library :sewer-system
+    :university :bank :factory :power-plant :stock-exchange :courthouse)
   "City improvements the AI raises in peacetime, most valuable first.  The
 growth-enablers (granary, aqueduct, colosseum, sewer) come early so cities don't
 stall on food, their size cap, or disorder.")
@@ -527,7 +534,7 @@ buildings are gated on size; a power plant waits for the factory it powers."
                   (not (member bld (city-buildings city)))
                   (case bld
                     (:aqueduct     (>= (city-size city) 5))  ; lift the size-8 cap early
-                    (:sewer-system (>= (city-size city) 10))
+                    (:sewer-system (>= (city-size city) 8))  ; ready to grow past 12
                     (:colosseum    (>= (city-size city) 4))  ; keep a growing city content
                     (:power-plant  (member :factory (city-buildings city)))
                     (t t))))
@@ -568,10 +575,11 @@ buildings are gated on size; a power plant waits for the factory it powers."
                     (ai-trait player :min-cities 3))
                  '(:unit :settlers))
                 ;; built out and not at war: keep a couple of settlers as engineers
-                ;; to irrigate the land, so cities have the food to grow
-                ((and (not at-war) (>= (city-size city) 3)
-                      (< (count :settlers (player-unit-list state pid) :key #'unit-type) 2)
-                      (< (gs-rand state 100) 12))
+                ;; to irrigate the land (more engineers just starve cities of the
+                ;; production they need to grow), so cities gain food to grow
+                ((and (not at-war) (>= (city-size city) 4)
+                      (< (count :settlers (player-unit-list state pid) :key #'unit-type) 3)
+                      (< (gs-rand state 100) 10))
                  '(:unit :settlers))
                 ;; the capital invests in a world wonder -- how eagerly depends on
                 ;; temperament (a builder reaches for them far more than a warlord)
