@@ -295,8 +295,12 @@ to ally, and which advances it chases first, so a six-civ game has real variety.
 A game-wide **difficulty** (`:chieftain` … `:emperor`, default Prince) sets the
 AI handicap: at higher levels the rival civilizations research markedly faster
 and go to war more readily. Surplus troops **march on the nearest enemy city**,
-and at war a coastal AI builds a **transport**, loads an invasion force,
-ferries it across the sea, and lands the troops on your shore. It also fields its
+and rather than feed a defended city its attackers one at a time (the garrison
+heals each turn, so that never breaks through), the AI **holds and masses a stack
+adjacent**, then **storms the city together** once it can win the odds or has
+enough force to overwhelm the garrison — so its wars actually take cities. At war
+a coastal AI builds a **transport**, loads an invasion force, ferries it across
+the sea, and lands the troops on your shore. It also fields its
 **whole toolbox** — defending **aircraft** that fly home to refuel, **diplomats**
 that spy on adjacent cities, **caravans** that open trade routes, and **nuclear
 missiles** it flies at your cities and detonates. The AI also runs an

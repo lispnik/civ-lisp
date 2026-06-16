@@ -215,26 +215,56 @@ Only ever returns a real advance, so a stray goal name can't grant a phantom tec
 (declaim (ftype (function (t t t t) t) nearest-enemy-city ai-step-toward)
          (ftype (function (t t) t) only-defender-p))
 
+(defun ai-good-odds-p (state attacker defender)
+  "T if ATTACKER has at least roughly even-ish odds against DEFENDER (its attack
+is at least half the defender's effective defense) -- enough not to be a suicide."
+  (>= (* 2 (attack-strength attacker)) (max 1 (defense-strength state defender))))
+
+(defun own-attackers-around (state x y owner)
+  "How many of OWNER's attack-capable units are on or next to (X,Y)."
+  (let ((map (gs-map state)) (n 0))
+    (dolist (cell (cons (list x y) (neighbors map x y)) n)
+      (let ((tile (tile-at map (first cell) (second cell))))
+        (when tile
+          (dolist (id (tile-units tile))
+            (let ((u (unit-by-id state id)))
+              (when (and u (= (unit-owner u) owner) (plusp (unit-def (unit-type u) :attack 0)))
+                (incf n)))))))))
+
+(defun ai-should-assault-p (state unit cx cy)
+  "Whether UNIT should storm the enemy city at (CX,CY) now rather than wait for
+support: yes if it is undefended, if this unit can likely win the assault alone,
+or if enough attackers have massed nearby to overwhelm the garrison by attrition
+(the garrison heals each turn, so piecemeal attacks never break a defended city)."
+  (let ((defenders (tile-hostiles state (tile-at (gs-map state) cx cy) (unit-owner unit))))
+    (or (null defenders)
+        (every (lambda (d) (ai-good-odds-p state unit d)) defenders)
+        (>= (own-attackers-around state cx cy (unit-owner unit)) 3))))
+
 (defun ai-military (state unit)
-  "Attack an adjacent enemy, walk into an adjacent undefended enemy city to take
-it, march surplus troops on the nearest enemy city in wartime, else garrison an
-own city (keeping one defender) or explore."
-  (let* ((enemy (adjacent-enemy state unit))
-         (cityxy (ai-adjacent-enemy-city state unit))
+  "Wage war with judgement: storm an adjacent enemy city when the odds are good
+or a stack has massed (otherwise hold and gather rather than feed the garrison
+units one at a time); pick off adjacent enemies it can beat; march surplus troops
+on the nearest enemy city; else garrison an own city or explore."
+  (let* ((cityxy (ai-adjacent-enemy-city state unit))
+         (enemy (adjacent-enemy state unit))
          (tile (tile-at (gs-map state) (unit-x unit) (unit-y unit)))
-         ;; surplus troops (not a city's lone defender) head for the front
          (target (and (not (only-defender-p state unit))
                       (nearest-enemy-city state (unit-owner unit)
                                           (unit-x unit) (unit-y unit)))))
     (cond
-      (enemy
+      ;; adjacent enemy city: assault when ready, otherwise hold and let a stack
+      ;; build up (doing nothing keeps the unit adjacent for next turn's wave)
+      (cityxy
+       (when (ai-should-assault-p state unit (first cityxy) (second cityxy))
+         (ai-cmd state (list :move-unit :unit (unit-id unit)
+                             :dx (signum (signed-dx (gs-map state) (unit-x unit) (first cityxy)))
+                             :dy (signum (- (second cityxy) (unit-y unit)))))))
+      ;; an enemy in the field: attack only if the odds aren't hopeless
+      ((and enemy (ai-good-odds-p state unit enemy))
        (ai-cmd state (list :move-unit :unit (unit-id unit)
                            :dx (signum (- (unit-x enemy) (unit-x unit)))
                            :dy (signum (- (unit-y enemy) (unit-y unit))))))
-      (cityxy
-       (ai-cmd state (list :move-unit :unit (unit-id unit)
-                           :dx (signum (signed-dx (gs-map state) (unit-x unit) (first cityxy)))
-                           :dy (signum (- (second cityxy) (unit-y unit))))))
       (target (ai-step-toward state unit (city-x target) (city-y target)))
       ((and tile (tile-city tile) (eql (tile-owner tile) (unit-owner unit)))
        (unless (eq (unit-orders unit) :fortified)
