@@ -758,20 +758,24 @@ with a blinking caret (the bitmap font has no underscore glyph)."
       (format nil "Pop ~:D" (civm:civ-population state (civm:player-id p))))))
 
 (defun gold-hud-text (state)
-  "Gold reserves for the HUD."
+  "Gold reserves and net income per turn for the HUD."
   (let ((p (human-player state)))
-    (when p (format nil "Gold ~D" (civm:player-gold p)))))
+    (when p
+      (let ((rate (civm:civ-gold-rate state (civm:player-id p))))
+        (format nil "Gold ~D (~:[~;+~]~D/t)" (civm:player-gold p) (>= rate 0) rate)))))
 
 (defun science-hud-text (state)
-  "Current research target and percent progress toward the next advance."
+  "Current research target, percent progress, and turns to the next advance."
   (let ((p (human-player state)))
     (when p
       (let ((tech (civm:player-researching p)))
         (if tech
-            (format nil "Sci ~A ~D%"
-                    (civm:tech-def tech :name)
-                    (max 0 (min 99 (floor (* (civm:player-beakers p) 100)
-                                          (max 1 (civm:research-cost p))))))
+            (let ((eta (civm:research-eta state p)))
+              (format nil "Sci ~A ~D%~@[ ~Dt~]"
+                      (civm:tech-def tech :name)
+                      (max 0 (min 99 (floor (* (civm:player-beakers p) 100)
+                                            (max 1 (civm:research-cost p)))))
+                      eta))
             "Sci (choosing)")))))
 
 ;;; --- diplomacy menu --------------------------------------------------------

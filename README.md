@@ -35,14 +35,15 @@ sight, bright = currently visible. A scout's trail is dimmed behind it.*
 A Civ1-style status pane sits in the top-left, reading out the state of your
 civilization at a glance: the **date** and turn, your total **population**
 (the classic 10k / 30k / 60k… per-city formula, summed and comma-grouped), your
-**gold reserves**, your **government** and the **tax / luxury / science** split,
-and your current **research** target with its **percent progress** toward the
-next advance. A spaceship line appears once one is in flight.
+**gold reserves** and **net income per turn**, your **government** and the
+**tax / luxury / science** split, and your current **research** target with its
+**percent progress** and **turns remaining** to the next advance. A spaceship
+line appears once one is in flight.
 
 ![the civilization status pane](docs/hud-shot.png)
 
-*Despotism Rome in 3700 BC: population 30,000, 144 gold, a 50/0/50 tax split, and
-Writing 56% researched.*
+*Despotism Rome in 3700 BC: population 60,000, 144 gold (+2/turn), a 50/0/50 tax
+split, and Writing 56% researched — six turns out.*
 
 Below the readout sits an **overview minimap**: one block per tile coloured by
 terrain, cities as dots in their owner's colour, and a white rectangle marking

@@ -439,6 +439,24 @@
     (civ-model::update-scores s)
     (is (= 2 (player-peace-turns p)))))          ; peace restored -> +1 again
 
+(test economy-rates-and-eta
+  (let* ((s (bare-state 8 8)) (st (add-unit s :settlers 1 4 4)) (p (player-by-id s 1)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (civ-model::city-auto-work s c)
+      ;; the empire's per-turn science equals its single city's contribution
+      (let ((trade (nth-value 2 (civ-model::city-yields s c))))
+        (is (= (or (civ-model::city-research-output s c trade) 0)
+               (civ-model::civ-research-rate s 1)))))
+    (is (integerp (civ-model::civ-gold-rate s 1)))         ; net gold/turn is a number
+    ;; ETA: with the next advance's beakers already banked, it lands in one turn
+    (apply-command s (list :set-research :player 1 :tech :pottery))
+    (setf (player-beakers p) (civ-model::research-cost p))
+    (is (= 1 (civ-model::research-eta s p)))
+    ;; anarchy does no science -> no progress -> NIL eta
+    (setf (player-beakers p) 0 (player-government p) :anarchy)
+    (is (null (civ-model::research-eta s p)))))
+
 (test ai-economy
   ;; ai-best-wonder picks the first buildable, unbuilt wonder it has tech for
   (let* ((s (bare-state 6 6)) (p (player-by-id s 1)))

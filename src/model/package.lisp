@@ -52,6 +52,7 @@
    #:enemy-adjacent-p #:city-defended-p #:wonder-built-p #:city-upkeep
    #:city-happiness #:city-disorder-p #:city-celebrating-p #:count-city-military
    #:research-cost #:researchable-techs #:city-population #:civ-population
+   #:civ-research-rate #:civ-gold-rate #:research-eta
    ;; persistence
    #:save-game #:load-game #:dump-game #:load-game-form
    ;; pathfinding / goto

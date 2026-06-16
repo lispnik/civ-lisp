@@ -498,6 +498,22 @@ gold-only, so they do not apply here."
     (when (member :bank b)        (setf l (pct+50 l)))
     l))
 
+(defun city-research-output (state city trade)
+  "Beakers CITY contributes per turn from its TRADE -- trade x science-rate, then
+the library/university/science-wonder multipliers.  NIL under a science-less
+government (anarchy), which does no research."
+  (let ((p (player-by-id state (city-owner city))))
+    (when (and p (government-def (player-government p) :science))
+      (let ((sci (* trade (player-science-rate p))) (b (city-buildings city)))
+        (when (member :library b)               (setf sci (pct+50 sci)))   ; +50%
+        (when (member :university b)            (setf sci (pct+50 sci)))   ; +50%
+        (when (member :great-library b)         (setf sci (pct+50 sci)))   ; +50%
+        (when (member :copernicus-observatory b)(setf sci (pct+50 sci)))   ; +50% here
+        (when (member :isaac-newtons-college b) (setf sci (* sci 2)))      ; doubles here
+        (when (player-wonder-p state (city-owner city) :s-e-t-i-program)
+          (setf sci (pct+50 sci)))                                          ; +50% civ-wide
+        sci))))
+
 (defun city-pollution-chance (shields buildings)
   "Percent chance (per turn) a city emits pollution, from its SHIELDS, raised by
 dirty factories/plants and lowered by clean infrastructure."
@@ -620,23 +636,10 @@ across the map.  The more polluted tiles, the likelier and worse each event."
            ;; still makes progress instead of flooring to zero (research-cost is
            ;; scaled to match); gold keeps whole units.  Anarchy does no research.
            (when p
-             (let ((sci (* trade (player-science-rate p))))
-               (when (member :library (city-buildings city))       ; library +50%
-                 (setf sci (floor (* sci 3) 2)))
-               (when (member :university (city-buildings city))    ; university +50%
-                 (setf sci (floor (* sci 3) 2)))
-               (when (member :great-library (city-buildings city)) ; great library +50%
-                 (setf sci (floor (* sci 3) 2)))
-               (when (member :copernicus-observatory (city-buildings city)) ; +50% in its city
-                 (setf sci (floor (* sci 3) 2)))
-               (when (member :isaac-newtons-college (city-buildings city))  ; doubles its city
-                 (setf sci (* sci 2)))
-               (when (player-wonder-p state (city-owner city) :s-e-t-i-program) ; +50% civ-wide
-                 (setf sci (floor (* sci 3) 2)))
-               (incf (player-gold p)
-                     (city-gold-output city (floor (* trade (player-tax-rate p)) 100)))
-               (when (government-def (player-government p) :science)
-                 (incf (player-beakers p) sci))))
+             (incf (player-gold p)
+                   (city-gold-output city (floor (* trade (player-tax-rate p)) 100)))
+             (let ((sci (city-research-output state city trade)))   ; nil under anarchy
+               (when sci (incf (player-beakers p) sci))))
            ;; dirty industry may blight a nearby tile with pollution
            (maybe-pollute state city shields)))))))
 
@@ -720,6 +723,34 @@ across the map.  The more polluted tiles, the likelier and worse each event."
   "Beakers needed for the next advance (grows with the number known).  In the
 same fine units as accrued science: 1000 = 10 'trade-turns' at 100% science."
   (* 1000 (1+ (hash-table-count (player-techs player)))))
+
+(defun civ-research-rate (state pid)
+  "Beakers PID's empire accrues per turn at its current rates and buildings."
+  (loop for c being the hash-values of (gs-cities state)
+        when (= (city-owner c) pid)
+          sum (or (city-research-output state c (nth-value 2 (city-yields state c))) 0)))
+
+(defun civ-gold-rate (state pid)
+  "Net gold per turn for PID: city tax income less improvement upkeep."
+  (let ((p (player-by-id state pid)) (income 0) (upkeep 0))
+    (loop for c being the hash-values of (gs-cities state)
+          when (= (city-owner c) pid)
+            do (incf income (city-gold-output
+                             c (floor (* (nth-value 2 (city-yields state c))
+                                         (player-tax-rate p)) 100)))
+               (incf upkeep (city-upkeep c)))
+    (- income upkeep)))
+
+(defun research-eta (state player)
+  "Turns until PLAYER's current advance completes at the present research rate,
+or NIL if it has no target or is making no progress."
+  (let ((tech (player-researching player)))
+    (when tech
+      (let ((need (- (research-cost player) (player-beakers player)))
+            (rate (civ-research-rate state (player-id player))))
+        (cond ((<= need 0) 1)
+              ((plusp rate) (ceiling need rate))
+              (t nil))))))
 
 (defun city-population (city)
   "A city's population in people, by the classic Civilization formula: a city of
