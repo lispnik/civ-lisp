@@ -99,6 +99,19 @@ priced in shields. One-per-game wonders are marked with `*`.
 *Rome's build menu set to the **Pyramids** (300 shields). The roster is gated by
 tech, so only what's been researched appears.*
 
+The menu doubles as a Civ1-style **city screen**: alongside the buildable roster
+it reads out the city's food balance and granary store, the current production
+and its progress, the trade split into tax/luxury/science, the garrison, and the
+improvements already built. A small **work-radius map** in the bottom-left shows
+the 21-tile fat cross around the city, with the tiles its citizens are working
+brightened and the centre tile boxed in white.
+
+![Rome's city screen](docs/city-screen.png)
+
+*Size-5 Rome: `Food +2  store 14/60`, a Temple at `8/40` shields, the 50/0/50
+tax split, a Warriors garrison, and Barracks/Granary/Marketplace/Palace built.
+The work map shows the five worked tiles around the city centre.*
+
 Production accumulates shields each turn until the item completes. Below, after
 Rome has grown and worked its tiles for ~150 turns, the Pyramids are done: they
 drop out of the buildable list (one per game) and appear in the **Built:**

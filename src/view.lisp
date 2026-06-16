@@ -497,6 +497,13 @@ plus a row of every unit sharing the square (the selected one outlined cyan)."
 (defparameter *menu-x* 92 "Build-menu panel position (logical px).")
 (defparameter *menu-y* 52)
 
+(defparameter *minimap-terrain-colors*
+  '((:ocean 40 60 140) (:grassland 70 150 50) (:plains 150 150 70)
+    (:forest 34 90 40) (:hills 110 120 55) (:mountains 120 110 100)
+    (:desert 205 180 110) (:tundra 165 165 140) (:arctic 235 235 245)
+    (:swamp 70 95 80) (:jungle 60 115 50))
+  "Flat per-terrain colours for the overview minimap and the city work-radius map.")
+
 (defparameter *unit-order*
   '(:warriors :cavalry :legion :phalanx :diplomat :musketeers :riflemen :cannon
     :catapult :chariot :frigate :knights :sail :settlers :trireme :caravan :mech-inf
@@ -584,16 +591,75 @@ celebration banner."
                  ((civm:city-celebrating-p state city) (list "** CELEBRATING **"))
                  (t nil)))))
 
+(defun city-detail-lines (state city)
+  "A Civ1 city-screen readout: food balance/storage, production, the trade split,
+and the garrison."
+  (multiple-value-bind (food shields trade) (civm:city-yields state city)
+    (let* ((p (civm:player-by-id state (civm:city-owner city)))
+           (size (civm:city-size city))
+           (prod (civm:city-production city))
+           (garrison (loop for id in (civm:tile-units
+                                      (civm:tile-at (civm:gs-map state)
+                                                    (civm:city-x city) (civm:city-y city)))
+                           for u = (civm:unit-by-id state id)
+                           when u collect (string-downcase (symbol-name (civm:unit-type u))))))
+      (list (format nil "Food ~@D  store ~D/~D" (- food (* 2 size))
+                    (civm:city-food-box city) (* 10 (1+ size)))
+            (if prod
+                (format nil "Shields ~D  ~A ~D/~D" shields (item-label prod)
+                        (civm:city-shield-box city) (item-cost prod))
+                (format nil "Shields ~D" shields))
+            (format nil "Trade ~D  tax ~D lux ~D sci ~D" trade
+                    (civm:player-tax-rate p) (civm:player-luxury-rate p)
+                    (civm:player-science-rate p))
+            (if garrison (format nil "Garrison ~{~A~^ ~}" garrison) "Garrison: none")))))
+
+(defun draw-city-map (painter state city px py)
+  "A small map of CITY's work radius (the 21-tile fat cross) at screen (PX,PY):
+each tile coloured by terrain, worked tiles brightened, the centre marked."
+  (let* ((ren (painter-ren painter)) (map (civm:gs-map state)) (cell 11)
+         (worked (civm:city-worked city)) (span (* 5 cell)))
+    (sdl2:set-render-draw-color ren 0 0 0 230)           ; backdrop so it reads over terrain
+    (set-rect (painter-dst painter) (1- px) (1- py) (+ span 1) (+ span 1))
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (sdl2:set-render-draw-color ren 220 220 220 255)
+    (sdl2:render-draw-rect ren (painter-dst painter))
+    (loop for dy from -2 to 2 do
+      (loop for dx from -2 to 2
+            unless (and (= 2 (abs dx)) (= 2 (abs dy)))   ; the fat cross drops corners
+              do (let* ((x (civm:wrap-x map (+ (civm:city-x city) dx)))
+                        (y (+ (civm:city-y city) dy))
+                        (tile (and (>= y 0) (civm:tile-at map x y)))
+                        (col (and tile (cdr (assoc (civm:tile-terrain tile)
+                                                   *minimap-terrain-colors*))))
+                        (sx (+ px (* (+ dx 2) cell))) (sy (+ py (* (+ dy 2) cell)))
+                        (center (and (zerop dx) (zerop dy)))
+                        (workp (or center (member (list x y) worked :test #'equal))))
+                   (when col
+                     (destructuring-bind (r g b) col
+                       (unless workp (setf r (floor r 2) g (floor g 2) b (floor b 2)))
+                       (sdl2:set-render-draw-color ren r g b 255)
+                       (set-rect (painter-dst painter) sx sy (1- cell) (1- cell))
+                       (sdl2:render-fill-rect ren (painter-dst painter))))
+                   (when center
+                     (sdl2:set-render-draw-color ren 255 255 255 255)
+                     (set-rect (painter-dst painter) sx sy (1- cell) (1- cell))
+                     (sdl2:render-draw-rect ren (painter-dst painter))))))))
+
 (defun draw-build-menu (painter state city)
+  "The city screen: the production list (1-9 to choose, picking unchanged) plus a
+Civ1-style readout -- citizen mood, food/shields/trade, garrison, and a small map
+of the worked tiles."
   (let* ((font (painter-font painter)) (ren (painter-ren painter))
          (h (gfont-height font))
          (lines (build-menu-lines state city))
          (built (built-lines city))
          (mood (city-mood-lines state city))
-         (title (format nil "Build (~A):" (civm:city-name city)))
+         (detail (city-detail-lines state city))
+         (title (format nil "~A  (size ~D)" (civm:city-name city) (civm:city-size city)))
          ;; layout rows (kept stable so mouse-picking maps to buildable items):
-         ;; title | buildable... | [Built: ...] | mood...
-         (texts (append (list title) (mapcar #'third lines)
+         ;; title | buildable... | detail... | [Built: ...] | mood...
+         (texts (append (list title) (mapcar #'third lines) detail
                         (when built (cons "Built:" built)) mood))
          (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
          (ph (+ 4 (* (length texts) (1+ h)))))
@@ -606,11 +672,12 @@ celebration banner."
              (draw-text painter font text (+ *menu-x* 2)
                         (+ *menu-y* 2 (* row (1+ h))) r g b)))
       (line title 0 255 230 120)                               ; title
-      (loop for (i item label) in lines                        ; buildable
+      (loop for (i item label) in lines                        ; buildable (rows 1..N)
             do (let ((cur (equal (civm:city-production city) item)))
                  (line label i (if cur 120 255) 255 (if cur 120 255))))
       (let ((row 1))                                           ; below the buildables
         (incf row (length lines))
+        (loop for s in detail do (line s row 200 220 235) (incf row))   ; the readout
         (when built                                            ; already built
           (line "Built:" row 180 180 180) (incf row)
           (loop for s in built do (line s row 150 200 150) (incf row)))
@@ -619,7 +686,10 @@ celebration banner."
                        (if (zerop k) 200 255)
                        (if (zerop k) 200 120)
                        (if (zerop k) 120 120))
-                 (incf row))))))
+                 (incf row))))
+    ;; the work-radius map sits bottom-left, clear of the wide build panel
+    ;; (logical viewport is 15 rows * 16 px = 240 tall)
+    (draw-city-map painter state city 3 (- (* 15 *tile*) (* 5 11) 3))))
 
 ;;; --- government menu (revolution) ------------------------------------------
 
@@ -1272,13 +1342,6 @@ input, shown with a blinking caret (the bitmap font has no underscore glyph)."
       (sdl2:render-copy (painter-ren painter) tex
                         :source-rect (painter-src painter)
                         :dest-rect (painter-dst painter)))))
-
-(defparameter *minimap-terrain-colors*
-  '((:ocean 40 60 140) (:grassland 70 150 50) (:plains 150 150 70)
-    (:forest 34 90 40) (:hills 110 120 55) (:mountains 120 110 100)
-    (:desert 205 180 110) (:tundra 165 165 140) (:arctic 235 235 245)
-    (:swamp 70 95 80) (:jungle 60 115 50))
-  "Flat per-terrain colours for the overview minimap.")
 
 (defun minimap-scale (w h)
   "Pixels per tile for the minimap, sized to fit roughly a 132x100 px box."
