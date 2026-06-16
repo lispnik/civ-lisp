@@ -1017,6 +1017,32 @@ the visible viewport (which wraps east-west with the map)."
             (seg vx vw)
             (progn (seg vx (- w vx)) (seg 0 (- (+ vx vw) w))))))))
 
+(defun status-pane-lines (state)
+  "The status-pane text lines for the human player (NIL entries dropped)."
+  (remove nil (list (format nil "~A   TURN ~D"
+                            (year-text (civm:gs-year state)) (civm:gs-turn state))
+                    (pop-hud-text state) (gold-hud-text state)
+                    (gov-hud-text state) (science-hud-text state)
+                    (spaceship-hud-text state))))
+
+(defun minimap-origin (painter state)
+  "Screen pixel (values MX MY) of the minimap's top-left -- just below the
+status-pane text block."
+  (let ((font (painter-font painter)))
+    (if font
+        (values 1 (+ (* (length (status-pane-lines state)) (1+ (gfont-height font))) 3))
+        (values 1 1))))
+
+(defun minimap-hit (painter state lx ly)
+  "If the logical click (LX,LY) lands on the minimap, return the world tile it
+points at as (values WX WY); otherwise NIL.  Mirrors DRAW-MINIMAP's layout."
+  (multiple-value-bind (mx my) (minimap-origin painter state)
+    (let* ((map (civm:gs-map state))
+           (w (civm:map-width map)) (h (civm:map-height map))
+           (s (minimap-scale w h)))
+      (when (and (<= mx lx (+ mx (* w s) -1)) (<= my ly (+ my (* h s) -1)))
+        (values (floor (- lx mx) s) (floor (- ly my) s))))))
+
 (defun render-game (painter state selected-id
                     &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu help console
                          overlay (cam-x 0) (cam-y 0) (vw 20) (vh 15))
@@ -1091,14 +1117,7 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
       (let ((font (painter-font painter)))
         (when font
           (let* ((fh (gfont-height font))
-                 (lines (remove nil (list (format nil "~A   TURN ~D"
-                                                  (year-text (civm:gs-year state))
-                                                  (civm:gs-turn state))
-                                          (pop-hud-text state)
-                                          (gold-hud-text state)
-                                          (gov-hud-text state)
-                                          (science-hud-text state)
-                                          (spaceship-hud-text state))))
+                 (lines (status-pane-lines state))
                  (tw (reduce #'max lines :key (lambda (s) (text-width font s))))
                  (box-h (+ 1 (* (length lines) (1+ fh)))))
             (sdl2:set-render-draw-color ren 0 0 0 190)

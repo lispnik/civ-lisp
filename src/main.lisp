@@ -698,6 +698,20 @@ or an error message."
                                        (try (list :set-production :city build-city
                                                   :item pick))))
                                    (setf build-city nil))
+                                  ;; a click on the overview minimap recentres the
+                                  ;; camera there (deselecting, so the auto-follow
+                                  ;; below doesn't snap the view back to a unit)
+                                  ((multiple-value-bind (wx wy)
+                                       (minimap-hit painter state
+                                                    (floor (ev-mouse-x ev) scale)
+                                                    (floor (ev-mouse-y ev) scale))
+                                     (when wx
+                                       (setf selected nil
+                                             cam-x (civm:wrap-x (civm:gs-map state)
+                                                    (- wx (floor *view-cols* 2)))
+                                             cam-y (clamp-cam-y state
+                                                    (- wy (floor *view-rows* 2))))
+                                       t)))
                                   ;; in goto mode: send the selected unit there
                                   ((and goto-mode selected)
                                    (try (list :goto :unit selected :x tx :y ty))

@@ -48,7 +48,8 @@ Below the readout sits an **overview minimap**: one block per tile coloured by
 terrain, cities as dots in their owner's colour, and a white rectangle marking
 the part of the world currently on screen. Under fog of war, tiles you have
 never seen stay black and explored-but-unseen tiles are dimmed, so the minimap
-doubles as your exploration record.
+doubles as your exploration record. **Click anywhere on the minimap to recentre
+the main view** there.
 
 ![the overview minimap](docs/minimap-shot.png)
 
@@ -105,6 +106,7 @@ moment it completes.
 | key | action |
 |-----|--------|
 | left-click | select a unit (wakes a fortified one), open a friendly city's **build menu**, or — on empty ground — **recenter** the view there |
+| click minimap | **recenter** the main view on that spot of the world |
 | 1–9 / click | in the build menu, choose a unit, improvement, or wonder (`*`) to build; Esc closes |
 | arrow keys / numpad | move the selected unit — the **numpad moves diagonally** too (1/3/7/9) |
 | Tab | cycle to the next active unit (skips fortified / out-of-moves) |
