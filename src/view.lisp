@@ -696,8 +696,7 @@ tiles framed in yellow and annotated with their yield icons, idle tiles dimmed."
                         (draw-frame painter sx sy '(255 255 255)))
                        (workp
                         (multiple-value-bind (f s tr) (civm:tile-yield tile gov)
-                          (draw-tile-yield painter f s tr sx sy))
-                        (draw-frame painter sx sy '(255 240 60)))
+                          (draw-tile-yield painter f s tr sx sy)))
                        (t (dim-tile painter sx sy)))))))))
 
 (defun city-map-pick (painter state city lx ly)
