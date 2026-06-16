@@ -752,8 +752,10 @@ SEL-th row is highlighted as the one being edited."
 (defun pedia-lines (category &optional player)
   "(text . have-p) for each entry in CATEGORY, read from the def tables.  HAVE-P
 is whether PLAYER already has the advance (or can build the unit/building/wonder,
-i.e. holds the prerequisite advance); T for everything when PLAYER is NIL."
+i.e. holds the prerequisite advance); T for everything when PLAYER is NIL.  The
+available entries come first (each group still name-sorted), then the dimmed ones."
   (flet ((can (req) (or (null player) (civm:player-has-tech-p player req))))
+   (let ((pairs
     (ecase category
       (:advances
        (loop for k in (pedia-sorted-keys civm:*techs*)
@@ -783,7 +785,9 @@ i.e. holds the prerequisite advance); T for everything when PLAYER is NIL."
                                    k (civm:wonder-def k :cost 0)
                                    (let ((r (civm:wonder-def k :requires))) (and r (civm:tech-def r :name)))
                                    (civm:wonder-def k :effect))
-                           (can (civm:wonder-def k :requires))))))))
+                           (can (civm:wonder-def k :requires)))))))) ; end ecase
+     ;; available first (still name-sorted), then the dimmed/unavailable ones
+     (append (remove-if-not #'cdr pairs) (remove-if #'cdr pairs)))))
 
 (defun draw-pedia (painter state cat scroll vw vh)
   "The Civilopedia: a scrollable reference for CAT (advances/units/buildings/
