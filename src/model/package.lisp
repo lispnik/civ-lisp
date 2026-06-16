@@ -30,6 +30,7 @@
    #:unit-goto-x #:unit-goto-y #:unit-work #:unit-work-left
    #:city #:city-id #:city-name #:city-owner #:city-x #:city-y #:city-size
    #:city-food-box #:city-shield-box #:city-buildings #:city-production #:city-worked
+   #:city-specialists #:city-worker-count
    ;; state
    #:game-state #:gs-turn #:gs-year #:gs-map #:gs-players #:gs-units #:gs-cities
    #:make-new-game #:player-by-id #:unit-by-id #:city-by-id

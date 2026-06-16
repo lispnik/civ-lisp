@@ -101,16 +101,26 @@ tech, so only what's been researched appears.*
 
 The menu doubles as a Civ1-style **city screen**: alongside the buildable roster
 it reads out the city's food balance and granary store, the current production
-and its progress, the trade split into tax/luxury/science, the garrison, and the
-improvements already built. A small **work-radius map** in the bottom-left shows
-the 21-tile fat cross around the city, with the tiles its citizens are working
-brightened and the centre tile boxed in white.
+and its progress, the trade split into tax/luxury/science, the workforce, the
+garrison, and the improvements already built. A small **work-radius map** in the
+bottom-left shows the 21-tile fat cross around the city, with the tiles its
+citizens are working brightened and the centre tile boxed in white.
+
+Citizens who aren't working a tile are **specialists**. Press `+` / `-` to hire
+a specialist (pulling a citizen off a tile) or send one back to work, and click a
+specialist's coloured dot to cycle its job: an **entertainer** (magenta) makes
+2 luxury — handy to break a city out of disorder — a **taxman** (gold) makes
+2 gold, and a **scientist** (cyan) makes 2 beakers. Specialists are always
+content, and a big city whose work radius is full of other cities' tiles puts its
+surplus citizens to work as specialists automatically. The AI manages its own:
+taxmen when its treasury is thin, scientists otherwise, and entertainers to head
+off riots.
 
 ![Rome's city screen](docs/city-screen.png)
 
-*Size-5 Rome: `Food +2  store 14/60`, a Temple at `8/40` shields, the 50/0/50
-tax split, a Warriors garrison, and Barracks/Granary/Marketplace/Palace built.
-The work map shows the five worked tiles around the city centre.*
+*Size-7 Rome with `Workers 5  specialists: 1 elvis 1 sci`: a Temple at `8/40`
+shields, a Warriors garrison, Barracks/Granary/Marketplace/Palace built, and the
+work map showing the five worked tiles around the centre.*
 
 Production accumulates shields each turn until the item completes. Below, after
 Rome has grown and worked its tiles for ~150 turns, the Pyramids are done: they

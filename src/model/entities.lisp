@@ -55,4 +55,6 @@
   (buildings '())                 ; list of building keywords already built
   (production nil)                ; what we're building: (:unit k) | (:building k)
   (worked '())                    ; list of (x y) tiles citizens are working
+  (specialists '())               ; citizens not working tiles: a list of
+                                  ; :entertainer / :taxman / :scientist keywords
   (disorder 0 :type fixnum))      ; consecutive turns in civil disorder

@@ -1787,6 +1787,67 @@
     ;; 100 trade at 100% luxury -> 50 upgrades, all 4 content become happy
     (is (= 4 (nth-value 0 (city-happiness s c 100))))))
 
+(test specialists-reduce-workers-and-tiles
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 4)
+    (civ-model::city-auto-work s c)
+    (is (= 4 (length (city-worked c))))                 ; all four work tiles
+    (is (null (city-specialists c)))
+    (apply-command s (list :set-specialists :city (city-id c) :op :add))
+    (is (= 3 (city-worker-count c)))                    ; one pulled off a tile
+    (is (= 3 (length (city-worked c))))
+    (is (equal '(:entertainer) (city-specialists c)))))
+
+(test specialist-cycle-and-remove
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 4)
+    (apply-command s (list :set-specialists :city (city-id c) :op :add))
+    (apply-command s (list :set-specialists :city (city-id c) :op :cycle :index 0))
+    (is (equal '(:taxman) (city-specialists c)))        ; entertainer -> taxman
+    (apply-command s (list :set-specialists :city (city-id c) :op :cycle :index 0))
+    (is (equal '(:scientist) (city-specialists c)))     ; taxman -> scientist
+    (apply-command s (list :set-specialists :city (city-id c) :op :remove))
+    (is (null (city-specialists c)))                    ; back to working
+    (is (= 4 (city-worker-count c)))))
+
+(test forced-specialists-when-no-tiles
+  ;; more citizens than workable tiles -> the surplus become specialists
+  (let* ((s (bare-state 6 6 :terrain :ocean))
+         (c (civ-model::register-city s :name "Isle" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 12)
+    (civ-model::city-auto-work s c)
+    (is (= 8 (length (city-worked c))))                 ; only 8 neighbour tiles
+    (is (= 4 (length (city-specialists c))))            ; 12 - 8 forced into jobs
+    (is (every (lambda (j) (eq j :entertainer)) (city-specialists c)))))
+
+(test entertainer-quells-disorder
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 6)
+    (is-true (city-disorder-p s c))                     ; 4 content, 2 unhappy
+    (setf (city-specialists c) '(:entertainer :entertainer))
+    (is-false (city-disorder-p s c))))                  ; specialists are content
+
+(test specialist-output-gold-and-beakers
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (setf (city-size c) 4 (player-government p) :monarchy)
+    (let ((g0 (player-gold p)) (b0 (player-beakers p)))
+      (setf (city-specialists c) '(:taxman :taxman :scientist))
+      (civ-model::process-city s c)
+      (is (<= (+ g0 4) (player-gold p)))                ; +2 gold per taxman
+      (is (<= (+ b0 200) (player-beakers p))))))         ; +200 fine beakers per scientist
+
+(test specialists-round-trip-through-save
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-specialists c) '(:taxman :scientist))
+    (let ((c2 (civ-model::list->city (civ-model::city->list c))))
+      (is (equal '(:taxman :scientist) (city-specialists c2))))))
+
 (test government-trade-advantage
   (let* ((s (bare-state 6 6))
          (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))

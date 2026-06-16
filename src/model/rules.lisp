@@ -56,11 +56,30 @@ or the republic/democracy +1 trade on any tile already producing trade."
                               (city-by-id state (car pr)) (city-by-id state (cdr pr))))
             (gs-routes state)))
 
+(defun city-worker-count (city)
+  "Citizens working tiles (the rest are specialists)."
+  (max 0 (- (city-size city) (length (city-specialists city)))))
+
+(defun reconcile-specialists (city forced)
+  "Make CITY's specialist list exactly MAX(its current length, FORCED) long and
+no longer than the city's size: keep the chosen types, drop the surplus when the
+city shrinks, and pad any forced extras (citizens with no tile) as entertainers."
+  (let* ((size (city-size city))
+         (want (min size (max forced (length (city-specialists city)))))
+         (have (city-specialists city)))
+    (setf (city-specialists city)
+          (cond ((> (length have) want) (subseq have 0 want))          ; shrank: drop extras
+                ((< (length have) want)                                 ; grew: pad as entertainers
+                 (append have (make-list (- want (length have))
+                                         :initial-element :entertainer)))
+                (t have)))))
+
 (defun city-auto-work (state city)
-  "Assign the city's SIZE citizens to surrounding tiles.  First secure
-subsistence (each citizen eats 2 food) by working the highest-food tiles, then
-fill the remaining slots preferring trade (so research progresses), then
-shields, then food.  The city centre is always worked for free."
+  "Assign the city's working citizens to surrounding tiles and settle its
+specialists.  Citizens who can't be given a tile (none left in range) become
+specialists; the rest work tiles -- first securing subsistence (each citizen
+eats 2 food) on the highest-food tiles, then preferring trade, shields, food.
+The city centre is always worked for free."
   (let* ((map (gs-map state))
          (size (city-size city))
          (gov (city-gov state city))
@@ -68,26 +87,30 @@ shields, then food.  The city centre is always worked for free."
          (cands (loop for (x y tile) in (neighbors map (city-x city) (city-y city))
                       collect (multiple-value-bind (f s tr) (tile-yield tile gov)
                                 (list x y f s tr))))
+         ;; citizens with no tile in range are forced into specialist jobs
+         (forced (max 0 (- size (length cands))))
          (chosen '()))
-    (multiple-value-bind (cf cs ctr) (tile-yield (tile-at map (city-x city)
-                                                          (city-y city))
-                                                 gov)
-      (declare (ignore cs ctr))
-      (let ((food cf) (need (* 2 size)))
-        (flet ((take (key)
-                 (let ((best (first (sort (copy-list cands) #'> :key key))))
-                   (when best
-                     (push best chosen)
-                     (setf cands (remove best cands))
-                     (incf food (third best))))))
-          ;; phase 1: secure food
-          (loop while (and (< food need) (< (length chosen) size) cands)
-                do (take #'third))
-          ;; phase 2: maximize trade, then shields, then food
-          (loop while (and (< (length chosen) size) cands)
-                do (take (lambda (e) (+ (* 3 (fifth e)) (* 2 (fourth e)) (third e))))))
-        (setf (city-worked city)
-              (mapcar (lambda (e) (list (first e) (second e))) chosen))))))
+    (reconcile-specialists city forced)
+    (let ((workers (city-worker-count city)))
+      (multiple-value-bind (cf cs ctr) (tile-yield (tile-at map (city-x city)
+                                                            (city-y city))
+                                                   gov)
+        (declare (ignore cs ctr))
+        (let ((food cf) (need (* 2 size)))
+          (flet ((take (key)
+                   (let ((best (first (sort (copy-list cands) #'> :key key))))
+                     (when best
+                       (push best chosen)
+                       (setf cands (remove best cands))
+                       (incf food (third best))))))
+            ;; phase 1: secure food
+            (loop while (and (< food need) (< (length chosen) workers) cands)
+                  do (take #'third))
+            ;; phase 2: maximize trade, then shields, then food
+            (loop while (and (< (length chosen) workers) cands)
+                  do (take (lambda (e) (+ (* 3 (fifth e)) (* 2 (fourth e)) (third e))))))
+          (setf (city-worked city)
+                (mapcar (lambda (e) (list (first e) (second e))) chosen)))))))
 
 (defun city-yields (state city)
   "Return (values food shields trade) produced by CITY this turn.
@@ -413,12 +436,15 @@ unhappy (plus war weariness from units in the field under republic/democracy);
 temples/colosseums/cathedrals and (in martial-law governments) military units
 quiet them; luxuries (2 arrows each) push unhappy->content->happy; a few wonders
 help globally."
-  (let* ((size (city-size city))
-         (owner (player-by-id state (city-owner city)))
+  (let* ((owner (player-by-id state (city-owner city)))
          (gov (and owner (player-government owner)))
          (b (city-buildings city))
-         (content (min size *base-content*))
-         (unhappy (max 0 (- size *base-content*)))
+         (nspec (length (city-specialists city)))
+         ;; only tile-working citizens can be unhappy; specialists are set aside
+         ;; and added back as content below (never unhappy)
+         (workers (max 0 (- (city-size city) nspec)))
+         (content (min workers *base-content*))
+         (unhappy (max 0 (- workers *base-content*)))
          (happy 0))
     ;; war weariness: units in the field flip content citizens to unhappy
     ;; (Women's Suffrage acts as a Police Station, halving it)
@@ -426,6 +452,7 @@ help globally."
            (mu (if (player-wonder-p state (city-owner city) :womens-suffrage) (floor mu 2) mu))
            (flip (min content mu)))
       (decf content flip) (incf unhappy flip))
+    (incf content nspec)                ; specialists are content, never unhappy
     (flet ((calm (n)                       ; up to N unhappy -> content
              (let ((k (min (max 0 n) unhappy))) (decf unhappy k) (incf content k)))
            (cheer (n)                       ; up to N: unhappy->content, then content->happy
@@ -447,7 +474,8 @@ help globally."
       ;; (a marketplace/bank boost the luxury arrows just like the gold ones)
       (when owner
         (cheer (floor (city-luxury-output
-                       city (floor (* trade (player-luxury-rate owner)) 100))
+                       city (+ (floor (* trade (player-luxury-rate owner)) 100)
+                               (* 2 (count :entertainer (city-specialists city)))))
                       2)))
       ;; global-happiness wonders
       (when (wonder-built-p state :hanging-gardens) (cheer 1))
@@ -587,7 +615,16 @@ government (anarchy), which does no research."
         (when (member :isaac-newtons-college b) (setf sci (* sci 2)))      ; doubles here
         (when (player-wonder-p state (city-owner city) :s-e-t-i-program)
           (setf sci (pct+50 sci)))                                          ; +50% civ-wide
+        ;; scientist specialists add a flat 2 beakers each (200 fine units)
+        (incf sci (* 200 (count :scientist (city-specialists city))))
         sci))))
+
+(defun city-tax-output (state city trade)
+  "Gold CITY contributes per turn: its trade x tax-rate after marketplace/bank/
+stock-exchange, plus a flat 2 gold per taxman specialist."
+  (let ((p (player-by-id state (city-owner city))))
+    (+ (if p (city-gold-output city (floor (* trade (player-tax-rate p)) 100)) 0)
+       (* 2 (count :taxman (city-specialists city))))))
 
 (defun city-pollution-chance (shields buildings)
   "Percent chance (per turn) a city emits pollution, from its SHIELDS, raised by
@@ -711,8 +748,7 @@ across the map.  The more polluted tiles, the likelier and worse each event."
            ;; still makes progress instead of flooring to zero (research-cost is
            ;; scaled to match); gold keeps whole units.  Anarchy does no research.
            (when p
-             (incf (player-gold p)
-                   (city-gold-output city (floor (* trade (player-tax-rate p)) 100)))
+             (incf (player-gold p) (city-tax-output state city trade))
              (let ((sci (city-research-output state city trade)))   ; nil under anarchy
                (when sci (incf (player-beakers p) sci))))
            ;; dirty industry may blight a nearby tile with pollution
@@ -807,12 +843,11 @@ same fine units as accrued science: 1000 = 10 'trade-turns' at 100% science."
 
 (defun civ-gold-rate (state pid)
   "Net gold per turn for PID: city tax income less improvement upkeep."
-  (let ((p (player-by-id state pid)) (income 0) (upkeep 0))
+  (let ((income 0) (upkeep 0))
     (loop for c being the hash-values of (gs-cities state)
           when (= (city-owner c) pid)
-            do (incf income (city-gold-output
-                             c (floor (* (nth-value 2 (city-yields state c))
-                                         (player-tax-rate p)) 100)))
+            do (incf income (city-tax-output
+                             state c (nth-value 2 (city-yields state c))))
                (incf upkeep (city-upkeep c)))
     (- income upkeep)))
 

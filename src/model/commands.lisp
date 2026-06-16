@@ -25,6 +25,7 @@ on an illegal move."
     (:move-unit      (cmd-move-unit state command))
     (:found-city     (cmd-found-city state command))
     (:set-production (cmd-set-production state command))
+    (:set-specialists (cmd-set-specialists state command))
     (:fortify        (cmd-fortify state command))
     (:wake           (cmd-wake state command))
     (:disband-unit   (cmd-disband-unit state command))
@@ -1018,4 +1019,32 @@ does not already hold a city (matches CMD-FOUND-CITY's checks)."
        (unless (player-has-tech-p owner :fusion-power)
          (fail "requires the fusion-power advance"))))    ; the ship's fuel
     (setf (city-production c) item)
+    c))
+
+(defun next-specialist (kind)
+  "Cycle a specialist's job: entertainer -> taxman -> scientist -> entertainer."
+  (ecase kind
+    (:entertainer :taxman)
+    (:taxman :scientist)
+    (:scientist :entertainer)))
+
+(defun cmd-set-specialists (state command)
+  "Adjust a city's specialists.  :op is
+  :add    -- pull a tile-working citizen off to a specialist job (an entertainer),
+  :remove -- send a specialist back to working a tile,
+  :cycle  -- change specialist :index's job (entertainer/taxman/scientist).
+After the change the city re-optimises its tile assignment."
+  (let* ((args (rest command))
+         (c (or (city-by-id state (getf args :city)) (fail "no such city")))
+         (op (getf args :op)))
+    (ecase op
+      (:add (when (plusp (city-worker-count c))
+              (setf (city-specialists c) (cons :entertainer (city-specialists c)))))
+      (:remove (when (city-specialists c)            ; auto-work re-adds any forced ones
+                 (setf (city-specialists c) (rest (city-specialists c)))))
+      (:cycle (let ((i (getf args :index)))
+                (when (and i (< -1 i (length (city-specialists c))))
+                  (setf (nth i (city-specialists c))
+                        (next-specialist (nth i (city-specialists c))))))))
+    (city-auto-work state c)
     c))

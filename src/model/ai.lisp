@@ -672,7 +672,20 @@ unit uses its whole movement allowance in one turn."
       (when (unit-by-id state (unit-id u))         ; may have been consumed/killed
         (ai-unit-turn state u)))
     (dolist (c (player-city-list state pid))
+      (ai-manage-specialists state player c)
       (ai-city-production state player c))))
+
+(defun ai-manage-specialists (state player city)
+  "Put the city's specialists to work: make them taxmen when the treasury is
+thin, otherwise scientists; then add entertainers until any civil disorder
+clears, so AI cities don't riot."
+  (let ((job (if (< (player-gold player) 50) :taxman :scientist)))
+    (setf (city-specialists city)
+          (mapcar (constantly job) (city-specialists city)))
+    (city-auto-work state city)
+    (loop while (and (city-disorder-p state city) (plusp (city-worker-count city)))
+          do (push :entertainer (city-specialists city))
+             (city-auto-work state city))))
 
 (defparameter *barbarian-spawn-chance* 8
   "Percent chance per turn a new barbarian raider appears.")

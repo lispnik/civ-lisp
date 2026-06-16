@@ -72,6 +72,7 @@
 (defconstant +sc-x+ 27) (defconstant +sc-y+ 28) (defconstant +sc-z+ 29)
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
 (defconstant +sc-tab+ 43)
+(defconstant +sc-minus+ 45) (defconstant +sc-equals+ 46)   ; specialists -/+
 (defconstant +sc-comma+ 54) (defconstant +sc-period+ 55)   ; luxury down / up
 (defconstant +sc-lbracket+ 47) (defconstant +sc-rbracket+ 48)  ; tax down / up
 (defconstant +sc-slash+ 56)             ; '/' (Shift+/ = '?'): toggle help
@@ -759,9 +760,15 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                                      "civ-lisp — trade rejected")))))
                                       (setf trade-menu nil))
                                      ((= sc +sc-escape+) (setf trade-menu nil))))
-                                  ;; build menu open: number picks a unit, Esc closes
+                                  ;; build menu open: number picks a unit (and
+                                  ;; closes), +/- hire/return a specialist (menu
+                                  ;; stays up), Esc closes
                                   (build-city
                                    (cond
+                                     ((= sc +sc-equals+)        ; '+': hire a specialist
+                                      (try (list :set-specialists :city build-city :op :add)))
+                                     ((= sc +sc-minus+)         ; '-': return one to a tile
+                                      (try (list :set-specialists :city build-city :op :remove)))
                                      ((and (>= sc +sc-1+) (<= sc (+ +sc-1+ 8)))
                                       (let ((pick (nth (- sc +sc-1+)
                                                        (build-menu-lines state
@@ -966,14 +973,20 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                   ;; build menu open: a click on a line picks it,
                                   ;; anywhere else closes the menu
                                   (build-city
-                                   (let ((pick (build-menu-pick
-                                                painter state
-                                                (civm:city-by-id state build-city)
-                                                (floor (ev-mouse-y ev) scale))))
-                                     (when pick
-                                       (try (list :set-production :city build-city
-                                                  :item pick))))
-                                   (setf build-city nil))
+                                   (let* ((c (civm:city-by-id state build-city))
+                                          (lx (floor (ev-mouse-x ev) scale))
+                                          (ly (floor (ev-mouse-y ev) scale))
+                                          (face (and c (specialist-pick painter state c lx ly))))
+                                     (cond
+                                       (face                  ; click a face: cycle its job
+                                        (try (list :set-specialists :city build-city
+                                                   :op :cycle :index face)))
+                                       (t                     ; a line picks production; else close
+                                        (let ((pick (build-menu-pick painter state c ly)))
+                                          (when pick
+                                            (try (list :set-production :city build-city
+                                                       :item pick))))
+                                        (setf build-city nil)))))
                                   ;; a click on the overview minimap recentres the
                                   ;; camera there (deselecting, so the auto-follow
                                   ;; below doesn't snap the view back to a unit)

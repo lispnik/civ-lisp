@@ -40,7 +40,8 @@
         :x (city-x c) :y (city-y c) :size (city-size c)
         :food-box (city-food-box c) :shield-box (city-shield-box c)
         :buildings (city-buildings c) :production (city-production c)
-        :worked (city-worked c) :disorder (city-disorder c)))
+        :worked (city-worked c) :specialists (city-specialists c)
+        :disorder (city-disorder c)))
 
 (defun list->city (cl)
   (let ((c (make-city :id (getf cl :id) :name (getf cl :name)
@@ -51,6 +52,7 @@
           (city-buildings c) (getf cl :buildings)
           (city-production c) (getf cl :production)
           (city-worked c) (getf cl :worked)
+          (city-specialists c) (getf cl :specialists)
           (city-disorder c) (or (getf cl :disorder) 0))
     c))
 

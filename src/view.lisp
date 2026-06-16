@@ -591,13 +591,31 @@ celebration banner."
                  ((civm:city-celebrating-p state city) (list "** CELEBRATING **"))
                  (t nil)))))
 
+(defparameter *specialist-short* '((:entertainer . "elvis") (:taxman . "tax") (:scientist . "sci"))
+  "Short city-screen labels for specialist jobs.")
+
+(defparameter *specialist-colors*
+  '((:entertainer 200 90 200) (:taxman 225 200 70) (:scientist 80 200 225))
+  "Face colours for entertainer / taxman / scientist specialists.")
+
+(defun specialist-summary (city)
+  "A short tally of CITY's specialists, e.g. \"1 elvis 1 sci\", or NIL if none."
+  (let ((s (civm:city-specialists city)))
+    (when s
+      (string-right-trim
+       " " (with-output-to-string (o)
+             (loop for (job . label) in *specialist-short*
+                   for n = (count job s)
+                   when (plusp n) do (format o "~D ~A " n label)))))))
+
 (defun city-detail-lines (state city)
   "A Civ1 city-screen readout: food balance/storage, production, the trade split,
-and the garrison."
+the workforce (tile workers vs. specialists), and the garrison."
   (multiple-value-bind (food shields trade) (civm:city-yields state city)
     (let* ((p (civm:player-by-id state (civm:city-owner city)))
            (size (civm:city-size city))
            (prod (civm:city-production city))
+           (spec (specialist-summary city))
            (garrison (loop for id in (civm:tile-units
                                       (civm:tile-at (civm:gs-map state)
                                                     (civm:city-x city) (civm:city-y city)))
@@ -612,6 +630,9 @@ and the garrison."
             (format nil "Trade ~D  tax ~D lux ~D sci ~D" trade
                     (civm:player-tax-rate p) (civm:player-luxury-rate p)
                     (civm:player-science-rate p))
+            (if spec
+                (format nil "Workers ~D  specialists: ~A" (civm:city-worker-count city) spec)
+                (format nil "Workers ~D  (+/- specialists)" (civm:city-worker-count city)))
             (if garrison (format nil "Garrison ~{~A~^ ~}" garrison) "Garrison: none")))))
 
 (defun draw-city-map (painter state city px py)
@@ -646,47 +667,86 @@ each tile coloured by terrain, worked tiles brightened, the centre marked."
                      (set-rect (painter-dst painter) sx sy (1- cell) (1- cell))
                      (sdl2:render-draw-rect ren (painter-dst painter))))))))
 
-(defun draw-build-menu (painter state city)
-  "The city screen: the production list (1-9 to choose, picking unchanged) plus a
-Civ1-style readout -- citizen mood, food/shields/trade, garrison, and a small map
-of the worked tiles."
-  (let* ((font (painter-font painter)) (ren (painter-ren painter))
-         (h (gfont-height font))
-         (lines (build-menu-lines state city))
+(defparameter *specialist-hint* "[+/-] hire/return  click a dot to switch job"
+  "City-screen footer explaining the specialist controls.")
+
+(defun build-menu-texts (state city)
+  "All text rows of the city screen, top to bottom, plus the pieces a caller
+needs to colour them.  Returns (values texts lines built mood detail title)."
+  (let* ((lines (build-menu-lines state city))
          (built (built-lines city))
          (mood (city-mood-lines state city))
          (detail (city-detail-lines state city))
-         (title (format nil "~A  (size ~D)" (civm:city-name city) (civm:city-size city)))
-         ;; layout rows (kept stable so mouse-picking maps to buildable items):
-         ;; title | buildable... | detail... | [Built: ...] | mood...
-         (texts (append (list title) (mapcar #'third lines) detail
-                        (when built (cons "Built:" built)) mood))
-         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
-         (ph (+ 4 (* (length texts) (1+ h)))))
-    (sdl2:set-render-draw-color ren 0 0 0 230)
-    (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
-    (sdl2:render-fill-rect ren (painter-dst painter))
-    (sdl2:set-render-draw-color ren 220 220 220 255)
-    (sdl2:render-draw-rect ren (painter-dst painter))
-    (flet ((line (text row r g b)
-             (draw-text painter font text (+ *menu-x* 2)
-                        (+ *menu-y* 2 (* row (1+ h))) r g b)))
-      (line title 0 255 230 120)                               ; title
-      (loop for (i item label) in lines                        ; buildable (rows 1..N)
-            do (let ((cur (equal (civm:city-production city) item)))
-                 (line label i (if cur 120 255) 255 (if cur 120 255))))
-      (let ((row 1))                                           ; below the buildables
-        (incf row (length lines))
-        (loop for s in detail do (line s row 200 220 235) (incf row))   ; the readout
-        (when built                                            ; already built
-          (line "Built:" row 180 180 180) (incf row)
-          (loop for s in built do (line s row 150 200 150) (incf row)))
-        (loop for s in mood for k from 0                       ; mood / banner
-              do (line s row
-                       (if (zerop k) 200 255)
-                       (if (zerop k) 200 120)
-                       (if (zerop k) 120 120))
-                 (incf row))))
+         (title (format nil "~A  (size ~D)" (civm:city-name city) (civm:city-size city))))
+    ;; layout rows (kept stable so mouse-picking maps to buildable items):
+    ;; title | buildable... | detail... | [Built: ...] | mood... | hint
+    (values (append (list title) (mapcar #'third lines) detail
+                    (when built (cons "Built:" built)) mood (list *specialist-hint*))
+            lines built mood detail title)))
+
+(defun specialist-face-row (painter state city)
+  "Logical (values X Y CELL N) of the clickable specialist-face row: it sits just
+below the panel's text, holds N little square 'faces', one per specialist."
+  (let* ((h (gfont-height (painter-font painter)))
+         (texts (build-menu-texts state city)))
+    (values (+ *menu-x* 2)
+            (+ *menu-y* 2 (* (length texts) (1+ h)))
+            (1+ h)
+            (length (civm:city-specialists city)))))
+
+(defun specialist-pick (painter state city lx ly)
+  "Index of the specialist 'face' at logical click (LX,LY) on the city screen, or
+NIL.  Clicking a face cycles that specialist's job."
+  (multiple-value-bind (x0 y cell n) (specialist-face-row painter state city)
+    (when (and (<= y ly (+ y cell)) (>= lx x0) (plusp n))
+      (let ((i (floor (- lx x0) cell)))
+        (when (< -1 i n) i)))))
+
+(defun draw-build-menu (painter state city)
+  "The city screen: the production list (1-9 to choose, picking unchanged), a
+Civ1-style readout (food/shields/trade, mood, garrison), a row of clickable
+specialist faces, and a small map of the worked tiles at bottom-left."
+  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+         (h (gfont-height font)))
+    (multiple-value-bind (texts lines built mood detail title)
+        (build-menu-texts state city)
+      (let* ((pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
+             (ph (+ 4 (* (1+ (length texts)) (1+ h)))))   ; +1 row for the faces
+        (sdl2:set-render-draw-color ren 0 0 0 230)
+        (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
+        (sdl2:render-fill-rect ren (painter-dst painter))
+        (sdl2:set-render-draw-color ren 220 220 220 255)
+        (sdl2:render-draw-rect ren (painter-dst painter))
+        (flet ((line (text row r g b)
+                 (draw-text painter font text (+ *menu-x* 2)
+                            (+ *menu-y* 2 (* row (1+ h))) r g b)))
+          (line title 0 255 230 120)                           ; title
+          (loop for (i item label) in lines                    ; buildable (rows 1..N)
+                do (let ((cur (equal (civm:city-production city) item)))
+                     (line label i (if cur 120 255) 255 (if cur 120 255))))
+          (let ((row 1))                                       ; below the buildables
+            (incf row (length lines))
+            (loop for s in detail do (line s row 200 220 235) (incf row)) ; the readout
+            (when built                                        ; already built
+              (line "Built:" row 180 180 180) (incf row)
+              (loop for s in built do (line s row 150 200 150) (incf row)))
+            (loop for s in mood for k from 0                   ; mood / banner
+                  do (line s row
+                           (if (zerop k) 200 255)
+                           (if (zerop k) 200 120)
+                           (if (zerop k) 120 120))
+                     (incf row))
+            (line *specialist-hint* row 150 150 160)))))        ; controls footer
+    ;; the clickable specialist faces, one little square per specialist
+    (multiple-value-bind (x0 y cell n) (specialist-face-row painter state city)
+      (dotimes (i n)
+        (let* ((job (nth i (civm:city-specialists city)))
+               (col (cdr (assoc job *specialist-colors*))))
+          (when col
+            (destructuring-bind (r g b) col
+              (sdl2:set-render-draw-color ren r g b 255)
+              (set-rect (painter-dst painter) (+ x0 (* i cell)) y (- cell 2) (- cell 2))
+              (sdl2:render-fill-rect ren (painter-dst painter)))))))
     ;; the work-radius map sits bottom-left, clear of the wide build panel
     ;; (logical viewport is 15 rows * 16 px = 240 tall)
     (draw-city-map painter state city 3 (- (* 15 *tile*) (* 5 11) 3))))
