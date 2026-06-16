@@ -375,10 +375,10 @@ may catch the spy (lost, plus war). **Caravans** (`H`/`J`) help build a wonder
 or open a trade route (a gold windfall plus recurring trade).
 
 **Winning.** The game ends by **conquest** — last civilization with a city or
-unit standing — or the **space race**: build the **Apollo Program**, then with
-**Space Flight** (the structurals) and **Fusion Power** (the ship's fuel)
-assemble ten **spaceship parts**; the ship launches and, after its flight,
-arrives for the win.
+unit standing — or the **space race**: build the **Apollo Program** (which, as
+in Civ1, **reveals the entire map** to every civilization), then with **Space
+Flight** (the structurals) and **Fusion Power** (the ship's fuel) assemble ten
+**spaceship parts**; the ship launches and, after its flight, arrives for the win.
 
 **Score.** As in Civilization (1991), every civ earns a running **score** —
 **+2** per happy citizen and **+1** per content one, **+3** per advance, **+5**

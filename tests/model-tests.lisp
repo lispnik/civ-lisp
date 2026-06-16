@@ -2369,6 +2369,18 @@ shield special) so the city keeps producing instead of starving."
     (civ-model::process-victory s)
     (is-false (gs-winner s))))
 
+(test apollo-reveals-the-map
+  (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)) (p (player-by-id s 1)))
+    (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))
+    (let ((c (a-city s)))
+      (is-false (civ-model::seen-p s p 5 5))               ; a far tile is unexplored
+      (setf (city-production c) '(:wonder :apollo-program) (city-shield-box c) 9999)
+      (civ-model::city-try-complete s c)
+      (is-true (member :apollo-program (city-buildings c)))
+      ;; the whole map is now seen -- for every civilization, not just the builder
+      (is-true (civ-model::seen-p s p 5 5))
+      (is-true (civ-model::seen-p s (player-by-id s 2) 0 0)))))
+
 (test spaceship-part-requires-apollo-and-tech
   (let* ((s (bare-state 6 6))
          (c (civ-model::register-city s :name "Rome" :owner 1 :x 2 :y 2))

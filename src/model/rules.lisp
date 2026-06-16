@@ -434,7 +434,10 @@ has superseded it), so it can no longer be built."
                (let ((p (player-by-id state (city-owner city))))
                  (dotimes (i 2)
                    (let ((tech (first (researchable-techs p))))
-                     (when tech (setf (gethash tech (player-techs p)) t)))))))
+                     (when tech (setf (gethash tech (player-techs p)) t))))))
+             ;; the Apollo Program lays the whole map bare to everyone
+             (when (eq (second item) :apollo-program)
+               (reveal-map state)))
             (:spaceship (incf (player-spaceship              ; assemble a ship part
                                (player-by-id state (city-owner city))))))
           (decf (city-shield-box city) cost)

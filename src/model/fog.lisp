@@ -42,3 +42,13 @@
 (defun seen-p (state player x y)
   "Has PLAYER ever explored tile (X,Y)?"
   (gethash (+ x (* y (map-width (gs-map state)))) (player-seen player)))
+
+(defun reveal-map (state)
+  "Mark every tile explored for all non-barbarian players -- the Apollo Program
+lays the whole world bare to every civilization."
+  (let* ((map (gs-map state)) (w (map-width map)) (h (map-height map)))
+    (loop for p across (gs-players state)
+          unless (eq (player-kind p) :barbarian)
+            do (dotimes (y h)
+                 (dotimes (x w)
+                   (setf (gethash (+ x (* y w)) (player-seen p)) t))))))
