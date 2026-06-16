@@ -22,6 +22,7 @@
    #:player-color #:player-tax-rate #:player-science-rate #:player-luxury-rate
    #:player-gov-target #:player-anarchy-left #:player-spaceship #:player-landing
    #:player-score #:player-peace-turns #:compute-score #:score-breakdown
+   #:player-personality #:gs-difficulty #:difficulty-level #:*difficulties*
    #:unit #:unit-id #:unit-type #:unit-owner #:unit-x #:unit-y
    #:unit-hp #:unit-moves-left #:unit-orders #:unit-veteran #:unit-fuel
    #:unit-goto-x #:unit-goto-y #:unit-work #:unit-work-left

@@ -25,7 +25,16 @@
   (victory nil)                            ; :conquest or :space
   (message nil)                            ; transient last-event text (e.g. a hut outcome)
   (log '())                                ; chronicle of notable events (newest first)
+  (difficulty :prince :type keyword)       ; AI handicap level (see *DIFFICULTIES*)
   (phase :start :type keyword))
+
+(defparameter *difficulties*
+  '((:chieftain . 1) (:warlord . 2) (:prince . 3) (:king . 4) (:emperor . 5))
+  "The five Civ1 difficulty levels and their numeric strength (1=easiest).")
+
+(defun difficulty-level (state)
+  "The numeric strength (1..5) of STATE's difficulty setting."
+  (or (cdr (assoc (gs-difficulty state) *difficulties*)) 3))
 
 (defun gs-note (state fmt &rest args)
   "Record a timestamped line in the game's event chronicle (GS-LOG)."
@@ -164,16 +173,17 @@ of seeds, then paint each land tile a climate-appropriate terrain."
     (values x0 y0)))
 
 (defun make-new-game (&key (width 20) (height 15) (players '("You" "Rival"))
-                           (seed 0) barbarians)
+                           (seed 0) barbarians (difficulty :prince))
   "Build a fresh GAME-STATE: a small map, the given players, each with a
 starting settlers + warriors unit.  SEED makes the game reproducible.  With
-BARBARIANS, append a unit-less barbarian player that spawns roaming raiders."
+BARBARIANS, append a unit-less barbarian player that spawns roaming raiders.
+DIFFICULTY (a key from *DIFFICULTIES*) sets how hard the AI civilizations play."
   (let* ((nciv (length players))
          (all (if barbarians (append players (list "Barbarians")) players))
          (map (make-game-map width height :terrain :ocean))
          (pvec (make-array (length all)))
          (state (%make-game-state
-                 :map map :players pvec
+                 :map map :players pvec :difficulty difficulty
                  :random (sb-ext:seed-random-state seed))))
     ;; carve continents out of the ocean and give them a latitude climate
     (grow-continents state map)
@@ -207,6 +217,11 @@ BARBARIANS, append a unit-less barbarian player that spawns roaming raiders."
                                :kind (cond (barb :barbarian) ((zerop i) :human) (t :ai))
                                :color (if barb 8 (1+ i)))
           do (setf (svref pvec i) p)
+             ;; give each AI a temperament, cycling so a game has variety
+             (when (eq (player-kind p) :ai)
+               (setf (player-personality p)
+                     (aref #(:aggressive :expansionist :builder :scientific)
+                           (mod (1- i) 4))))
              (unless barb           ; barbarians have no capital and no start units
                ;; spread starts across the map, snapped to the nearest land tile
                (multiple-value-bind (px py)

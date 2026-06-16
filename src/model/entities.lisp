@@ -22,6 +22,7 @@
   (seen (make-hash-table :test 'eql))   ; explored tiles (fog of war): key x+y*w -> t
   (score 0 :type fixnum)
   (peace-turns 0 :type fixnum)          ; turns spent at war with nobody (Civ1 peace bonus)
+  (personality nil)                     ; AI temperament keyword (see *AI-PERSONALITIES*)
   (spaceship 0 :type fixnum)            ; spaceship parts built
   (landing 0 :type fixnum))             ; turn the launched spaceship arrives (0 = not launched)
 

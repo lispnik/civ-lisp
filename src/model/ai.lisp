@@ -12,6 +12,34 @@
     "Lagash" "Mari" "Isin" "Sippar")
   "Names the AI gives new cities.")
 
+;;; --- AI personalities ------------------------------------------------------
+;;; Each AI is given a temperament at game start (see MAKE-NEW-GAME) that biases
+;;; how readily it goes to war, how far it expands, how eagerly it builds wonders
+;;; and infrastructure, how willing it is to ally, and what advances it chases.
+
+(defparameter *ai-personalities*
+  '((:aggressive   :war-chance 9 :min-cities 2 :wonder-chance 20 :build-chance 30
+                   :ally-chance 15 :tech-focus :military)
+    (:expansionist :war-chance 4 :min-cities 6 :wonder-chance 30 :build-chance 50
+                   :ally-chance 35 :tech-focus :expansion)
+    (:builder      :war-chance 1 :min-cities 3 :wonder-chance 70 :build-chance 85
+                   :ally-chance 60 :tech-focus :economy)
+    (:scientific   :war-chance 2 :min-cities 3 :wonder-chance 45 :build-chance 80
+                   :ally-chance 50 :tech-focus :science))
+  "AI temperaments -> behavioural traits, read via AI-TRAIT.")
+
+(defparameter *ai-tech-focus*
+  '((:military   :bronze-working :iron-working :monarchy :feudalism :gunpowder)
+    (:expansion  :pottery :ceremonial-burial :currency :code-of-laws :monarchy)
+    (:economy    :bronze-working :currency :trade :banking :the-corporation)
+    (:science    :alphabet :writing :literacy :philosophy :university))
+  "Advances each tech-focus chases first, ahead of the common goal list.")
+
+(defun ai-trait (player key &optional default)
+  "A trait of PLAYER's AI personality, or DEFAULT (also used for the human)."
+  (let ((profile (cdr (assoc (player-personality player) *ai-personalities*))))
+    (if profile (getf profile key default) default)))
+
 (defun ai-cmd (state cmd)
   "Issue CMD, swallowing illegal-move errors (the AI may guess wrong)."
   (handler-case (apply-command state cmd)
@@ -61,11 +89,15 @@ cities (strength measured by city count)."
                    ((and (at-war-p state pid oid) (plusp mine) (<= (* 2 mine) theirs))
                     (setf (relation state pid oid) :peace))
                    ;; at peace, not weaker, with something to take, and not
-                   ;; shielded by the United Nations -> pounce
+                   ;; shielded by the United Nations -> pounce.  How readily
+                   ;; depends on temperament (a warlike civ pounces far more
+                   ;; often) and on the difficulty (harder = more aggressive).
                    ((and (eq (relation state pid oid) :peace)
                          (plusp theirs) (>= mine theirs)
                          (not (player-wonder-p state oid :united-nations))
-                         (< (gs-rand state 100) 3))
+                         (< (gs-rand state 100)
+                            (+ (ai-trait player :war-chance 3)
+                               (1- (difficulty-level state)))))
                     (setf (relation state pid oid) :war)))))))
 
 (defparameter *ai-gov-order* '(:democracy :republic :monarchy)
@@ -128,8 +160,14 @@ University for science, Industrialization for factories).  The AI researches
 whichever prerequisite of the first unmet goal is within reach, so it actually
 arrives at Monarchy, the Republic, factories, and the rest.")
 
+(defun ai-tech-goals (player)
+  "PLAYER's research priorities: the advances its temperament chases first
+(*AI-TECH-FOCUS*), then the common goal list."
+  (append (cdr (assoc (ai-trait player :tech-focus) *ai-tech-focus*))
+          *ai-tech-goals*))
+
 (defun ai-next-tech (player)
-  "The advance the AI should research next: walk *AI-TECH-GOALS* and return the
+  "The advance the AI should research next: walk its goal list and return the
 nearest researchable step toward the first goal it lacks, or NIL once all are in.
 Only ever returns a real advance, so a stray goal name can't grant a phantom tech."
   (let ((have (player-techs player)))
@@ -137,7 +175,7 @@ Only ever returns a real advance, so a stray goal name can't grant a phantom tec
                (or (some (lambda (pre) (unless (gethash pre have) (toward pre)))
                          (tech-def tech :prereqs))
                    tech)))
-      (loop for goal in *ai-tech-goals*
+      (loop for goal in (ai-tech-goals player)
             when (and (gethash goal *techs*) (not (gethash goal have)))
               return (toward goal)))))
 
@@ -439,15 +477,22 @@ buildings are gated on size; a power plant waits for the factory it powers."
                       (player-has-tech-p player :ceremonial-burial)
                       (not (member :temple (city-buildings city))))
                  '(:building :temple))
-                ((< (length (player-city-list state pid)) 3)
+                ;; expand to the empire size this temperament likes
+                ((< (length (player-city-list state pid))
+                    (ai-trait player :min-cities 3))
                  '(:unit :settlers))
-                ;; the capital invests in a world wonder
-                ((and wonder (>= (city-size city) 4) (< (gs-rand state 100) 60))
+                ;; the capital invests in a world wonder -- how eagerly depends on
+                ;; temperament (a builder reaches for them far more than a warlord)
+                ((and wonder (>= (city-size city) 4)
+                      (< (gs-rand state 100) (ai-trait player :wonder-chance 60)))
                  (list :wonder wonder))
-                ;; develop the economy even in wartime: roughly half the time a
-                ;; defended city raises an improvement rather than another unit, so
-                ;; perpetual war doesn't keep every city stuck pumping warriors
-                ((and building (< (gs-rand state 100) (if at-war 45 80)))
+                ;; develop the economy even in wartime: a defended city often
+                ;; raises an improvement rather than another unit (less so at war),
+                ;; at a rate set by temperament
+                ((and building
+                      (< (gs-rand state 100)
+                         (let ((b (ai-trait player :build-chance 80)))
+                           (if at-war (floor b 2) b))))
                  (list :building building))
                 ;; at war: a coastal city builds a transport for the invasion,
                 ;; then everyone pumps out attackers (to load and to defend)

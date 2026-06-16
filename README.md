@@ -237,7 +237,15 @@ advances — and take their turns automatically when you end yours. Each unit
 spends its **whole movement** each turn; cities always keep a **garrison**
 (rebuilding a defender whenever one is left empty); and the AI only **declares
 war** on a rival it is at least as strong as, **suing for peace** once it is down
-to half a rival's cities. Surplus troops **march on the nearest enemy city**,
+to half a rival's cities.
+
+Each AI is dealt a **personality** at the start — **aggressive**, **expansionist**,
+**builder**, or **scientific** — that biases how readily it goes to war, how far
+it expands, how eagerly it raises wonders and infrastructure, how willing it is
+to ally, and which advances it chases first, so a six-civ game has real variety.
+A game-wide **difficulty** (`:chieftain` … `:emperor`, default Prince) sets the
+AI handicap: at higher levels the rival civilizations research markedly faster
+and go to war more readily. Surplus troops **march on the nearest enemy city**,
 and at war a coastal AI builds a **transport**, loads an invasion force,
 ferries it across the sea, and lands the troops on your shore. It also fields its
 **whole toolbox** — defending **aircraft** that fly home to refuel, **diplomats**

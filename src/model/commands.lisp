@@ -703,11 +703,12 @@ in the blast is now at war with the attacker."
 
 (defun ai-accepts-alliance-p (state proposer ai)
   "Whether AI accepts an alliance proposed by PROPOSER: a civ welcomes an ally at
-least as strong as itself (protection); a dominant civ is choosier."
+least as strong as itself (protection); otherwise it depends on temperament --
+a trusting builder allies readily, a warlike civ rarely."
   (let ((mine   (length (player-city-list state (player-id ai))))
         (theirs (length (player-city-list state (player-id proposer)))))
-    (or (>= theirs mine)                       ; an equal-or-stronger friend: yes
-        (< (gs-rand state 100) 35))))          ; otherwise sometimes
+    (or (>= theirs mine)                                  ; an equal-or-stronger friend
+        (< (gs-rand state 100) (ai-trait ai :ally-chance 35)))))
 
 (defun cmd-propose-alliance (state command)
   "Player :PLAYER proposes an alliance to :AGAINST.  The two must be at peace

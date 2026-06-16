@@ -737,6 +737,12 @@ size N holds 10,000 x N(N+1)/2 citizens (10k, 30k, 60k, 100k, 150k, ...)."
     ;; AIs auto-pick a target; a human is left to choose (the view prompts them)
     (unless (or (player-researching p) human)
       (setf (player-researching p) (first (researchable-techs p))))
+    ;; difficulty handicap: an established AI gets bonus research each turn, so a
+    ;; higher level tells the rival civilizations apart by how fast they advance
+    (when (and (eq (player-kind p) :ai)
+               (loop for c being the hash-values of (gs-cities state)
+                     thereis (= (city-owner c) (player-id p))))
+      (incf (player-beakers p) (* 60 (1- (difficulty-level state)))))
     (let ((tech (player-researching p))
           (cost (research-cost p)))            ; snapshot before the tech lands --
       (when (and tech (>= (player-beakers p) cost))   ; learning it raises the cost,

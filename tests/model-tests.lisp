@@ -465,6 +465,31 @@
           (gethash :university (player-techs p)) t)
     (is (eq :democracy (civ-model::ai-best-government s p)))))
 
+(test ai-personalities
+  ;; each AI is dealt a temperament at game start; the human and barbarians none
+  (let ((s (make-new-game :seed 1 :players '("You" "A" "B" "C" "D") :barbarians t)))
+    (is (null (player-personality (player-by-id s 1))))          ; the human
+    (is (eq :aggressive   (player-personality (player-by-id s 2))))  ; AIs cycle
+    (is (eq :expansionist (player-personality (player-by-id s 3))))
+    (is (eq :builder      (player-personality (player-by-id s 4))))
+    (let ((barb (find :barbarian (gs-players s) :key #'player-kind)))
+      (is (null (player-personality barb)))))
+  ;; ai-trait reads the profile, with a default for personality-less players
+  (let* ((s (bare-state 6 6)) (p (player-by-id s 2)))
+    (setf (player-personality p) :aggressive)
+    (is (= 9 (civ-model::ai-trait p :war-chance 3)))
+    (is (eq :military (civ-model::ai-trait p :tech-focus)))
+    (is (= 3 (civ-model::ai-trait (player-by-id s 1) :war-chance 3)))   ; no profile
+    ;; the tech-focus steers which advance the AI chases first
+    (is (eq :bronze-working (first (civ-model::ai-tech-goals p))))      ; military focus
+    (setf (player-personality p) :scientific)
+    (is (eq :alphabet (first (civ-model::ai-tech-goals p))))))          ; science focus
+
+(test difficulty-levels
+  (is (= 3 (difficulty-level (bare-state 4 4))))                  ; default Prince
+  (is (= 1 (difficulty-level (make-new-game :seed 1 :difficulty :chieftain))))
+  (is (= 5 (difficulty-level (make-new-game :seed 1 :difficulty :emperor)))))
+
 (test fortify-and-clear
   (let* ((s (bare-state 6 6)) (u (add-unit s :warriors 1 2 2)))
     (apply-command s (list :fortify :unit (unit-id u)))
