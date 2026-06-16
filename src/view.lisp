@@ -787,7 +787,9 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
                      (cond
                        ((civm:at-war-p state me oid)
                         (list (list oid :make-peace
-                                    (format nil "~A [WAR] - make peace" name))))
+                                    (format nil "~A [WAR] - make peace" name))
+                              (list oid :ceasefire
+                                    (format nil "~A [WAR] - propose cease-fire" name))))
                        ((civm:allied-p state me oid)
                         (list (list oid :break-alliance
                                     (format nil "~A [ALLY] - break alliance" name))
@@ -798,6 +800,8 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
                                     (format nil "~A [peace] - declare war" name))
                               (list oid :propose-alliance
                                     (format nil "~A [peace] - propose alliance" name))
+                              (list oid :demand-tribute
+                                    (format nil "~A [peace] - demand tribute" name))
                               (list oid :gift
                                     (format nil "~A [peace] - gift 50 gold" name))))))
               into rows

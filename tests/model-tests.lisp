@@ -1921,6 +1921,36 @@ shield special) so the city keeps producing instead of starving."
     (apply-command s (list :declare-war :player 1 :against 2))
     (signals command-error (apply-command s (list :propose-alliance :player 1 :against 2)))))
 
+(test cease-fire
+  (let ((s (bare-state 6 6)))                   ; both city-less -> the AI accepts
+    (apply-command s (list :declare-war :player 1 :against 2))
+    ;; you can't extort tribute mid-war
+    (signals command-error (apply-command s (list :demand-tribute :player 1 :against 2)))
+    (apply-command s (list :propose-ceasefire :player 1 :against 2))
+    (is (eq :peace (relation s 1 2)))            ; the war ends
+    (is-true (civ-model::truce-active-p s 1 2))  ; and a truce holds
+    ;; the truce lapses after *ceasefire-turns*
+    (incf (gs-turn s) civ-model::*ceasefire-turns*)
+    (is-false (civ-model::truce-active-p s 1 2))
+    ;; a cease-fire needs an actual war to end
+    (signals command-error (apply-command s (list :propose-ceasefire :player 1 :against 2)))))
+
+(test tribute
+  ;; a weaker AI with gold to spare pays up (bare-state's seed rolls a yes)
+  (let ((s (bare-state 6 6)))
+    (civ-model::register-city s :name "Rome" :owner 1 :x 2 :y 2)   ; the demander is stronger
+    (setf (player-gold (player-by-id s 1)) 0
+          (player-gold (player-by-id s 2)) 100)
+    (apply-command s (list :demand-tribute :player 1 :against 2))
+    (is (= 50 (player-gold (player-by-id s 1))))   ; *tribute-amount* changes hands
+    (is (= 50 (player-gold (player-by-id s 2)))))
+  ;; a civ that is not the weaker one refuses
+  (let ((s (bare-state 6 6)))
+    (civ-model::register-city s :name "Ur" :owner 2 :x 1 :y 1)     ; the AI holds the city
+    (setf (player-gold (player-by-id s 2)) 100)
+    (signals command-error (apply-command s (list :demand-tribute :player 1 :against 2)))
+    (is (= 100 (player-gold (player-by-id s 2))))))                 ; nothing paid
+
 (test allies-cannot-attack-each-other
   (let* ((s (bare-state 6 6 :seed 1))
          (a (add-unit s :legion 1 2 2))

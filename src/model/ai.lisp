@@ -74,9 +74,9 @@
                    do (return-from adjacent-enemy e))))
 
 (defun ai-diplomacy (state player)
-  "Pick fights it can win and bow out of ones it is losing: declare war only on a
-peer it is at least as strong as, and sue for peace when down to half a rival's
-cities (strength measured by city count)."
+  "Pick fights it can win and bow out of ones it is losing: sue for a cease-fire
+when down to half a rival's cities, pounce on a weaker neighbour (how readily set
+by temperament + difficulty), and -- by temperament -- offer alliances to peers."
   (let ((pid (player-id player))
         (mine (length (player-city-list state (player-id player)))))
     (loop for other across (gs-players state)
@@ -84,21 +84,34 @@ cities (strength measured by city count)."
           when (and (/= oid pid) (not (eq (player-kind other) :barbarian)))
             do (let ((theirs (length (player-city-list state oid))))
                  (cond
-                   ;; at war and clearly losing -> sue for peace (a city-less
-                   ;; roaming force has nothing to protect, so it fights on)
+                   ;; at war and clearly losing -> sue for a cease-fire (a truce,
+                   ;; so the pounce rule won't immediately re-open the war); a
+                   ;; city-less roaming force has nothing to protect, so fights on
                    ((and (at-war-p state pid oid) (plusp mine) (<= (* 2 mine) theirs))
-                    (setf (relation state pid oid) :peace))
-                   ;; at peace, not weaker, with something to take, and not
-                   ;; shielded by the United Nations -> pounce.  How readily
-                   ;; depends on temperament (a warlike civ pounces far more
-                   ;; often) and on the difficulty (harder = more aggressive).
+                    (setf (relation state pid oid) :peace)
+                    (set-truce state pid oid)
+                    (gs-note state "~A and ~A agree a cease-fire"
+                             (player-name player) (player-name other)))
+                   ;; at peace, not weaker, with something to take, not shielded by
+                   ;; the United Nations, and no cease-fire in force -> pounce
                    ((and (eq (relation state pid oid) :peace)
                          (plusp theirs) (>= mine theirs)
+                         (not (truce-active-p state pid oid))
                          (not (player-wonder-p state oid :united-nations))
                          (< (gs-rand state 100)
                             (+ (ai-trait player :war-chance 3)
                                (1- (difficulty-level state)))))
-                    (setf (relation state pid oid) :war)))))))
+                    (setf (relation state pid oid) :war))
+                   ;; at peace with a worthy fellow AI -> by temperament, seek an
+                   ;; alliance (mutual; the human is left to propose their own)
+                   ((and (eq (player-kind other) :ai)
+                         (eq (relation state pid oid) :peace)
+                         (plusp theirs) (>= theirs (floor mine 2))
+                         (< (gs-rand state 100) (floor (ai-trait player :ally-chance 0) 6))
+                         (ai-accepts-alliance-p state player other))
+                    (setf (relation state pid oid) :alliance)
+                    (gs-note state "~A and ~A form an alliance"
+                             (player-name player) (player-name other))))))))
 
 (defparameter *ai-gov-order* '(:democracy :republic :monarchy)
   "Governments the AI prefers, best first.")

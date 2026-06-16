@@ -17,7 +17,8 @@
   (id-counter 1 :type fixnum)              ; monotonic id allocator
   (random (make-random-state nil))         ; seeded per game
   (warming 0 :type fixnum)                 ; number of global-warming events so far
-  (relations (make-hash-table :test 'eql)) ; player-pair key -> :war (absent = :peace)
+  (relations (make-hash-table :test 'eql)) ; player-pair key -> :war/:alliance (absent = :peace)
+  (truces (make-hash-table :test 'eql))    ; player-pair key -> turn a cease-fire expires
   (stolen (make-hash-table :test 'eql))    ; (thief*256+victim) -> t: a tech has been stolen
   (embassies (make-hash-table :test 'eql)) ; (observer*256+observed) -> t: an embassy exists
   (routes '())                             ; list of (city-a . city-b) trade routes (a<=b)
@@ -78,6 +79,18 @@
 (defun allied-p (state a b)
   "T if A and B are bound by an alliance (a peace they have both committed to)."
   (and (/= a b) (eq (relation state a b) :alliance)))
+
+(defun truce-active-p (state a b)
+  "T while a cease-fire between A and B still holds (no war may be declared)."
+  (< (gs-turn state) (gethash (rel-key a b) (gs-truces state) 0)))
+
+(defparameter *ceasefire-turns* 16
+  "How long a cease-fire bars a fresh declaration of war.")
+
+(defun set-truce (state a b)
+  "Record a cease-fire between A and B lasting *CEASEFIRE-TURNS* turns."
+  (setf (gethash (rel-key a b) (gs-truces state))
+        (+ (gs-turn state) *ceasefire-turns*)))
 (defun unit-by-id (state id) (gethash id (gs-units state)))
 (defun city-by-id (state id) (gethash id (gs-cities state)))
 

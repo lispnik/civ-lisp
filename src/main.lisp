@@ -440,6 +440,16 @@ or an error message."
                                (:make-peace  (try (list :make-peace  :player me :against oid)))
                                (:break-alliance
                                 (try (list :break-alliance :player me :against oid)))
+                               (:ceasefire
+                                (sdl2:set-window-title
+                                 win (if (try (list :propose-ceasefire :player me :against oid))
+                                         (format nil "civ-lisp — cease-fire with ~A" name)
+                                         (format nil "civ-lisp — ~A fights on" name))))
+                               (:demand-tribute
+                                (sdl2:set-window-title
+                                 win (if (try (list :demand-tribute :player me :against oid))
+                                         (format nil "civ-lisp — ~A pays you tribute" name)
+                                         (format nil "civ-lisp — ~A refuses tribute" name))))
                                (:propose-alliance
                                 (sdl2:set-window-title
                                  win (if (try (list :propose-alliance :player me :against oid))

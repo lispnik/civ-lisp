@@ -40,6 +40,8 @@ on an illegal move."
     (:make-peace     (cmd-make-peace state command))
     (:propose-alliance (cmd-propose-alliance state command))
     (:break-alliance (cmd-break-alliance state command))
+    (:propose-ceasefire (cmd-propose-ceasefire state command))
+    (:demand-tribute (cmd-demand-tribute state command))
     (:propose-trade  (cmd-propose-trade state command))
     (:set-research   (cmd-set-research state command))
     (:steal-tech     (cmd-steal-tech state command))
@@ -734,6 +736,59 @@ a trusting builder allies readily, a warlike civ rarely."
     (unless (and (player-by-id state a) (player-by-id state b)) (fail "no such player"))
     (unless (allied-p state a b) (fail "no alliance to break"))
     (setf (relation state a b) :peace)
+    state))
+
+(defun ai-accepts-ceasefire-p (state proposer ai)
+  "Whether AI agrees to a cease-fire from PROPOSER: a civ that is not winning is
+glad to pause the war; a winning one parleys only by temperament (a warlike civ
+presses its advantage)."
+  (let ((mine   (length (player-city-list state (player-id ai))))
+        (theirs (length (player-city-list state (player-id proposer)))))
+    (or (<= mine theirs)
+        (< (gs-rand state 100) (- 70 (* 3 (ai-trait ai :war-chance 3)))))))
+
+(defun cmd-propose-ceasefire (state command)
+  "Player :PLAYER proposes a cease-fire to :AGAINST -- it ends the war and bars
+either side from re-declaring for *CEASEFIRE-TURNS* turns.  The two must be at
+war; an AI weighs it (and readily accepts when it is not winning)."
+  (let* ((args (rest command))
+         (a (getf args :player 1)) (b (getf args :against))
+         (pa (player-by-id state a)) (pb (player-by-id state b)))
+    (unless (and pa pb) (fail "no such player"))
+    (when (barbarian-id-p state b) (fail "barbarians never parley"))
+    (unless (at-war-p state a b) (fail "not at war"))
+    (when (and (eq (player-kind pb) :ai) (not (ai-accepts-ceasefire-p state pa pb)))
+      (fail "~A fights on" (player-name pb)))
+    (setf (relation state a b) :peace)
+    (set-truce state a b)
+    state))
+
+(defparameter *tribute-amount* 50 "Gold paid when a tribute demand succeeds.")
+
+(defun ai-pays-tribute-p (state demander ai)
+  "Whether AI yields tribute to DEMANDER: only a weaker civ with gold to spare
+pays up, and a warlike one would sooner refuse."
+  (let ((mine   (length (player-city-list state (player-id ai))))
+        (theirs (length (player-city-list state (player-id demander)))))
+    (and (plusp (player-gold ai))
+         (< mine theirs)
+         (< (gs-rand state 100) (- 80 (* 5 (ai-trait ai :war-chance 3)))))))
+
+(defun cmd-demand-tribute (state command)
+  "Player :PLAYER demands tribute from :AGAINST (with whom it is at peace).  A
+weaker or fearful AI pays *TRIBUTE-AMOUNT* gold (capped at what it has); a
+confident one refuses."
+  (let* ((args (rest command))
+         (a (getf args :player 1)) (b (getf args :against))
+         (pa (player-by-id state a)) (pb (player-by-id state b)))
+    (unless (and pa pb) (fail "no such player"))
+    (when (barbarian-id-p state b) (fail "barbarians pay no tribute"))
+    (when (at-war-p state a b) (fail "make peace before extorting tribute"))
+    (when (and (eq (player-kind pb) :ai) (not (ai-pays-tribute-p state pa pb)))
+      (fail "~A refuses your demand" (player-name pb)))
+    (let ((amount (min *tribute-amount* (player-gold pb))))
+      (decf (player-gold pb) amount)
+      (incf (player-gold pa) amount))
     state))
 
 ;;; --- trade (gold + tech) ---------------------------------------------------

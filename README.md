@@ -304,16 +304,20 @@ your own units too — and dropping it on a civ you were at peace with is an act
 
 **Diplomacy & trade.** Relations are **war**, **peace**, or **alliance** per
 pair. The `Y` **diplomacy menu** lists, for each rival, the moves open to you:
-make peace with an enemy, declare war on a neighbour, **propose an alliance**
-(an AI weighs it — a civ welcomes an ally at least as strong as itself), **break**
-one, or **gift 50 gold** as a goodwill gesture. Allies can't attack each other,
-and the AI won't pounce on an ally (you can still betray one by declaring war).
-`E` opens a **trade** menu to swap advances or buy/sell them for gold, and the
-AIs trade among themselves too.
+make peace or propose a **cease-fire** with an enemy (a timed truce the AI won't
+break for a while), declare war on a neighbour, **propose an alliance** (an AI
+weighs it — a civ welcomes an ally at least as strong as itself), **break** one,
+**demand tribute** (a weaker, fearful AI pays gold; a confident one refuses), or
+**gift 50 gold** as a goodwill gesture. Allies can't attack each other, and the
+AI won't pounce on an ally (you can still betray one by declaring war). The AIs
+also conduct **their own diplomacy** — forming alliances and agreeing cease-fires
+among themselves as the game unfolds. `E` opens a **trade** menu to swap advances
+or buy/sell them for gold.
 
 ![the diplomacy menu](docs/diplo-menu.png)
 
-*Per-rival diplomacy: at war with Egypt, allied with Zulu, at peace with Greece.*
+*Per-rival diplomacy: at war with Egypt (make peace / cease-fire), allied with
+Zulu (break / declare war), at peace with Greece (war / alliance / tribute / gift).*
 
 **Diplomats** (`Z`/`X`/`D`) run
 the full espionage suite — steal tech, sabotage, establish an embassy,
