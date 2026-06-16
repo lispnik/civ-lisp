@@ -927,6 +927,55 @@ each a row of icons split by a separator into needed (consumed) and surplus."
                     do (draw-resource-row painter (+ +res-pane-y+ 2 (* row +res-row-h+))
                                           label nfn sfn need surp)))))))))
 
+;;; --- the Food Storage (granary box) pane -----------------------------------
+
+(defparameter +store-pane-x+ 2 "Food-store pane: the left gap below the minimap.")
+(defparameter +store-pane-y+ 93)
+(defparameter +store-cols+ 10 "Food-icon columns in the granary box.")
+(defparameter +store-rows+ 6 "Max rows; bigger stores scale each icon to >1 food.")
+
+(defun draw-food-storage (painter state city)
+  "A Civ1-style granary box: a grid of food icons standing for the food banked
+toward growth (bright = stored, dim = still needed), with a yellow line at the
+half level a granary keeps after the city grows."
+  (let ((font (painter-font painter)))
+    (when (and font (painter-icons painter))
+      (let* ((ren (painter-ren painter)) (h (gfont-height font))
+             (box (civm:city-food-box city))
+             (thresh (max 1 (* 10 (1+ (civm:city-size city)))))
+             (cap (* +store-cols+ +store-rows+))
+             (per (max 1 (ceiling thresh cap)))          ; food per icon (scales big cities)
+             (slots (ceiling thresh per))                 ; icon cells in the box
+             (filled (min slots (floor box per)))
+             (granary (member :granary (civm:city-buildings city)))
+             (gy (+ +store-pane-y+ 2 h                    ; row line for the granary half-mark
+                    (* (floor (round slots 2) +store-cols+) +icon-size+)))
+             (rows (ceiling slots +store-cols+))
+             (pw (+ 4 (* +store-cols+ +icon-size+)))
+             (ph (+ 4 h (* rows +icon-size+))))
+        (sdl2:set-render-draw-color ren 0 0 0 220)
+        (set-rect (painter-dst painter) +store-pane-x+ +store-pane-y+ pw ph)
+        (sdl2:render-fill-rect ren (painter-dst painter))
+        (sdl2:set-render-draw-color ren 220 220 220 255)
+        (sdl2:render-draw-rect ren (painter-dst painter))
+        (draw-text painter font (format nil "Food ~D/~D" box thresh)
+                   (+ +store-pane-x+ 2) (1+ +store-pane-y+) 255 230 120)
+        (dotimes (i slots)
+          (let* ((col (mod i +store-cols+)) (row (floor i +store-cols+))
+                 (dx (+ +store-pane-x+ 2 (* col +icon-size+)))
+                 (dy (+ +store-pane-y+ 2 h (* row +icon-size+))))
+            (blit painter (painter-icons painter) (car +food-icon+) (cdr +food-icon+)
+                  +icon-size+ +icon-size+ dx dy)
+            (when (>= i filled)                           ; not yet stored: dim it
+              (sdl2:set-render-draw-color ren 0 0 0 160)
+              (set-rect (painter-dst painter) dx dy +icon-size+ +icon-size+)
+              (sdl2:render-fill-rect ren (painter-dst painter)))))
+        (when granary                                     ; the half-kept line
+          (sdl2:set-render-draw-color ren 235 220 120 255)
+          (set-rect (painter-dst painter) (+ +store-pane-x+ 2) gy
+                    (* +store-cols+ +icon-size+) 1)
+          (sdl2:render-fill-rect ren (painter-dst painter)))))))
+
 ;;; --- government menu (revolution) ------------------------------------------
 
 (defparameter *gov-order* '(:despotism :monarchy :communism :republic :democracy))
@@ -1751,7 +1800,8 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
             ((and build-city (painter-font painter))
              (let ((c (civm:city-by-id state build-city)))
                (when c (draw-build-menu painter state c)
-                 (draw-city-resources painter state c)))))
+                 (draw-city-resources painter state c)
+                 (draw-food-storage painter state c)))))
       ;; HUD: a Civ1-style status pane -- date, population, gold, government and
       ;; tax/lux/science split, research progress, spaceship status -- with the
       ;; overview minimap below it.  Sits on the left edge, or the right with HUD-RIGHT.

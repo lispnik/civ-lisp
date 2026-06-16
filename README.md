@@ -119,6 +119,10 @@ food (wheat), production (shields), trade (arrows), gold, science and happiness
 (food eaten, gold upkeep, unhappy citizens) on the left and its **surplus** (food
 toward growth, net profit, happy citizens) on the right.
 
+On the left, a **Food Store** pane is the granary box: a grid of food icons for
+the food banked toward the next citizen (bright = stored, dim = still needed),
+with a yellow line at the half level a granary keeps when the city grows.
+
 Along the bottom of the panel runs a **population bar**, one little citizen
 sprite per inhabitant (the original SP257 figures): happy, content and unhappy
 faces for the tile-workers, then the **specialists**. Citizens who aren't working
