@@ -123,9 +123,17 @@ On the left, a **Food Store** pane is the granary box: a grid of food icons for
 the food banked toward the next citizen (bright = stored, dim = still needed),
 with a yellow line at the half level a granary keeps when the city grows.
 
-Down the right edge, a **Units** pane lists the units the city can build, each as
-its sprite (on the nation's colour) with a shield icon and its build cost in
-shields — click one to set it building.
+Down the right edge, a **Units** pane lists the units the city **supports** (its
+home units), each as its sprite on the nation's colour with its per-turn shield
+**maintenance** (a shield icon and the cost; diplomats, caravans, and the units
+within a despotism/anarchy city's free allowance show 0).
+
+Unit support follows Civ1: every unit a city builds is **homed** there and costs
+**1 shield per turn**, deducted from the city's production. Under despotism and
+anarchy the first *size* units are free; under every other government every unit
+costs its shield. Diplomats and caravans are always free, and settlers also eat
+food (1 under despotism/anarchy, 2 otherwise). If a city can no longer pay for
+its army, the **unit farthest from home is disbanded**.
 
 Along the bottom of the panel runs a **population bar**, one little citizen
 sprite per inhabitant (the original SP257 figures): happy, content and unhappy

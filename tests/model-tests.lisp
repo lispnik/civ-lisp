@@ -1897,6 +1897,76 @@
       (is-true (city-manual-tiles c2))
       (is (equal '((2 1) (3 3)) (city-tile-locks c2))))))
 
+;;; --- unit shield support -----------------------------------------------------
+
+(defun home-units (s c n type &key (x (city-x c)) (y (city-y c)))
+  "Create N units of TYPE homed to city C (test helper)."
+  (dotimes (i n)
+    (setf (unit-home (civ-model::register-unit s :type type :owner (city-owner c) :x x :y y))
+          (city-id c))))
+
+(test unit-built-in-city-is-homed-and-supported
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (setf (city-size c) 4 (player-government p) :monarchy
+          (city-production c) (list :unit :warriors) (city-shield-box c) 10)
+    (civ-model::city-try-complete s c)
+    (let ((u (loop for uu being the hash-values of (gs-units s)
+                   when (eq (unit-type uu) :warriors) return uu)))
+      (is (eql (unit-home u) (city-id c)))                ; built unit is homed here
+      (is (= 1 (civ-model::city-shield-support s c))))))  ; monarchy: 1 shield each
+
+(test despotism-supports-units-free-up-to-size
+  (let* ((s (bare-state 8 8 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 3 :y 3)))
+    (setf (city-size c) 2)                                ; despotism: 2 free
+    (home-units s c 3 :warriors)
+    (is (= 1 (civ-model::city-shield-support s c)))))      ; 3 units - 2 free = 1
+
+(test diplomats-and-caravans-need-no-support
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (setf (city-size c) 1 (player-government p) :monarchy)
+    (home-units s c 1 :diplomat) (home-units s c 1 :caravan)
+    (is (= 0 (civ-model::city-shield-support s c)))))
+
+(test unit-support-list-marks-free-then-paid
+  (let* ((s (bare-state 8 8 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 3 :y 3)))
+    (setf (city-size c) 1)                                ; despotism: first 1 free
+    (home-units s c 2 :warriors)
+    (is (equal '(0 1) (mapcar #'cdr (civ-model::city-unit-support-list s c))))))
+
+(test settler-food-upkeep-by-government
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (setf (city-size c) 1)
+    (home-units s c 1 :settlers)
+    (is (= 1 (civ-model::city-settler-food s c)))          ; despotism: 1 food
+    (setf (player-government p) :monarchy)
+    (is (= 2 (civ-model::city-settler-food s c)))))         ; else: 2 food
+
+(test over-supported-city-disbands-the-farthest-unit
+  (let* ((s (bare-state 8 8 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 3 :y 3))
+         (p (player-by-id s 1)))
+    (setf (city-size c) 2 (player-government p) :monarchy)  ; monarchy: every unit costs 1
+    (home-units s c 5 :warriors :x 6 :y 6)                  ; support 5 >> production
+    (let ((before (hash-table-count (gs-units s))))
+      (civ-model::process-city s c)
+      (is (= (1- before) (hash-table-count (gs-units s)))))))  ; one disbanded
+
+(test unit-home-round-trips-through-save
+  (let* ((s (bare-state 6 6))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (u (civ-model::register-unit s :type :warriors :owner 1 :x 2 :y 2)))
+    (setf (unit-home u) (city-id c))
+    (let ((u2 (civ-model::list->unit (civ-model::unit->list u))))
+      (is (eql (city-id c) (unit-home u2))))))
+
 (test government-trade-advantage
   (let* ((s (bare-state 6 6))
          (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))

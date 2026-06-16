@@ -559,6 +559,7 @@ has superseded it), so it can no longer be built."
             (:unit (let ((nu (register-unit state :type (second item)
                                             :owner (city-owner city)
                                             :x (city-x city) :y (city-y city))))
+                     (setf (unit-home nu) (city-id city))      ; this city pays its support
                      (when (or (member :barracks (city-buildings city))   ; veterans:
                                ;; the Lighthouse trains veteran ships
                                (and (eq (unit-def (second item) :domain) :sea)
@@ -728,6 +729,64 @@ across the map.  The more polluted tiles, the likelier and worse each event."
           (incf (gs-warming state))
           (dotimes (i (min poll 3)) (degrade-one-tile state)))))))
 
+;;; --- unit support (Civ1/CivOne: home cities pay shields & settler food) ----
+
+(defun unit-costs-support-p (unit)
+  "T if UNIT draws on its home city's support (diplomats and caravans are free)."
+  (not (member (unit-type unit) '(:diplomat :caravan))))
+
+(defun city-supported-units (state city)
+  "Owner's units homed to CITY (the ones it must support)."
+  (loop for u being the hash-values of (gs-units state)
+        when (and (eql (unit-home u) (city-id city))
+                  (= (unit-owner u) (city-owner city)))
+          collect u))
+
+(defun free-support-p (state city)
+  "Under anarchy/despotism a city supports units free up to its size."
+  (let* ((p (player-by-id state (city-owner city)))
+         (gov (and p (player-government p))))
+    (member gov '(:anarchy :despotism))))
+
+(defun city-shield-support (state city)
+  "Shields CITY owes to support its units.  Under anarchy/despotism the first
+SIZE units are free and each one beyond costs 1; under every other government
+each supported unit costs 1.  Diplomats and caravans are always free."
+  (let ((n (count-if #'unit-costs-support-p (city-supported-units state city))))
+    (if (free-support-p state city)
+        (max 0 (- n (city-size city)))
+        n)))
+
+(defun city-settler-food (state city)
+  "Food CITY owes for its settlers: 1 each under anarchy/despotism, else 2."
+  (let ((settlers (count :settlers (city-supported-units state city) :key #'unit-type)))
+    (* settlers (if (free-support-p state city) 1 2))))
+
+(defun city-unit-support-list (state city)
+  "List of (unit . shields) for CITY's supported units: each costs 1 shield,
+except diplomats/caravans and the first SIZE units under anarchy/despotism, which
+are free (0).  This is the data the city screen's Units pane displays."
+  (let ((free (if (free-support-p state city) (city-size city) 0))
+        (used 0))
+    (loop for u in (city-supported-units state city)
+          collect (cons u (cond ((not (unit-costs-support-p u)) 0)
+                                ((< used free) (incf used) 0)
+                                (t 1))))))
+
+(defun disband-over-supported-unit (state city)
+  "The city can't pay its support: disband the supported unit farthest from it
+(Civ1's rule), and report it."
+  (let* ((map (gs-map state))
+         (units (remove-if-not #'unit-costs-support-p (city-supported-units state city)))
+         (victim (first (sort units #'>
+                              :key (lambda (u) (max (map-dx map (city-x city) (unit-x u))
+                                                    (abs (- (city-y city) (unit-y u)))))))))
+    (when victim
+      (setf (gs-message state)
+            (format nil "~A can't support ~(~A~) -- disbanded!"
+                    (city-name city) (unit-type victim)))
+      (destroy-unit state victim))))
+
 (defun process-city (state city)
   (city-auto-work state city)
   (multiple-value-bind (food shields trade) (city-yields state city)
@@ -750,8 +809,8 @@ across the map.  The more polluted tiles, the likelier and worse each event."
              (setf (gs-message state) (format nil "Riots shrink ~A!" (city-name city)))))
           (t
            (setf (city-disorder city) 0)       ; order restored
-           ;; growth: each citizen eats 2 food
-           (let ((net (- food (* 2 size)))
+           ;; growth: each citizen eats 2 food, plus settler food upkeep
+           (let ((net (- food (+ (* 2 size) (city-settler-food state city))))
                  (threshold (* 10 (1+ size)))
                  (cap (city-growth-cap city))
                  ;; "We Love the King" rapture growth: a celebrating republic or
@@ -774,8 +833,13 @@ across the map.  The more polluted tiles, the likelier and worse each event."
                    ((minusp (city-food-box city))            ; starvation
                     (when (> (city-size city) 1) (decf (city-size city)))
                     (setf (city-food-box city) 0))))
-           ;; production: factories, power plants and the Hoover Dam multiply shields
-           (incf (city-shield-box city) (city-shield-output state city shields))
+           ;; production: factory/plant/Hoover multipliers, less unit support.  If
+           ;; the city can't pay its support the farthest unit is disbanded (Civ1).
+           (let ((net (- (city-shield-output state city shields)
+                         (city-shield-support state city))))
+             (if (minusp net)
+                 (disband-over-supported-unit state city)
+                 (incf (city-shield-box city) net)))
            (city-try-complete state city)
            ;; a celebrating republic/democracy city earns bonus trade
            (when celebrating

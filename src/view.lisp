@@ -987,62 +987,49 @@ half level a granary keeps after the city grows."
                     (* +store-cols+ +icon-size+) 1)
           (sdl2:render-fill-rect ren (painter-dst painter)))))))
 
-;;; --- the Units (buildable-unit roster) pane --------------------------------
-;; A Civ1-style list of the units the city can build: each unit's sprite and
-;; its cost in shields, down the right edge of the screen.
+;;; --- the Units (support roster) pane ---------------------------------------
+;; A Civ1-style list of the units this city supports (its home units), each with
+;; its sprite and per-turn shield maintenance, down the right edge of the screen.
 
 (defparameter +units-pane-x+ 264)
 (defparameter +units-pane-w+ 54)
 (defparameter +units-pane-y+ 64)
 (defparameter +units-row-h+ 17)
-
-(defun city-buildable-units (state city)
-  "The unit types CITY may currently build, in menu order."
-  (loop for item in (buildable-items state city)
-        when (eq (first item) :unit) collect (second item)))
+(defparameter +units-pane-max-rows+ 9 "Cap supported-unit rows to fit the column.")
 
 (defun draw-units-pane (painter state city)
-  "A pane of the buildable units: each unit's sprite, a shield icon, and its
-shield cost -- styled after the Civ1 production list."
+  "A pane of the units CITY supports: each unit's sprite and its per-turn shield
+maintenance (a shield icon and the cost; free units show 0)."
   (let ((font (painter-font painter)))
     (when font
       (let* ((ren (painter-ren painter)) (h (gfont-height font))
-             (units (city-buildable-units state city))
+             (support (civm:city-unit-support-list state city))   ; ((unit . cost) ...)
              (x +units-pane-x+) (y +units-pane-y+)
-             (ph (+ 3 h (* (max 1 (length units)) +units-row-h+))))
-        (when units
+             (rows (min +units-pane-max-rows+ (length support)))
+             (ph (+ 3 h (* (max 1 rows) +units-row-h+))))
+        (when support
           (sdl2:set-render-draw-color ren 0 0 0 230)
           (set-rect (painter-dst painter) x y +units-pane-w+ ph)
           (sdl2:render-fill-rect ren (painter-dst painter))
           (sdl2:set-render-draw-color ren 220 220 220 255)
           (sdl2:render-draw-rect ren (painter-dst painter))
           (draw-text painter font "Units" (+ x 2) (1+ y) 255 230 120)
-          (loop for u in units for i from 0
+          (loop for (u . cost) in support repeat rows for i from 0
                 for ry = (+ y 2 h (* i +units-row-h+))
-                for cur = (equal (civm:city-production city) (list :unit u))
-                do (let ((spr (unit-sprite u)))
+                do (let ((spr (unit-sprite (civm:unit-type u))))
                      ;; paint the owner's colour behind the sprite, as DRAW-UNIT does
                      (destructuring-bind (r g b) (owner-color state (civm:city-owner city))
                        (sdl2:set-render-draw-color ren r g b 255)
                        (set-rect (painter-dst painter) (+ x 2) ry *tile* *tile*)
                        (sdl2:render-fill-rect ren (painter-dst painter)))
                      (draw-sprite painter (car spr) (cdr spr) (+ x 2) ry))
-                   ;; a shield icon then the cost number, like Civ1
+                   ;; a shield icon then the maintenance cost (dim when free)
                    (when (painter-icons painter)
                      (blit painter (painter-icons painter) (car +shield-icon+) (cdr +shield-icon+)
                            +icon-size+ +icon-size+ (+ x 21) (+ ry 4)))
-                   (draw-text painter font (format nil "~D" (item-cost (list :unit u)))
-                              (+ x 31) (+ ry 5)
-                              (if cur 120 235) 255 (if cur 120 235))))))))
-
-(defun units-pane-pick (painter state city lx ly)
-  "The (:unit type) production item for the Units-pane row at (LX,LY), or NIL."
-  (let* ((font (painter-font painter)) (h (gfont-height font))
-         (units (city-buildable-units state city)))
-    (when (and units (<= +units-pane-x+ lx (+ +units-pane-x+ +units-pane-w+)))
-      (let ((i (floor (- ly (+ +units-pane-y+ 2 h)) +units-row-h+)))
-        (when (< -1 i (length units))
-          (list :unit (nth i units)))))))
+                   (draw-text painter font (format nil "~D" cost) (+ x 31) (+ ry 5)
+                              (if (zerop cost) 130 235) (if (zerop cost) 130 235)
+                              (if (zerop cost) 130 120))))))))
 
 ;;; --- government menu (revolution) ------------------------------------------
 

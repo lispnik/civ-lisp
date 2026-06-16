@@ -56,6 +56,7 @@
    #:enemy-adjacent-p #:city-defended-p #:wonder-built-p #:city-upkeep #:can-found-here-p
    #:city-happiness #:city-disorder-p #:city-celebrating-p #:count-city-military
    #:city-tax-output #:city-research-output #:city-shield-output
+   #:city-shield-support #:city-unit-support-list #:unit-home
    #:research-cost #:researchable-techs #:city-population #:civ-population
    #:civ-research-rate #:civ-gold-rate #:research-eta
    ;; persistence

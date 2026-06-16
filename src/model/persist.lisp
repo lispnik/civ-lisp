@@ -19,7 +19,7 @@
         :moves-left (unit-moves-left u) :orders (unit-orders u)
         :goto-x (unit-goto-x u) :goto-y (unit-goto-y u)
         :work (unit-work u) :work-left (unit-work-left u)
-        :fuel (unit-fuel u) :veteran (unit-veteran u)))
+        :fuel (unit-fuel u) :veteran (unit-veteran u) :home (unit-home u)))
 
 (defun list->unit (ul)
   (let ((u (make-unit :id (getf ul :id) :type (getf ul :type)
@@ -32,7 +32,8 @@
           (unit-work u) (getf ul :work)
           (unit-work-left u) (getf ul :work-left)
           (unit-fuel u) (or (getf ul :fuel) 0)
-          (unit-veteran u) (getf ul :veteran))
+          (unit-veteran u) (getf ul :veteran)
+          (unit-home u) (getf ul :home))
     u))
 
 (defun city->list (c)
