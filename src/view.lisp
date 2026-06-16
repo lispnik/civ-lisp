@@ -1044,22 +1044,27 @@ score standings, ranked highest first, each civ in its colour."
 
 (defun draw-name-prompt (painter view-w text)
   "A centred text-entry box for naming a newly founded city; TEXT is the current
-input, shown with a caret."
+input, shown with a blinking caret (the bitmap font has no underscore glyph)."
   (let ((font (painter-font painter)))
     (when font
       (let* ((ren (painter-ren painter)) (h (gfont-height font))
              (l1 "Name your city:")
-             (l2 (format nil "~A_" text))
-             (pw (+ 8 (max (text-width font l1) (text-width font l2) 90)))
+             (pw (+ 8 (max (text-width font l1) (text-width font text) 90)))
              (ph (+ 6 (* 2 (1+ h))))
-             (px (max 0 (floor (- view-w pw) 2))) (py 70))
+             (px (max 0 (floor (- view-w pw) 2))) (py 70)
+             (ty (+ py 3 (1+ h))))
         (sdl2:set-render-draw-color ren 0 0 0 238)
         (set-rect (painter-dst painter) px py pw ph)
         (sdl2:render-fill-rect ren (painter-dst painter))
         (sdl2:set-render-draw-color ren 230 220 120 255)
         (sdl2:render-draw-rect ren (painter-dst painter))
         (draw-text painter font l1 (+ px 4) (+ py 3) 220 220 160)
-        (draw-text painter font l2 (+ px 4) (+ py 3 (1+ h)) 255 255 255)))))
+        (draw-text painter font text (+ px 4) ty 255 255 255)
+        ;; a blinking caret just past the entered text, as in the console
+        (when (blink-on-p)
+          (sdl2:set-render-draw-color ren 255 255 120 255)
+          (set-rect (painter-dst painter) (+ px 4 (text-width font text)) ty 4 h)
+          (sdl2:render-fill-rect ren (painter-dst painter)))))))
 
 (defun draw-explosion-frame (painter frame px py)
   "Blit detonation FRAME (0..+NUKE-FRAMES+-1) from the nuke sheet, scaled to a

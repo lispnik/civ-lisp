@@ -50,7 +50,7 @@
    ;; rules
    #:unit-obsolete-p #:upgrade-cost
    #:tile-yield #:city-yields #:end-turn #:resolve-combat #:heal-units
-   #:enemy-adjacent-p #:city-defended-p #:wonder-built-p #:city-upkeep
+   #:enemy-adjacent-p #:city-defended-p #:wonder-built-p #:city-upkeep #:can-found-here-p
    #:city-happiness #:city-disorder-p #:city-celebrating-p #:count-city-military
    #:research-cost #:researchable-techs #:city-population #:civ-population
    #:civ-research-rate #:civ-gold-rate #:research-eta

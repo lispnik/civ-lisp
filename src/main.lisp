@@ -675,13 +675,17 @@ or an error message."
                                   ((= sc +sc-tab+)
                                    (setf selected (next-human-unit state selected)))
                                   ((= sc +sc-b+)
-                                   ;; open the name prompt, prefilled with this
-                                   ;; nation's next city name
-                                   (when selected
-                                     (setf naming selected
-                                           name-input (civm:next-city-name
-                                                       state (first (human-player-ids state))))
-                                     (sdl2-ffi.functions:sdl-start-text-input)))
+                                   ;; only prompt if the unit can actually found a
+                                   ;; city here; otherwise say why
+                                   (let ((u (and selected (civm:unit-by-id state selected))))
+                                     (cond
+                                       ((and u (civm:can-found-here-p state u))
+                                        (setf naming selected
+                                              name-input (civm:next-city-name
+                                                          state (first (human-player-ids state))))
+                                        (sdl2-ffi.functions:sdl-start-text-input))
+                                       (u (sdl2:set-window-title
+                                           win "civ-lisp — can't found a city here")))))
                                   ((= sc +sc-f+)
                                    (when selected (try (list :fortify :unit selected))))
                                   ((= sc +sc-r+)

@@ -446,6 +446,15 @@
     (is (string= "Thebes"   (first (player-city-names (player-by-id s 2)))))   ; Egyptian
     (is (string= "Zimbabwe" (first (player-city-names (player-by-id s 3))))))) ; Zulu
 
+(test can-found-here
+  (let* ((s (bare-state 6 6)) (settler (add-unit s :settlers 1 2 2))
+         (warrior (add-unit s :warriors 1 4 4)))
+    (is-true  (civ-model::can-found-here-p s settler))   ; a settler on open ground
+    (is-false (civ-model::can-found-here-p s warrior))   ; warriors can't found
+    ;; once a city sits on the tile, no second city there
+    (civ-model::register-city s :name "Rome" :owner 1 :x 2 :y 2)
+    (is-false (civ-model::can-found-here-p s settler))))
+
 (test next-city-name-skips-used
   (let ((s (bare-state 8 8)))
     (setf (player-city-names (player-by-id s 1)) '("Rome" "Caesarea" "Carthage"))

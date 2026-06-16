@@ -953,6 +953,13 @@ government :TO (which must be unlocked by an advance)."
     (clamp-rates p)
     p))
 
+(defun can-found-here-p (state unit)
+  "T if UNIT may found a city where it stands: a settler-class unit on a tile that
+does not already hold a city (matches CMD-FOUND-CITY's checks)."
+  (and (member :found-city (unit-def (unit-type unit) :abilities))
+       (let ((tile (tile-at (gs-map state) (unit-x unit) (unit-y unit))))
+         (and tile (not (tile-city tile))))))
+
 (defun cmd-found-city (state command)
   (let* ((args (rest command))
          (u (or (unit-by-id state (getf args :unit)) (fail "no such unit"))))
