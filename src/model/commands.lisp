@@ -970,11 +970,15 @@ does not already hold a city (matches CMD-FOUND-CITY's checks)."
       (fail "~(~A~) cannot found a city" (unit-type u)))
     (let ((tile (tile-at (gs-map state) (unit-x u) (unit-y u))))
       (when (tile-city tile) (fail "a city already exists here"))
-      (let ((c (register-city state
+      (let* ((owner (unit-owner u))
+             (first-city (notany (lambda (c) (= (city-owner c) owner))
+                                 (loop for c being the hash-values of (gs-cities state) collect c)))
+             (c (register-city state
                               :name (getf args :name "City")
-                              :owner (unit-owner u)
+                              :owner owner
                               :x (unit-x u) :y (unit-y u))))
         (setf (city-production c) '(:unit :warriors))   ; default build
+        (when first-city (push :palace (city-buildings c)))  ; the capital holds the Palace
         (push (cons (gs-turn state) (unit-owner u)) (gs-foundings state))  ; for the replay
         ;; consume the settler
         (remhash (unit-id u) (gs-units state))

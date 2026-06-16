@@ -1235,6 +1235,48 @@
       (is (eql 1 (gs-winner s)))
       (is (eq :conquest (gs-victory s))))))
 
+(test veteran-promotion
+  (let ((s (bare-state 6 6)))
+    (let ((u (add-unit s :legion 1 2 2))
+          (civ-model::*veteran-promotion-chance* 100))
+      (civ-model::maybe-promote s u)
+      (is-true (unit-veteran u)))                  ; a sure promotion
+    (let ((v (add-unit s :phalanx 1 3 3))
+          (civ-model::*veteran-promotion-chance* 0))
+      (civ-model::maybe-promote s v)
+      (is-false (unit-veteran v)))))               ; no chance -> no stripes
+
+(test capture-loots-gold
+  (let ((s (bare-state 8 8)))
+    (let ((c (civ-model::register-city s :name "Ur" :owner 2 :x 4 :y 4)))
+      (setf (city-size c) 4
+            (player-gold (player-by-id s 2)) 200
+            (player-gold (player-by-id s 1)) 0)
+      (civ-model::capture-city s c 1)              ; player 1 sacks player 2's city
+      (is (plusp (player-gold (player-by-id s 1))))     ; captor looted gold
+      (is (< (player-gold (player-by-id s 2)) 200)))))  ; from the loser's treasury
+
+(test civil-war-on-capital-capture
+  (let* ((s (bare-state 14 14))
+         (cap (civ-model::register-city s :name "Capital" :owner 2 :x 2 :y 2)))
+    (setf (city-size cap) 3)
+    (push :palace (city-buildings cap))             ; the capital holds the Palace
+    (dolist (xy '((5 5) (8 8) (11 11) (13 2)))      ; four more cities for player 2
+      (setf (city-size (civ-model::register-city s :name (format nil "C~D~D" (first xy) (second xy))
+                                                 :owner 2 :x (first xy) :y (second xy)))
+            2))
+    (let ((n (length (gs-players s))))
+      (civ-model::capture-city s cap 1)             ; player 1 takes the capital
+      (is (= (1+ n) (length (gs-players s))))        ; a rebel civ split off
+      (let ((rebel (find-if (lambda (p) (search "Rebels" (player-name p))) (gs-players s))))
+        (is-true rebel)
+        (is (plusp (loop for c being the hash-values of (gs-cities s)
+                         count (= (city-owner c) (player-id rebel)))))   ; holding cities
+        (is (civ-model::at-war-p s (player-id rebel) 2))))               ; at odds with the old regime
+    ;; player 2's surviving empire crowns a new capital (Palace relocated)
+    (is-true (loop for c being the hash-values of (gs-cities s)
+                   thereis (and (= (city-owner c) 2) (member :palace (city-buildings c)))))))
+
 (test ai-captures-an-adjacent-undefended-city
   (let ((s (bare-state 8 8)))
     (setf (relation s 1 2) :war)

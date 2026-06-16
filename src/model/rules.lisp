@@ -220,14 +220,69 @@ with -- i.e. (X,Y) lies in an enemy zone of control."
   (remove-city-routes state (city-id city))
   (remhash (city-id city) (gs-cities state)))
 
+(defun player-largest-city (state pid)
+  "PID's most populous city, or NIL."
+  (let (best)
+    (loop for c being the hash-values of (gs-cities state)
+          when (= (city-owner c) pid)
+            do (when (or (null best) (> (city-size c) (city-size best))) (setf best c)))
+    best))
+
+(defun unused-color (state)
+  "A civ colour (1..7) not currently in use, or 7 if all are taken."
+  (or (loop for c from 1 to 7
+            unless (find c (gs-players state) :key #'player-color) return c)
+      7))
+
+(defun loot-city (state captor loser size)
+  "Sack the fallen city: CAPTOR plunders gold from LOSER's treasury (Civ1 loot,
+scaled by city SIZE)."
+  (let* ((lp (player-by-id state loser)) (cp (player-by-id state captor))
+         (loot (min (max 0 (player-gold lp)) (* (max 1 size) (+ 10 (gs-rand state 20))))))
+    (when (plusp loot)
+      (decf (player-gold lp) loot)
+      (when cp (incf (player-gold cp) loot)))))
+
+(defun spawn-civil-war (state loser fallen)
+  "Capturing LOSER's capital (FALLEN) splits the empire: a rebel civilization
+breaks away with about half of LOSER's remaining cities (and their garrisons),
+the ones farthest from the lost capital."
+  (let ((cities (loop for c being the hash-values of (gs-cities state)
+                      when (= (city-owner c) loser) collect c)))
+    (when (>= (length cities) 3)   ; a large enough empire to split into two
+      (let* ((p (player-by-id state loser))
+             (rebel (make-player :id (gs-next-id state)
+                                 :name (format nil "~A Rebels" (player-name p))
+                                 :kind :ai :color (unused-color state)))
+             (rid (player-id rebel))
+             (far (sort (copy-list cities) #'>
+                        :key (lambda (c) (+ (map-dx (gs-map state) (city-x c) (city-x fallen))
+                                            (abs (- (city-y c) (city-y fallen)))))))
+             (breakaway (subseq far 0 (floor (length cities) 2))))
+        (setf (player-city-names rebel) (player-city-names p)
+              (player-personality rebel) :aggressive
+              (gs-players state) (concatenate 'simple-vector (gs-players state) (list rebel)))
+        (dolist (c breakaway)
+          (let ((tile (tile-at (gs-map state) (city-x c) (city-y c))))
+            (setf (city-owner c) rid (tile-owner tile) rid)
+            (dolist (uid (tile-units tile))
+              (let ((u (unit-by-id state uid)))
+                (when (and u (= (unit-owner u) loser)) (setf (unit-owner u) rid))))))
+        (setf (relation state rid loser) :war)   ; the rebels resent the old regime
+        (gs-note state "Civil war! ~A break away from ~A"
+                 (player-name rebel) (player-name p))))))
+
 (defun capture-city (state city captor)
   "CAPTOR (a player id) takes CITY: a size-1 city is razed; a larger one changes
 hands -- shrunk by one, production and stored food/shields reset, trade routes
-broken (its buildings and any wonders carry over).  Records GS-MESSAGE."
+broken (its buildings and wonders carry over).  The captor loots gold, and taking
+a civ's capital sparks a civil war.  Records GS-MESSAGE."
   (let* ((loser (city-owner city))
          (tile (tile-at (gs-map state) (city-x city) (city-y city)))
+         (capital (member :palace (city-buildings city)))   ; was this the capital?
          (takername (player-name (player-by-id state captor)))
          (losername (player-name (player-by-id state loser))))
+    (loot-city state captor loser (city-size city))
     (cond
       ((<= (city-size city) 1)
        (raze-city state city)
@@ -240,11 +295,17 @@ broken (its buildings and any wonders carry over).  Records GS-MESSAGE."
              (city-production city) nil
              (city-food-box city) 0
              (city-shield-box city) 0
+             (city-buildings city) (remove :palace (city-buildings city))  ; palace is sacked
              (city-worked city) '())
        (remove-city-routes state (city-id city))
        (setf (gs-message state)
              (format nil "~A captured from ~(~A~)!" (city-name city) losername))
-       (gs-note state "~A captured by ~A from ~A" (city-name city) takername losername)))))
+       (gs-note state "~A captured by ~A from ~A" (city-name city) takername losername)))
+    ;; the capital fell: the empire splits, then the survivors crown a new capital
+    (when capital
+      (spawn-civil-war state loser city)
+      (let ((cap (player-largest-city state loser)))
+        (when cap (pushnew :palace (city-buildings cap)))))))
 
 (defun tile-enemies (state tile owner)
   "Units on TILE not belonging to OWNER (any other civilization)."
@@ -258,21 +319,32 @@ broken (its buildings and any wonders carry over).  Records GS-MESSAGE."
         for u = (unit-by-id state id)
         when (and u (at-war-p state (unit-owner u) owner)) collect u))
 
+(defparameter *veteran-promotion-chance* 50
+  "Percent chance a non-veteran unit is promoted to veteran after winning a fight.")
+
+(defun maybe-promote (state winner)
+  "A surviving WINNER may earn its veteran stripes (Civ1's battlefield promotion)."
+  (when (and (not (unit-veteran winner))
+             (< (gs-rand state 100) *veteran-promotion-chance*))
+    (setf (unit-veteran winner) t)))
+
 (defun resolve-combat (state attacker defender)
   "Fight ATTACKER vs DEFENDER to the death using a Civ1-style round loop:
 each round, with probability A/(A+D) the defender takes a hit, else the
 attacker does.  Both start from their current HP, so wounded units are weaker.
 Returns :attacker or :defender; the loser is removed and the winner keeps its
-remaining HP (it heals back over later turns)."
+remaining HP (it heals back over later turns) and may be promoted to veteran."
   (let ((a (max 1 (attack-strength attacker)))
         (d (defense-strength state defender))
         (ahp (unit-hp attacker)) (dhp (unit-hp defender)))
     (loop while (and (plusp ahp) (plusp dhp))
           do (if (< (gs-rand state (+ a d)) a) (decf dhp) (decf ahp)))
     (cond ((plusp ahp) (setf (unit-hp attacker) ahp)
-                       (destroy-unit state defender) :attacker)
+                       (destroy-unit state defender)
+                       (maybe-promote state attacker) :attacker)
           (t           (setf (unit-hp defender) dhp)
-                       (destroy-unit state attacker) :defender))))
+                       (destroy-unit state attacker)
+                       (maybe-promote state defender) :defender))))
 
 ;;; --- per-turn city processing ---------------------------------------------
 

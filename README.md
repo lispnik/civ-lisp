@@ -311,12 +311,16 @@ plays a full six-AI game and reports the governments adopted and wonders raised.
 peace with, so you **declare war** first (the diplomacy menu, `Y`). Moving into
 an enemy-occupied tile then triggers a Civ1-style fight to the death with
 terrain, fortification, fort and city-wall bonuses; win and your unit advances
-onto the cleared tile. A land unit that enters an enemy **city** with no
-defenders left **captures** it — ownership flips, it shrinks by one, its
-buildings and wonders carry over, and trade routes break; a size-1 city is
-**razed** instead. Take a civ's last city and you win by **conquest**. Damage
-carries between fights, so units **heal** between turns when they stay put —
-fully in a city, faster when **fortified** (`F`).
+onto the cleared tile — and a unit that survives a battle may be **promoted to
+veteran** (+50% combat), as in Civ1. A land unit that enters an enemy **city**
+with no defenders left **captures** it — ownership flips, it shrinks by one, you
+**loot gold** from the loser's treasury, its buildings and wonders carry over,
+and trade routes break; a size-1 city is **razed** instead. Take a civ's last
+city and you win by **conquest**. Capturing a civ's **capital** (the city that
+holds the Palace) can spark a **civil war**: if the empire is still large, half
+its cities break away as a new rebel civilization, and the survivors crown a new
+capital. Damage carries between fights, so units **heal** between turns when they
+stay put — fully in a city, faster when **fortified** (`F`).
 Adjacent enemy units exert a **zone of control**.
 
 **Naval transport.** Land units can't swim, but they can ride ships. Move a land

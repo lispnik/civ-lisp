@@ -81,7 +81,7 @@
      (:stock-exchange   :cost 160 :upkeep 4 :requires :the-corporation :effect "+50% gold")
      (:university       :cost 160 :upkeep 3 :requires :university :effect "boosts science")
      (:factory          :cost 200 :upkeep 4 :requires :industrialization :effect "+50% production")
-     (:palace           :cost 200 :upkeep 5 :requires :masonry)
+     (:palace           :cost 200 :upkeep 0 :requires :masonry :effect "the capital")
      (:recycling-center :cost 200 :upkeep 2 :requires :recycling :effect "cuts pollution")
      (:sdi-defense      :cost 200 :upkeep 4 :requires :super-conductor)
      (:hydro-plant      :cost 240 :upkeep 4 :requires :electronics :effect "powers a factory, clean")
