@@ -692,8 +692,7 @@ tiles framed in yellow and annotated with their yield icons, idle tiles dimmed."
                    (when tile
                      (draw-terrain-tile painter state x y sx sy)
                      (cond
-                       (center
-                        (draw-sprite painter (car +city-sprite+) (cdr +city-sprite+) sx sy)
+                       (center                          ; the city centre: plain terrain
                         (draw-frame painter sx sy '(255 255 255)))
                        (workp
                         (multiple-value-bind (f s tr) (civm:tile-yield tile gov)
