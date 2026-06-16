@@ -248,6 +248,65 @@ CORRUPTION    percent of a city's trade lost; SCIENCE  whether research happens.
 the terrains that allow them, and any tech (:requires) or prerequisite
 improvement (:needs) they depend on.")
 
+(defparameter *nation-city-names*
+  ;; per-nation city rosters (Civilization, 1991; sourced from CivOne, CC0)
+  '((:american    "Washington" "New York" "Boston" "Philadelphia" "Atlanta" "Chicago"
+                  "Buffalo" "St. Louis" "Detroit" "New Orleans" "Baltimore" "Denver"
+                  "Cincinnati" "Dallas" "Los Angeles" "Las Vegas")
+    (:aztec       "Tenochtitlan" "Chiauhtia" "Chapultapec" "Coatepec" "Ayontzinco"
+                  "Itzapalapa" "Itzapam" "Mitxcoac" "Tucubaya" "Tecamac" "Tepezinco"
+                  "Ticoman" "Tlaxcala" "Xaltocan" "Xicalango" "Zumpanco")
+    (:babylonian  "Babylon" "Sumer" "Uruk" "Ninevah" "Ashur" "Ellipi" "Akkad" "Eridu"
+                  "Kish" "Nippur" "Shuruppak" "Zariqum" "Izibia" "Nimrud" "Arbela" "Zamua")
+    (:chinese     "Peking" "Shanghai" "Canton" "Nanking" "Tsingtao" "Hangchow" "Tientsin"
+                  "Tatung" "Macao" "Anyang" "Shantung" "Chinan" "Kaifeng" "Ningpo"
+                  "Paoting" "Yangchow")
+    (:egyptian    "Thebes" "Memphis" "Oryx" "Heliopolis" "Gaza" "Alexandria" "Byblos"
+                  "Cairo" "Coptos" "Edfu" "Pithom" "Busirus" "Athribus" "Mendes" "Tanis"
+                  "Abydos")
+    (:english     "London" "Coventry" "Birmingham" "Dover" "Nottingham" "York" "Liverpool"
+                  "Brighton" "Oxford" "Reading" "Exeter" "Cambridge" "Hastings"
+                  "Canterbury" "Banbury" "Newcastle")
+    (:french      "Paris" "Orleans" "Lyons" "Tours" "Chartres" "Bordeaux" "Rouen" "Avignon"
+                  "Marseilles" "Grenoble" "Dijon" "Amiens" "Cherbourg" "Poitiers"
+                  "Toulouse" "Bayonne")
+    (:german      "Berlin" "Leipzig" "Hamburg" "Bremen" "Frankfurt" "Bonn" "Nuremberg"
+                  "Cologne" "Hannover" "Munich" "Stuttgart" "Heidelberg" "Salzburg"
+                  "Konigsberg" "Dortmond" "Brandenburg")
+    (:greek       "Athens" "Sparta" "Corinth" "Delphi" "Eretria" "Pharsalos" "Argos"
+                  "Mycenae" "Herakleia" "Antioch" "Ephesos" "Rhodes" "Knossos" "Troy"
+                  "Pergamon" "Miletos")
+    (:indian      "Delhi" "Bombay" "Madras" "Bangalore" "Calcutta" "Lahore" "Karachi"
+                  "Kolhapur" "Jaipur" "Hyderbad" "Bengal" "Chittagong" "Punjab" "Dacca"
+                  "Indus" "Ganges")
+    (:mongol      "Samarkand" "Bokhara" "Nishapur" "Karakorum" "Kashgar" "Tabriz" "Aleppo"
+                  "Kabul" "Ormuz" "Basra" "Khanbaryk" "Khorasan" "Shangtu" "Kazan"
+                  "Qyinsay" "Kerman")
+    (:roman       "Rome" "Caesarea" "Carthage" "Nicopolis" "Byzantium" "Brundisium"
+                  "Syracuse" "Antioch" "Palmyra" "Cyrene" "Gordion" "Tyrus" "Jerusalem"
+                  "Seleucia" "Ravenna" "Artaxata")
+    (:russian     "Moscow" "Leningrad" "Kiev" "Minsk" "Smolensk" "Odessa" "Sevastopol"
+                  "Tblisi" "Sverdlovsk" "Yakutsk" "Vladivostok" "Novograd" "Krasnoyarsk"
+                  "Riga" "Rostov" "Atrakhan")
+    (:zulu        "Zimbabwe" "Ulundi" "Bapedi" "Hlobane" "Isandhlwala" "Intombe" "Mpondo"
+                  "Ngome" "Swazi" "Tugela" "Umtata" "Umfolozi" "Ibabanago" "Isipezi"
+                  "Amatikulu" "Zunquin"))
+  "City rosters per nation, used to name founded cities.")
+
+(defparameter *nation-aliases*
+  '(("rom" . :roman) ("egypt" . :egyptian) ("zulu" . :zulu) ("greec" . :greek)
+    ("greek" . :greek) ("babylon" . :babylonian) ("chin" . :chinese)
+    ("americ" . :american) ("englis" . :english) ("britain" . :english)
+    ("franc" . :french) ("german" . :german) ("ind" . :indian) ("mongol" . :mongol)
+    ("russ" . :russian) ("aztec" . :aztec))
+  "Maps a player-name prefix (lower-case) to its nation key.")
+
+(defun nation-names-for (name)
+  "The city roster for the nation whose alias prefixes player NAME, or NIL."
+  (let* ((low (string-downcase name))
+         (key (cdr (find-if (lambda (a) (eql 0 (search (car a) low))) *nation-aliases*))))
+    (and key (cdr (assoc key *nation-city-names*)))))
+
 (declaim (inline def-get))
 (defun def-get (table key prop &optional default)
   "Look up PROP for KEY in a definition TABLE."

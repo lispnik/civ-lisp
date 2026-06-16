@@ -7,11 +7,6 @@
 
 (in-package #:civ-model)
 
-(defparameter *ai-city-names*
-  #("Babylon" "Nineveh" "Ashur" "Ur" "Uruk" "Akkad" "Eridu" "Kish"
-    "Lagash" "Mari" "Isin" "Sippar")
-  "Names the AI gives new cities.")
-
 ;;; --- AI personalities ------------------------------------------------------
 ;;; Each AI is given a temperament at game start (see MAKE-NEW-GAME) that biases
 ;;; how readily it goes to war, how far it expands, how eagerly it builds wonders
@@ -249,9 +244,7 @@ own city (keeping one defender) or explore."
              (not (tile-city tile))
              (not (city-near-p state (unit-x unit) (unit-y unit) 3)))
         (ai-cmd state (list :found-city :unit (unit-id unit)
-                            :name (aref *ai-city-names*
-                                        (mod (hash-table-count (gs-cities state))
-                                             (length *ai-city-names*)))))
+                            :name (next-city-name state (unit-owner unit))))
         (ai-move-random state unit))))
 
 ;;; --- sea invasion ----------------------------------------------------------

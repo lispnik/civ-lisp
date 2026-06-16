@@ -439,6 +439,23 @@
     (civ-model::update-scores s)
     (is (= 2 (player-peace-turns p)))))          ; peace restored -> +1 again
 
+(test city-name-roster
+  ;; each civ gets its nation's city roster, matched by name
+  (let ((s (make-new-game :seed 1 :players '("Rome" "Egypt" "Zulu"))))
+    (is (string= "Rome"     (first (player-city-names (player-by-id s 1)))))   ; Roman
+    (is (string= "Thebes"   (first (player-city-names (player-by-id s 2)))))   ; Egyptian
+    (is (string= "Zimbabwe" (first (player-city-names (player-by-id s 3))))))) ; Zulu
+
+(test next-city-name-skips-used
+  (let ((s (bare-state 8 8)))
+    (setf (player-city-names (player-by-id s 1)) '("Rome" "Caesarea" "Carthage"))
+    (is (string= "Rome" (next-city-name s 1)))
+    (civ-model::register-city s :name "Rome" :owner 1 :x 2 :y 2)
+    (is (string= "Caesarea" (next-city-name s 1)))     ; Rome taken -> next free name
+    (civ-model::register-city s :name "Caesarea" :owner 1 :x 4 :y 4)
+    (civ-model::register-city s :name "Carthage" :owner 1 :x 6 :y 6)
+    (is (search "P1" (next-city-name s 1)))))           ; roster spent -> numbered fallback
+
 (test economy-rates-and-eta
   (let* ((s (bare-state 8 8)) (st (add-unit s :settlers 1 4 4)) (p (player-by-id s 1)))
     (apply-command s (list :found-city :unit (unit-id st) :name "Rome"))

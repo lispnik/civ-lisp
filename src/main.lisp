@@ -307,6 +307,8 @@ or an error message."
                   (trade-menu nil)    ; T while the trade menu is open
                   (research-menu nil) ; T while the "choose next advance" chooser is open
                   (hud-right nil)     ; T to dock the status pane + minimap on the right
+                  (naming nil)        ; unit id founding a city while its name is typed
+                  (name-input "")     ; the city name being entered
                   (spy-menu nil)      ; T while the diplomat action menu is open
                   (help nil)          ; T while the help overlay is shown
                   (console nil)       ; T while the `~` Lisp console is open
@@ -494,11 +496,15 @@ or an error message."
                          (let ((type (ev-type ev)))
                            (cond
                              ((= type +ev-quit+) (setf running nil))
-                             ;; typed text goes into the console input line
+                             ;; typed text goes into the console line, or the
+                             ;; city-name entry while founding a city
                              ((= type +ev-textinput+)
-                              (when console
-                                (setf con-input
-                                      (concatenate 'string con-input (ev-text ev)))))
+                              (cond (console
+                                     (setf con-input
+                                           (concatenate 'string con-input (ev-text ev))))
+                                    (naming
+                                     (setf name-input
+                                           (concatenate 'string name-input (ev-text ev))))))
                              ((= type +ev-keydown+)
                               (let ((sc (ev-scancode ev))
                                     (ctrl (ev-ctrl-p ev))
@@ -530,6 +536,24 @@ or an error message."
                                           (setf con-hist-pos (1- con-hist-pos)
                                                 con-input (nth con-hist-pos con-history))
                                           (setf con-hist-pos -1 con-input "")))))
+                                  ;; naming a new city: type the name, Enter founds
+                                  (naming
+                                   (cond
+                                     ((or (= sc +sc-return+) (= sc +sc-kp-enter+))
+                                      (let ((nm (string-trim " " name-input)))
+                                        (when (plusp (length nm))
+                                          (try (list :found-city :unit naming :name nm))
+                                          (setf selected (first-human-unit state))))
+                                      (setf naming nil)
+                                      (sdl2-ffi.functions:sdl-stop-text-input)
+                                      (retitle))
+                                     ((= sc +sc-escape+)
+                                      (setf naming nil)
+                                      (sdl2-ffi.functions:sdl-stop-text-input))
+                                     ((= sc +sc-backspace+)
+                                      (when (plusp (length name-input))
+                                        (setf name-input
+                                              (subseq name-input 0 (1- (length name-input))))))))
                                   ;; `~` opens the console
                                   ((= sc +sc-grave+)
                                    (setf console t con-input ""
@@ -651,9 +675,13 @@ or an error message."
                                   ((= sc +sc-tab+)
                                    (setf selected (next-human-unit state selected)))
                                   ((= sc +sc-b+)
+                                   ;; open the name prompt, prefilled with this
+                                   ;; nation's next city name
                                    (when selected
-                                     (try (list :found-city :unit selected :name "City"))
-                                     (setf selected (first-human-unit state))))
+                                     (setf naming selected
+                                           name-input (civm:next-city-name
+                                                       state (first (human-player-ids state))))
+                                     (sdl2-ffi.functions:sdl-start-text-input)))
                                   ((= sc +sc-f+)
                                    (when selected (try (list :fortify :unit selected))))
                                   ((= sc +sc-r+)
@@ -743,6 +771,8 @@ or an error message."
                                   ;; an AI offer is pending: answer it with Y/N, not
                                   ;; the mouse -- swallow clicks until then
                                   ((civm:gs-offers state))
+                                  ;; naming a city: finish it from the keyboard
+                                  (naming)
                                   ;; government menu open: click a row to pick it
                                   (gov-menu
                                    (let ((g (gov-menu-pick painter state
@@ -847,6 +877,7 @@ or an error message."
                                     :build-city build-city :gov-menu gov-menu
                                     :diplo-menu diplo-menu :trade-menu trade-menu
                                     :research-menu research-menu :hud-right hud-right
+                                    :naming (and naming name-input)
                                     :spy-menu spy-menu :help help
                                     :console (and console (cons con-input con-output))
                                     :cam-x cam-x :cam-y cam-y

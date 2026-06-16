@@ -114,7 +114,7 @@ moment it completes.
 | arrow keys / numpad | move the selected unit — the **numpad moves diagonally** too (1/3/7/9) |
 | Tab | cycle to the next active unit (skips fortified / out-of-moves) |
 | W | wait — send the unit to the end of this turn's cycle |
-| B | found a city (with a settlers unit) |
+| B | found a city (with a settlers unit) — prompts for a name, prefilled from your nation's roster (Enter confirms, Esc cancels) |
 | F | fortify the selected unit (defense + faster healing) |
 | Shift+D | disband the selected unit (recovers shields if in a city) |
 | U | upgrade the selected obsolete unit to its successor (for gold, in a city) |
@@ -170,6 +170,14 @@ improvements (priciest first) until solvent.
 Press `S` to **save** and `L` to **load** — because the whole `civ-model` state
 is flat, serializable data (the RNG included), a loaded game continues rolling
 identically, so save/load is fully deterministic.
+
+**Founding a city** (`B` with a settler) prompts for its **name**, prefilled with
+the next unused name from your **nation's roster** — Rome, Caesarea, Carthage… for
+the Romans; Thebes, Memphis, Heliopolis… for the Egyptians — drawn from the
+original Civilization name lists (per CivOne, CC0). Type to edit, Enter to found,
+Esc to cancel. The AI names its cities the same way.
+
+![naming a new city](docs/name-prompt.png)
 
 Each city's citizens are **happy / content / unhappy**: a few are content for
 free and the rest start unhappy, quieted by temples, colosseums and cathedrals,

@@ -23,6 +23,7 @@
   (score 0 :type fixnum)
   (peace-turns 0 :type fixnum)          ; turns spent at war with nobody (Civ1 peace bonus)
   (personality nil)                     ; AI temperament keyword (see *AI-PERSONALITIES*)
+  (city-names '())                      ; this nation's roster of city names
   (spaceship 0 :type fixnum)            ; spaceship parts built
   (landing 0 :type fixnum))             ; turn the launched spaceship arrives (0 = not launched)
 

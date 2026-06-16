@@ -57,6 +57,15 @@
 (defun player-by-id (state id)
   (find id (gs-players state) :key #'player-id))
 
+(defun next-city-name (state pid)
+  "The next city name for player PID: the first of its nation's roster not yet in
+use, or a numbered fallback once the roster is exhausted."
+  (let* ((p (player-by-id state pid))
+         (used (loop for c being the hash-values of (gs-cities state)
+                     when (= (city-owner c) pid) collect (city-name c))))
+    (or (find-if-not (lambda (n) (member n used :test #'string=)) (player-city-names p))
+        (format nil "~A ~D" (or (player-name p) "City") (1+ (length used))))))
+
 ;;; --- diplomacy (relations are symmetric; default is peace) -----------------
 
 (defun rel-key (a b) (if (<= a b) (+ (* a 256) b) (+ (* b 256) a)))
@@ -259,6 +268,13 @@ DIFFICULTY (a key from *DIFFICULTIES*) sets how hard the AI civilizations play."
                (setf (player-personality p)
                      (aref #(:aggressive :expansionist :builder :scientific)
                            (mod (1- i) 4))))
+             ;; assign a city-name roster: the nation matching the name, else
+             ;; a distinct one cycled by player index
+             (unless barb
+               (setf (player-city-names p)
+                     (or (nation-names-for name)
+                         (cdr (nth (mod i (length *nation-city-names*))
+                                   *nation-city-names*)))))
              (unless barb           ; barbarians have no capital and no start units
                ;; spread starts across the map, snapped to the nearest land tile
                (multiple-value-bind (px py)

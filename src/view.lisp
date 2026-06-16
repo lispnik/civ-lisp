@@ -1042,6 +1042,25 @@ score standings, ranked highest first, each civ in its colour."
         (draw-text painter font l1 (+ px 4) (+ py 3) 255 240 180)
         (draw-text painter font l2 (+ px 4) (+ py 3 (1+ h)) 200 220 255)))))
 
+(defun draw-name-prompt (painter view-w text)
+  "A centred text-entry box for naming a newly founded city; TEXT is the current
+input, shown with a caret."
+  (let ((font (painter-font painter)))
+    (when font
+      (let* ((ren (painter-ren painter)) (h (gfont-height font))
+             (l1 "Name your city:")
+             (l2 (format nil "~A_" text))
+             (pw (+ 8 (max (text-width font l1) (text-width font l2) 90)))
+             (ph (+ 6 (* 2 (1+ h))))
+             (px (max 0 (floor (- view-w pw) 2))) (py 70))
+        (sdl2:set-render-draw-color ren 0 0 0 238)
+        (set-rect (painter-dst painter) px py pw ph)
+        (sdl2:render-fill-rect ren (painter-dst painter))
+        (sdl2:set-render-draw-color ren 230 220 120 255)
+        (sdl2:render-draw-rect ren (painter-dst painter))
+        (draw-text painter font l1 (+ px 4) (+ py 3) 220 220 160)
+        (draw-text painter font l2 (+ px 4) (+ py 3 (1+ h)) 255 255 255)))))
+
 (defun draw-explosion-frame (painter frame px py)
   "Blit detonation FRAME (0..+NUKE-FRAMES+-1) from the nuke sheet, scaled to a
 3x3-tile burst centred on the tile drawn at screen pixel (PX,PY)."
@@ -1165,7 +1184,7 @@ points at as (values WX WY); otherwise NIL.  Mirrors DRAW-MINIMAP's layout."
 
 (defun render-game (painter state selected-id
                     &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu
-                         research-menu help console hud-right
+                         research-menu help console hud-right naming
                          overlay (cam-x 0) (cam-y 0) (vw 20) (vh 15))
   "Draw STATE through a VW x VH-tile viewport whose top-left world tile is
 (CAM-X, CAM-Y); the map wraps east-west.  With FOG, unexplored tiles are black,
@@ -1260,6 +1279,9 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
       ;; an AI diplomatic offer awaiting the human's reply (not once the game is over)
       (when (and (civm:gs-offers state) (not (civm:gs-winner state)) (painter-font painter))
         (draw-offer-prompt painter state (* vw *tile*)))
+      ;; the city-naming text entry (modal while founding a city)
+      (when (and naming (painter-font painter))
+        (draw-name-prompt painter (* vw *tile*) naming))
       ;; help overlay, drawn last so it sits on top of everything
       (when (and help (painter-font painter))
         (draw-help painter state))
