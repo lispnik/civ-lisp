@@ -88,6 +88,12 @@ use, or a numbered fallback once the roster is exhausted."
 (defun at-war-p (state a b)
   (and (/= a b) (eq (relation state a b) :war)))
 
+(defun senate-p (state pid)
+  "T if PID's government has a senate (Republic/Democracy) -- it forbids declaring
+war and forces the acceptance of cease-fires."
+  (let ((p (player-by-id state pid)))
+    (and p (government-def (player-government p) :senate))))
+
 (defun allied-p (state a b)
   "T if A and B are bound by an alliance (a peace they have both committed to)."
   (and (/= a b) (eq (relation state a b) :alliance)))

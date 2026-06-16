@@ -957,7 +957,8 @@ with a blinking caret (the bitmap font has no underscore glyph)."
 (defun diplo-menu-lines (state)
   "(index oid action label) rows -- the diplomatic moves the human can make with
 each rival: war, peace, an alliance (or breaking one), and a gold gift."
-  (let ((me (civm:player-id (human-player state))))
+  (let* ((me (civm:player-id (human-player state)))
+         (senate (civm:senate-p state me)))   ; a senate forbids declaring war
     (loop for p across (civm:gs-players state)
           for oid = (civm:player-id p)
           when (and (/= oid me) (not (civm:barbarian-id-p state oid)))
@@ -969,19 +970,23 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
                               (list oid :ceasefire
                                     (format nil "~A [WAR] - propose cease-fire" name))))
                        ((civm:allied-p state me oid)
-                        (list (list oid :break-alliance
-                                    (format nil "~A [ALLY] - break alliance" name))
-                              (list oid :declare-war
-                                    (format nil "~A [ALLY] - declare war" name))))
+                        (remove nil
+                          (list (list oid :break-alliance
+                                      (format nil "~A [ALLY] - break alliance" name))
+                                (unless senate
+                                  (list oid :declare-war
+                                        (format nil "~A [ALLY] - declare war" name))))))
                        (t
-                        (list (list oid :declare-war
-                                    (format nil "~A [peace] - declare war" name))
-                              (list oid :propose-alliance
-                                    (format nil "~A [peace] - propose alliance" name))
-                              (list oid :demand-tribute
-                                    (format nil "~A [peace] - demand tribute" name))
-                              (list oid :gift
-                                    (format nil "~A [peace] - gift 50 gold" name))))))
+                        (remove nil
+                          (list (unless senate
+                                  (list oid :declare-war
+                                        (format nil "~A [peace] - declare war" name)))
+                                (list oid :propose-alliance
+                                      (format nil "~A [peace] - propose alliance" name))
+                                (list oid :demand-tribute
+                                      (format nil "~A [peace] - demand tribute" name))
+                                (list oid :gift
+                                      (format nil "~A [peace] - gift 50 gold" name)))))))
               into rows
           finally (return (loop for (oid action label) in rows for i from 1
                                 collect (list i oid action label))))))

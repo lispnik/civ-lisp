@@ -687,11 +687,14 @@ in the blast is now at war with the attacker."
     u))
 
 (defun cmd-declare-war (state command)
-  "Player :PLAYER declares war on player :AGAINST."
+  "Player :PLAYER declares war on player :AGAINST -- unless a senate (Republic or
+Democracy) vetoes it."
   (let* ((args (rest command))
          (a (getf args :player 1)) (b (getf args :against)))
     (unless (and (player-by-id state a) (player-by-id state b)) (fail "no such player"))
     (when (= a b) (fail "can't declare war on yourself"))
+    (when (senate-p state a)
+      (fail "the Senate refuses to declare war (Republic/Democracy)"))
     (setf (relation state a b) :war)
     state))
 

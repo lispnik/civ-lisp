@@ -211,15 +211,16 @@ and display name.  Sourced from the CC0 CivOne advance data.")
      (:communism :name "Communism" :requires :communism   :max-rate 80 :martial-law 3
                  :tile-penalty nil :trade-bonus nil :corruption 15 :science t)
      (:republic  :name "Republic"  :requires :the-republic :max-rate 80 :martial-law 0
-                 :tile-penalty nil :trade-bonus t   :corruption 25 :science t)
+                 :tile-penalty nil :trade-bonus t   :corruption 25 :science t :senate t)
      (:democracy :name "Democracy" :requires :democracy   :max-rate 90 :martial-law 0
-                 :tile-penalty nil :trade-bonus t   :corruption 0  :science t)))
+                 :tile-penalty nil :trade-bonus t   :corruption 0  :science t :senate t)))
   "Governments -> the advance that unlocks them and their effects:
 MAX-RATE   cap on any single tax/luxury/science rate;
 MARTIAL-LAW how many military units in a city quiet an unhappy citizen each;
 TILE-PENALTY  the despotic -1 to any tile yielding 3+ of a category;
 TRADE-BONUS   +1 trade on every tile already producing trade (republic/democracy);
-CORRUPTION    percent of a city's trade lost; SCIENCE  whether research happens.")
+CORRUPTION    percent of a city's trade lost; SCIENCE  whether research happens;
+SENATE  the legislature forbids declaring war and forces acceptance of cease-fires.")
 
 (defparameter *terraform*
   (%table

@@ -211,8 +211,12 @@ revolution — one turn of anarchy, then the new regime) sets the rules: despoti
 docks busy tiles and bridles the economy; a republic or democracy adds trade but
 bans martial law and suffers **war weariness** — every military unit out in the
 field makes a citizen back home unhappy (one under a republic, two under a
-democracy). Corruption, rate caps and martial-law limits all vary by government,
-and the advance tree unlocks Monarchy, Communism, The Republic and Democracy.
+democracy). Under a republic or democracy the **Senate** also constrains foreign
+policy, as in Civ1: it **forbids declaring war** on a civ you're at peace with,
+and **forces you to accept** an enemy's cease-fire — so the trade-rich free
+governments come with a real diplomatic leash. Corruption, rate caps and
+martial-law limits all vary by government, and the advance tree unlocks Monarchy,
+Communism, The Republic and Democracy.
 
 **Research.** You **choose what to research**: at the start of the game and each
 time you complete an advance, a chooser lists every advance whose prerequisites

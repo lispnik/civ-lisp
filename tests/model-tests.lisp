@@ -1977,6 +1977,31 @@ shield special) so the city keeps producing instead of starving."
     (apply-command s (list :declare-war :player 1 :against 2))
     (signals command-error (apply-command s (list :propose-alliance :player 1 :against 2)))))
 
+(test senate-forbids-declaring-war
+  (let* ((s (bare-state 6 6)) (p (player-by-id s 1)))
+    ;; despotism: a declaration goes through
+    (apply-command s (list :declare-war :player 1 :against 2))
+    (is-true (at-war-p s 1 2))
+    (apply-command s (list :make-peace :player 1 :against 2))
+    ;; under a Republic the Senate vetoes it
+    (setf (player-government p) :republic)
+    (is-true (senate-p s 1))
+    (signals command-error (apply-command s (list :declare-war :player 1 :against 2)))
+    (is-false (at-war-p s 1 2))))
+
+(test senate-forces-acceptance-of-cease-fire
+  (let ((s (bare-state 6 6)))
+    (dolist (x '(1 2 3 4))
+      (civ-model::register-city s :name (format nil "C~D" x) :owner 1 :x x :y 1)) ; strong human
+    (civ-model::register-city s :name "Ur" :owner 2 :x 1 :y 4)                    ; weak AI
+    (setf (player-government (player-by-id s 1)) :republic
+          (relation s 1 2) :war)                       ; a war that predates the revolution
+    (civ-model::ai-diplomacy s (player-by-id s 2))     ; the losing AI sues for a cease-fire
+    ;; the Senate forces the human to accept -- peace applied at once, no prompt
+    (is (eq :peace (relation s 1 2)))
+    (is-true (civ-model::truce-active-p s 1 2))
+    (is-false (civ-model::pending-offer-p s 2 :ceasefire))))
+
 (test cease-fire
   (let ((s (bare-state 6 6)))                   ; both city-less -> the AI accepts
     (apply-command s (list :declare-war :player 1 :against 2))

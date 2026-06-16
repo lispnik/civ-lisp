@@ -84,18 +84,23 @@ by temperament + difficulty), and -- by temperament -- offer alliances to peers.
                    ;; the human it is an OFFER they may decline; an AI rival agrees
                    ;; at once.  A city-less roaming force fights on.
                    ((and (at-war-p state pid oid) (plusp mine) (<= (* 2 mine) theirs))
-                    (if (eq (player-kind other) :human)
+                    ;; a human under a senate is forced to accept; otherwise it's
+                    ;; an offer they may decline.  An AI peer agrees at once.
+                    (if (and (eq (player-kind other) :human) (not (senate-p state oid)))
                         (add-offer state pid :ceasefire)
                         (progn
                           (setf (relation state pid oid) :peace)
                           (set-truce state pid oid)
-                          (gs-note state "~A and ~A agree a cease-fire"
-                                   (player-name player) (player-name other)))))
+                          (gs-note state "~A and ~A agree a cease-fire~@[ (~A's Senate)~]"
+                                   (player-name player) (player-name other)
+                                   (and (senate-p state oid) (player-name other))))))
                    ;; at peace, not weaker, with something to take, not shielded by
-                   ;; the United Nations, and no cease-fire in force -> pounce
+                   ;; the United Nations, no cease-fire in force, and no senate to
+                   ;; veto the war -> pounce
                    ((and (eq (relation state pid oid) :peace)
                          (plusp theirs) (>= mine theirs)
                          (not (truce-active-p state pid oid))
+                         (not (senate-p state pid))
                          (not (player-wonder-p state oid :united-nations))
                          (< (gs-rand state 100)
                             (+ (ai-trait player :war-chance 3)
