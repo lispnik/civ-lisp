@@ -1905,17 +1905,56 @@
     (setf (unit-home (civ-model::register-unit s :type type :owner (city-owner c) :x x :y y))
           (city-id c))))
 
-(test unit-built-in-city-is-homed-and-supported
+(test unit-built-in-city-is-homed
   (let* ((s (bare-state 6 6 :terrain :grassland))
-         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
-         (p (player-by-id s 1)))
-    (setf (city-size c) 4 (player-government p) :monarchy
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 4
           (city-production c) (list :unit :warriors) (city-shield-box c) 10)
     (civ-model::city-try-complete s c)
     (let ((u (loop for uu being the hash-values of (gs-units s)
                    when (eq (unit-type uu) :warriors) return uu)))
-      (is (eql (unit-home u) (city-id c)))                ; built unit is homed here
-      (is (= 1 (civ-model::city-shield-support s c))))))  ; monarchy: 1 shield each
+      (is (eql (unit-home u) (city-id c))))))             ; built unit is homed here
+
+(test monarchy-grants-a-small-free-support-allowance
+  (let* ((s (bare-state 8 8 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 3 :y 3))
+         (p (player-by-id s 1)))
+    (setf (city-size c) 4 (player-government p) :monarchy)
+    (home-units s c 2 :warriors)
+    (is (= 0 (civ-model::city-shield-support s c)))        ; 2 units within the free allowance
+    (home-units s c 1 :warriors)
+    (is (= 1 (civ-model::city-shield-support s c)))))      ; the 3rd costs a shield
+
+(test settler-build-costs-a-population-point
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 3
+          (city-production c) (list :unit :settlers) (city-shield-box c) 40)
+    (civ-model::city-try-complete s c)
+    (is (= 2 (city-size c)))                               ; the citizen left to settle
+    (is (find :settlers (loop for u being the hash-values of (gs-units s) collect (unit-type u))))))
+
+(test size-1-city-sends-a-homeless-settler
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2)))
+    (setf (city-size c) 1
+          (city-production c) (list :unit :settlers) (city-shield-box c) 40)
+    (civ-model::city-try-complete s c)
+    (is (= 1 (city-size c)))                               ; a lone capital keeps its citizen
+    (let ((u (find :settlers (loop for uu being the hash-values of (gs-units s) collect uu)
+                   :key #'unit-type)))
+      (is-true u)                                          ; but a settler is still produced
+      (is (null (unit-home u))))))                          ; homeless -> no upkeep
+
+(test settler-food-upkeep-by-government
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (c (civ-model::register-city s :name "A" :owner 1 :x 2 :y 2))
+         (p (player-by-id s 1)))
+    (setf (city-size c) 3)
+    (home-units s c 1 :settlers)
+    (is (= 1 (civ-model::city-settler-food s c)))          ; despotism: 1 food
+    (setf (player-government p) :monarchy)
+    (is (= 2 (civ-model::city-settler-food s c)))))         ; else: 2 food
 
 (test despotism-supports-units-free-up-to-size
   (let* ((s (bare-state 8 8 :terrain :grassland))

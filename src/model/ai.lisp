@@ -549,7 +549,7 @@ small production dip would force a disband next turn."
   (let* ((shields (nth-value 1 (city-yields state city)))
          (production (city-shield-output state city shields))
          (n (count-if #'unit-costs-support-p (city-supported-units state city)))
-         (free (if (free-support-p state city) (city-size city) 0)))
+         (free (city-free-units state city)))
     (> production (max 0 (- (1+ n) free)))))   ; leave >= 1 shield of headroom
 
 (defun ai-city-production (state player city)
@@ -585,12 +585,6 @@ small production dip would force a disband next turn."
                 ;; expand to the empire size this temperament likes
                 ((< (length (player-city-list state pid))
                     (ai-trait player :min-cities 3))
-                 '(:unit :settlers))
-                ;; built out and not at war: keep a settler or two working as
-                ;; engineers to irrigate the land, so cities gain food to grow
-                ((and (not at-war) (>= (city-size city) 4)
-                      (< (count :settlers (player-unit-list state pid) :key #'unit-type) 2)
-                      (< (gs-rand state 100) 10))
                  '(:unit :settlers))
                 ;; the capital invests in a world wonder -- how eagerly depends on
                 ;; temperament (a builder reaches for them far more than a warlord)
@@ -630,7 +624,9 @@ small production dip would force a disband next turn."
     ;; instead, so the AI doesn't churn out units that get disbanded and rob the
     ;; city of the production it needs to grow.  (A garrison is still mandatory.)
     (when (and (eq (first item) :unit)
-               (not (member (second item) '(:diplomat :caravan)))   ; those are free
+               ;; diplomats/caravans are free; settlers are expansion-critical and
+               ;; transient (they found a city and are gone), so never gate them
+               (not (member (second item) '(:diplomat :caravan :settlers)))
                (city-defended-p state city)
                (not (ai-unit-affordable-p state city)))
       (setf item (cond (building (list :building building))

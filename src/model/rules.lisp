@@ -560,6 +560,13 @@ has superseded it), so it can no longer be built."
                                             :owner (city-owner city)
                                             :x (city-x city) :y (city-y city))))
                      (setf (unit-home nu) (city-id city))      ; this city pays its support
+                     ;; a settler is a departing citizen (Civ1): a size-2+ city loses
+                     ;; a population point; a lone size-1 city instead sends a homeless
+                     ;; settler (no upkeep) so a weak capital can still expand
+                     (when (eq (second item) :settlers)
+                       (if (>= (city-size city) 2)
+                           (decf (city-size city))
+                           (setf (unit-home nu) nil)))
                      (when (or (member :barracks (city-buildings city))   ; veterans:
                                ;; the Lighthouse trains veteran ships
                                (and (eq (unit-def (second item) :domain) :sea)
@@ -748,20 +755,24 @@ across the map.  The more polluted tiles, the likelier and worse each event."
          (gov (and p (player-government p))))
     (member gov '(:anarchy :despotism))))
 
+(defun city-free-units (state city)
+  "How many of CITY's units cost no shield support.  Anarchy/despotism support
+units free up to the city size (Civ1); other governments grant a small flat
+allowance (like Civ1's free units under monarchy) so revolting away from
+despotism doesn't suddenly bankrupt the army into a wave of disbands."
+  (if (free-support-p state city) (city-size city) 2))
+
 (defun city-shield-support (state city)
-  "Shields CITY owes to support its units.  Under anarchy/despotism the first
-SIZE units are free and each one beyond costs 1; under every other government
-each supported unit costs 1.  Diplomats and caravans are always free."
-  (let ((n (count-if #'unit-costs-support-p (city-supported-units state city))))
-    (if (free-support-p state city)
-        (max 0 (- n (city-size city)))
-        n)))
+  "Shields CITY owes to support its units: the supported units beyond its free
+allowance (see CITY-FREE-UNITS), 1 shield each.  Diplomats and caravans are free."
+  (max 0 (- (count-if #'unit-costs-support-p (city-supported-units state city))
+            (city-free-units state city))))
 
 (defun city-unit-support-list (state city)
   "List of (unit . shields) for CITY's supported units: each costs 1 shield,
-except diplomats/caravans and the first SIZE units under anarchy/despotism, which
+except diplomats/caravans and the units within the city's free allowance, which
 are free (0).  This is the data the city screen's Units pane displays."
-  (let ((free (if (free-support-p state city) (city-size city) 0))
+  (let ((free (city-free-units state city))
         (used 0))
     (loop for u in (city-supported-units state city)
           collect (cons u (cond ((not (unit-costs-support-p u)) 0)
@@ -781,6 +792,11 @@ are free (0).  This is the data the city screen's Units pane displays."
             (format nil "~A can't support ~(~A~) -- disbanded!"
                     (city-name city) (unit-type victim)))
       (destroy-unit state victim))))
+
+(defun city-settler-food (state city)
+  "Food CITY owes for its settlers (Civ1): 1 each under anarchy/despotism, else 2."
+  (let ((settlers (count :settlers (city-supported-units state city) :key #'unit-type)))
+    (* settlers (if (free-support-p state city) 1 2))))
 
 (defun process-city (state city)
   (city-auto-work state city)
@@ -804,8 +820,8 @@ are free (0).  This is the data the city screen's Units pane displays."
              (setf (gs-message state) (format nil "Riots shrink ~A!" (city-name city)))))
           (t
            (setf (city-disorder city) 0)       ; order restored
-           ;; growth: each citizen eats 2 food
-           (let ((net (- food (* 2 size)))
+           ;; growth: each citizen eats 2 food, plus settler food upkeep
+           (let ((net (- food (+ (* 2 size) (city-settler-food state city))))
                  (threshold (* 10 (1+ size)))
                  (cap (city-growth-cap city))
                  ;; "We Love the King" rapture growth: a celebrating republic or
