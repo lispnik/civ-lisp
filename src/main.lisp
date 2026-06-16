@@ -309,6 +309,7 @@ or an error message."
                   (hud-right nil)     ; T to dock the status pane + minimap on the right
                   (naming nil)        ; unit id founding a city while its name is typed
                   (name-input "")     ; the city name being entered
+                  (skip-text nil)     ; eat the TEXTINPUT from the key that opened a text box
                   (spy-menu nil)      ; T while the diplomat action menu is open
                   (help nil)          ; T while the help overlay is shown
                   (console nil)       ; T while the `~` Lisp console is open
@@ -499,7 +500,8 @@ or an error message."
                              ;; typed text goes into the console line, or the
                              ;; city-name entry while founding a city
                              ((= type +ev-textinput+)
-                              (cond (console
+                              (cond (skip-text (setf skip-text nil)) ; the opening keystroke
+                                    (console
                                      (setf con-input
                                            (concatenate 'string con-input (ev-text ev))))
                                     (naming
@@ -556,7 +558,7 @@ or an error message."
                                               (subseq name-input 0 (1- (length name-input))))))))
                                   ;; `~` opens the console
                                   ((= sc +sc-grave+)
-                                   (setf console t con-input ""
+                                   (setf console t con-input "" skip-text t  ; eat the '`'
                                          con-output '("Lisp console -- *state* is the game"
                                                       "Enter evals, Up/C-p & Down/C-n history, Esc closes"))
                                    (sdl2-ffi.functions:sdl-start-text-input))
@@ -682,7 +684,8 @@ or an error message."
                                        ((and u (civm:can-found-here-p state u))
                                         (setf naming selected
                                               name-input (civm:next-city-name
-                                                          state (first (human-player-ids state))))
+                                                          state (first (human-player-ids state)))
+                                              skip-text t)   ; ignore this 'b' keystroke
                                         (sdl2-ffi.functions:sdl-start-text-input))
                                        (u (sdl2:set-window-title
                                            win "civ-lisp — can't found a city here")))))
