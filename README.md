@@ -110,6 +110,7 @@ moment it completes.
 | left-click | select a unit (wakes a fortified one), open a friendly city's **build menu**, or — on empty ground — **recenter** the view there |
 | click minimap | **recenter** the main view on that spot of the world |
 | Ctrl+M | dock the status pane + minimap on the opposite (left/right) edge |
+| O | open the **Civilopedia** (←/→ section, ↑/↓ scroll, Esc close) |
 | 1–9 / click | in the build menu, choose a unit, improvement, or wonder (`*`) to build; Esc closes |
 | arrow keys / numpad | move the selected unit — the **numpad moves diagonally** too (1/3/7/9) |
 | Tab | cycle to the next active unit (skips fortified / out-of-moves) |
@@ -205,6 +206,16 @@ toward it. The AI civilizations beeline their own priorities automatically.
 ![the research chooser](docs/research-menu.png)
 
 *Choosing the next advance — only those whose prerequisites are met are offered.*
+
+**Civilopedia.** Press `O` for a browsable in-game reference, read straight from
+the rule tables: every **advance** with its prerequisites, every **unit** with
+its attack/defense/move and cost, and every **building** and **wonder** with its
+cost, required advance, and effect. `←`/`→` switch sections, `↑`/`↓` scroll,
+`Esc` closes.
+
+![the Civilopedia, wonders section](docs/pedia-wonders.png)
+
+*The wonders section: cost, the advance that unlocks each, and its effect.*
 
 **City improvements** build up the economy, each with a live effect: a
 **marketplace** then a **bank** and **stock exchange** each add +50% gold (the

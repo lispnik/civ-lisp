@@ -686,7 +686,7 @@ celebration banner."
     "Enter  end turn"
     "S / L  save / load game"
     "Left-click  select unit/city; empty: recenter"
-    "~  Lisp console   K  Slynk server   ?  help"
+    "O  Civilopedia (reference)   ~  console   K  Slynk   ?  help"
     "Esc  close menu / quit")
   "Lines shown in the help overlay (first line is the title).")
 
@@ -708,6 +708,75 @@ celebration banner."
           do (draw-text painter font line (+ px 4) (+ py 4 (* i (1+ h)))
                         (if (zerop i) 255 220) (if (zerop i) 230 220)
                         (if (zerop i) 120 220)))))
+
+;;; --- Civilopedia -----------------------------------------------------------
+
+(defparameter *pedia-categories* #(:advances :units :buildings :wonders)
+  "The Civilopedia sections, cycled with left/right.")
+
+(defun pedia-sorted-keys (table)
+  (sort (loop for k being the hash-keys of table collect k) #'string< :key #'symbol-name))
+
+(defun pedia-lines (category)
+  "The reference lines for one Civilopedia CATEGORY, read from the def tables."
+  (ecase category
+    (:advances
+     (loop for k in (pedia-sorted-keys civm:*techs*)
+           for pre = (civm:tech-def k :prereqs)
+           collect (format nil "~A  <- ~A" (civm:tech-def k :name)
+                           (if pre (format nil "~{~A~^, ~}"
+                                           (mapcar (lambda (p) (civm:tech-def p :name)) pre))
+                               "(start)"))))
+    (:units
+     (loop for k in (pedia-sorted-keys civm:*units*)
+           collect (format nil "~(~A~)  ~D/~D/~D  ~Dsh~@[  <- ~A~]"
+                           k (civm:unit-def k :attack 0) (civm:unit-def k :defense 0)
+                           (civm:unit-def k :move 1) (civm:unit-def k :cost 0)
+                           (let ((r (civm:unit-def k :requires))) (and r (civm:tech-def r :name))))))
+    (:buildings
+     (loop for k in (pedia-sorted-keys civm:*buildings*)
+           collect (format nil "~(~A~)  ~Dsh up~D~@[ <- ~A~]~@[ -- ~A~]"
+                           k (civm:building-def k :cost 0) (civm:building-def k :upkeep 0)
+                           (let ((r (civm:building-def k :requires))) (and r (civm:tech-def r :name)))
+                           (civm:building-def k :effect))))
+    (:wonders
+     (loop for k in (pedia-sorted-keys civm:*wonders*)
+           collect (format nil "~(~A~)  ~Dsh~@[ <- ~A~]~@[ -- ~A~]"
+                           k (civm:wonder-def k :cost 0)
+                           (let ((r (civm:wonder-def k :requires))) (and r (civm:tech-def r :name)))
+                           (civm:wonder-def k :effect))))))
+
+(defun draw-pedia (painter cat scroll vw vh)
+  "The Civilopedia: a scrollable reference for CAT (advances/units/buildings/
+wonders), windowed at SCROLL.  VW x VH is the viewport in tiles."
+  (let ((font (painter-font painter)))
+    (when font
+      (let* ((ren (painter-ren painter)) (h (gfont-height font))
+             (category (aref *pedia-categories* cat))
+             (all (pedia-lines category))
+             (n (length all))
+             (rows (max 1 (- (floor (* vh *tile*) (1+ h)) 2)))   ; visible lines
+             (top (max 0 (min scroll (max 0 (- n rows)))))
+             (shown (subseq all top (min n (+ top rows))))
+             (head (format nil "CIVILOPEDIA - ~:(~A~)   <- -> section   up/down scroll   Esc"
+                           (symbol-name category)))
+             (foot (format nil "~D-~D of ~D" (1+ top) (min n (+ top rows)) n))
+             (texts (list* head foot shown))
+             (pw (min (* vw *tile*)
+                      (+ 8 (reduce #'max texts :key (lambda (s) (text-width font s))))))
+             (ph (+ 6 (* (+ 2 (length shown)) (1+ h))))
+             (px (max 0 (floor (- (* vw *tile*) pw) 2)))
+             (py (max 0 (floor (- (* vh *tile*) ph) 2))))
+        (sdl2:set-render-draw-color ren 0 0 0 240)
+        (set-rect (painter-dst painter) px py pw ph)
+        (sdl2:render-fill-rect ren (painter-dst painter))
+        (sdl2:set-render-draw-color ren 200 200 120 255)
+        (sdl2:render-draw-rect ren (painter-dst painter))
+        (draw-text painter font head (+ px 4) (+ py 3) 255 230 120)
+        (loop for s in shown for i from 1
+              do (draw-text painter font s (+ px 4) (+ py 3 (* i (1+ h))) 210 220 230))
+        (draw-text painter font foot (+ px 4) (+ py 3 (* (1+ (length shown)) (1+ h)))
+                   160 160 160)))))
 
 (defun draw-console (painter state input output)
   "The `~` Lisp console: OUTPUT lines from the last eval, then the input line
@@ -1189,7 +1258,7 @@ points at as (values WX WY); otherwise NIL.  Mirrors DRAW-MINIMAP's layout."
 
 (defun render-game (painter state selected-id
                     &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu
-                         research-menu help console hud-right naming
+                         research-menu help console hud-right naming pedia
                          overlay (cam-x 0) (cam-y 0) (vw 20) (vh 15))
   "Draw STATE through a VW x VH-tile viewport whose top-left world tile is
 (CAM-X, CAM-Y); the map wraps east-west.  With FOG, unexplored tiles are black,
@@ -1287,6 +1356,9 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
       ;; the city-naming text entry (modal while founding a city)
       (when (and naming (painter-font painter))
         (draw-name-prompt painter (* vw *tile*) naming))
+      ;; the Civilopedia reference overlay
+      (when (and pedia (painter-font painter))
+        (draw-pedia painter (car pedia) (cdr pedia) vw vh))
       ;; help overlay, drawn last so it sits on top of everything
       (when (and help (painter-font painter))
         (draw-help painter state))

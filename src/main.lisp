@@ -66,7 +66,8 @@
 (defconstant +sc-f+ 9) (defconstant +sc-g+ 10) (defconstant +sc-h+ 11) (defconstant +sc-i+ 12)
 (defconstant +sc-j+ 13)
 (defconstant +sc-l+ 15) (defconstant +sc-m+ 16) (defconstant +sc-r+ 21)
-(defconstant +sc-n+ 17) (defconstant +sc-p+ 19) (defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
+(defconstant +sc-n+ 17) (defconstant +sc-o+ 18) (defconstant +sc-p+ 19)
+(defconstant +sc-s+ 22) (defconstant +sc-t+ 23)
 (defconstant +sc-v+ 25) (defconstant +sc-u+ 24)
 (defconstant +sc-x+ 27) (defconstant +sc-y+ 28) (defconstant +sc-z+ 29)
 (defconstant +sc-w+ 26) (defconstant +sc-return+ 40) (defconstant +sc-escape+ 41)
@@ -310,6 +311,7 @@ or an error message."
                   (naming nil)        ; unit id founding a city while its name is typed
                   (name-input "")     ; the city name being entered
                   (skip-text nil)     ; eat the TEXTINPUT from the key that opened a text box
+                  (pedia nil)         ; Civilopedia: (category-index . scroll) while open
                   (spy-menu nil)      ; T while the diplomat action menu is open
                   (help nil)          ; T while the help overlay is shown
                   (console nil)       ; T while the `~` Lisp console is open
@@ -556,6 +558,21 @@ or an error message."
                                       (when (plusp (length name-input))
                                         (setf name-input
                                               (subseq name-input 0 (1- (length name-input))))))))
+                                  ;; Civilopedia open: browse sections and scroll
+                                  (pedia
+                                   (let ((ncat (length *pedia-categories*)))
+                                     (cond
+                                       ((or (= sc +sc-escape+) (= sc +sc-o+)) (setf pedia nil))
+                                       ((= sc +sc-left+)
+                                        (setf pedia (cons (mod (1- (car pedia)) ncat) 0)))
+                                       ((= sc +sc-right+)
+                                        (setf pedia (cons (mod (1+ (car pedia)) ncat) 0)))
+                                       ((= sc +sc-up+)
+                                        (setf (cdr pedia) (max 0 (- (cdr pedia) 5))))
+                                       ((= sc +sc-down+)
+                                        (let ((n (length (pedia-lines
+                                                          (aref *pedia-categories* (car pedia))))))
+                                          (setf (cdr pedia) (min (max 0 (1- n)) (+ (cdr pedia) 5))))))))
                                   ;; `~` opens the console
                                   ((= sc +sc-grave+)
                                    (setf console t con-input "" skip-text t  ; eat the '`'
@@ -743,6 +760,7 @@ or an error message."
                                   ((= sc +sc-lbracket+) (tax! -10))    ; tax down (more science)
                                   ((= sc +sc-rbracket+) (tax! 10))     ; tax up (more gold)
                                   ((= sc +sc-slash+) (setf help t))    ; ? : help
+                                  ((= sc +sc-o+) (setf pedia (cons 0 0)))  ; Civilopedia
                                   ((= sc +sc-s+)
                                    (civm:save-game state *save-path*)
                                    (sdl2:set-window-title win "civ-lisp — game saved"))
@@ -780,6 +798,8 @@ or an error message."
                                   ((civm:gs-offers state))
                                   ;; naming a city: finish it from the keyboard
                                   (naming)
+                                  ;; Civilopedia is keyboard-navigated
+                                  (pedia)
                                   ;; government menu open: click a row to pick it
                                   (gov-menu
                                    (let ((g (gov-menu-pick painter state
@@ -884,7 +904,7 @@ or an error message."
                                     :build-city build-city :gov-menu gov-menu
                                     :diplo-menu diplo-menu :trade-menu trade-menu
                                     :research-menu research-menu :hud-right hud-right
-                                    :naming (and naming name-input)
+                                    :naming (and naming name-input) :pedia pedia
                                     :spy-menu spy-menu :help help
                                     :console (and console (cons con-input con-output))
                                     :cam-x cam-x :cam-y cam-y
