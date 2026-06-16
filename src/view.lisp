@@ -1128,17 +1128,30 @@ the visible viewport (which wraps east-west with the map)."
                     (gov-hud-text state) (science-hud-text state)
                     (spaceship-hud-text state))))
 
+(defun status-pane-geometry (painter state hud-right view-w)
+  "Layout of the status pane + minimap as (values BX PANEL-W BOX-H MINIMAP-Y).
+The text box and the minimap share one PANEL-W -- the wider of the text and the
+minimap -- and one left edge BX, so the box is always as wide as the minimap."
+  (let* ((font (painter-font painter))
+         (fh (gfont-height font))
+         (lines (status-pane-lines state))
+         (tw (reduce #'max lines :key (lambda (s) (text-width font s))))
+         (map (civm:gs-map state)) (w (civm:map-width map))
+         (mw (* w (minimap-scale w (civm:map-height map))))   ; minimap tile span
+         (panel-w (max (+ tw 2) (+ mw 2)))                     ; +2 for the minimap frame
+         (bx (if hud-right (- view-w panel-w) 0))
+         (box-h (+ 1 (* (length lines) (1+ fh)))))
+    (values bx panel-w box-h (+ box-h 2))))
+
 (defun minimap-origin (painter state &optional hud-right (view-w 0))
   "Screen pixel (values MX MY) of the minimap's top-left -- just below the
-status-pane text block, on the left edge or (with HUD-RIGHT) the right one."
-  (let ((font (painter-font painter)))
-    (if font
-        (let* ((map (civm:gs-map state))
-               (mw (* (civm:map-width map) (minimap-scale (civm:map-width map)
-                                                          (civm:map-height map))))
-               (my (+ (* (length (status-pane-lines state)) (1+ (gfont-height font))) 3)))
-          (values (if hud-right (- view-w mw 1) 1) my))
-        (values 1 1))))
+status-pane text block, sharing its panel's left edge."
+  (if (painter-font painter)
+      (multiple-value-bind (bx panel-w box-h my)
+          (status-pane-geometry painter state hud-right view-w)
+        (declare (ignore panel-w box-h))
+        (values (1+ bx) my))
+      (values 1 1)))
 
 (defun minimap-hit (painter state lx ly &optional hud-right (view-w 0))
   "If the logical click (LX,LY) lands on the minimap, return the world tile it
@@ -1227,21 +1240,19 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
       ;; overview minimap below it.  Sits on the left edge, or the right with HUD-RIGHT.
       (let ((font (painter-font painter)))
         (when font
-          (let* ((fh (gfont-height font))
-                 (lines (status-pane-lines state))
-                 (tw (reduce #'max lines :key (lambda (s) (text-width font s))))
-                 (box-h (+ 1 (* (length lines) (1+ fh))))
-                 (bx (if hud-right (- (* vw *tile*) (+ tw 2)) 0)))
-            (sdl2:set-render-draw-color ren 0 0 0 190)
-            (set-rect (painter-dst painter) bx 0 (+ tw 2) box-h)
-            (sdl2:render-fill-rect ren (painter-dst painter))
-            (loop for s in lines for i from 0
-                  do (draw-text painter font s (+ bx 1) (+ 1 (* i (1+ fh)))
-                                (if (zerop i) 255 200) (if (zerop i) 255 220)
-                                (if (zerop i) 255 255)))
-            ;; overview minimap, just below the status text (same edge)
-            (multiple-value-bind (mx my) (minimap-origin painter state hud-right (* vw *tile*))
-              (draw-minimap painter state mx my
+          (let ((fh (gfont-height font))
+                (lines (status-pane-lines state)))
+            (multiple-value-bind (bx panel-w box-h my)
+                (status-pane-geometry painter state hud-right (* vw *tile*))
+              (sdl2:set-render-draw-color ren 0 0 0 190)
+              (set-rect (painter-dst painter) bx 0 panel-w box-h)
+              (sdl2:render-fill-rect ren (painter-dst painter))
+              (loop for s in lines for i from 0
+                    do (draw-text painter font s (+ bx 2) (+ 1 (* i (1+ fh)))
+                                  (if (zerop i) 255 200) (if (zerop i) 255 220)
+                                  (if (zerop i) 255 255)))
+              ;; overview minimap, just below the status text and sharing its width
+              (draw-minimap painter state (1+ bx) my
                             :fog fog :cam-x cam-x :cam-y cam-y :vw vw :vh vh)))))
       ;; victory / defeat banner
       (when (and (civm:gs-winner state) (painter-font painter))
