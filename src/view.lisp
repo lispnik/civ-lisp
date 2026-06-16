@@ -1128,18 +1128,22 @@ the visible viewport (which wraps east-west with the map)."
                     (gov-hud-text state) (science-hud-text state)
                     (spaceship-hud-text state))))
 
-(defun minimap-origin (painter state)
+(defun minimap-origin (painter state &optional hud-right (view-w 0))
   "Screen pixel (values MX MY) of the minimap's top-left -- just below the
-status-pane text block."
+status-pane text block, on the left edge or (with HUD-RIGHT) the right one."
   (let ((font (painter-font painter)))
     (if font
-        (values 1 (+ (* (length (status-pane-lines state)) (1+ (gfont-height font))) 3))
+        (let* ((map (civm:gs-map state))
+               (mw (* (civm:map-width map) (minimap-scale (civm:map-width map)
+                                                          (civm:map-height map))))
+               (my (+ (* (length (status-pane-lines state)) (1+ (gfont-height font))) 3)))
+          (values (if hud-right (- view-w mw 1) 1) my))
         (values 1 1))))
 
-(defun minimap-hit (painter state lx ly)
+(defun minimap-hit (painter state lx ly &optional hud-right (view-w 0))
   "If the logical click (LX,LY) lands on the minimap, return the world tile it
 points at as (values WX WY); otherwise NIL.  Mirrors DRAW-MINIMAP's layout."
-  (multiple-value-bind (mx my) (minimap-origin painter state)
+  (multiple-value-bind (mx my) (minimap-origin painter state hud-right view-w)
     (let* ((map (civm:gs-map state))
            (w (civm:map-width map)) (h (civm:map-height map))
            (s (minimap-scale w h)))
@@ -1148,7 +1152,7 @@ points at as (values WX WY); otherwise NIL.  Mirrors DRAW-MINIMAP's layout."
 
 (defun render-game (painter state selected-id
                     &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu
-                         research-menu help console
+                         research-menu help console hud-right
                          overlay (cam-x 0) (cam-y 0) (vw 20) (vh 15))
   "Draw STATE through a VW x VH-tile viewport whose top-left world tile is
 (CAM-X, CAM-Y); the map wraps east-west.  With FOG, unexplored tiles are black,
@@ -1218,24 +1222,27 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
             ((and build-city (painter-font painter))
              (let ((c (civm:city-by-id state build-city)))
                (when c (draw-build-menu painter state c)))))
-      ;; HUD, top-left: a Civ1-style status pane -- date, population, gold, the
-      ;; government and tax/lux/science split, research progress, spaceship status
+      ;; HUD: a Civ1-style status pane -- date, population, gold, government and
+      ;; tax/lux/science split, research progress, spaceship status -- with the
+      ;; overview minimap below it.  Sits on the left edge, or the right with HUD-RIGHT.
       (let ((font (painter-font painter)))
         (when font
           (let* ((fh (gfont-height font))
                  (lines (status-pane-lines state))
                  (tw (reduce #'max lines :key (lambda (s) (text-width font s))))
-                 (box-h (+ 1 (* (length lines) (1+ fh)))))
+                 (box-h (+ 1 (* (length lines) (1+ fh))))
+                 (bx (if hud-right (- (* vw *tile*) (+ tw 2)) 0)))
             (sdl2:set-render-draw-color ren 0 0 0 190)
-            (set-rect (painter-dst painter) 0 0 (+ tw 2) box-h)
+            (set-rect (painter-dst painter) bx 0 (+ tw 2) box-h)
             (sdl2:render-fill-rect ren (painter-dst painter))
             (loop for s in lines for i from 0
-                  do (draw-text painter font s 1 (+ 1 (* i (1+ fh)))
+                  do (draw-text painter font s (+ bx 1) (+ 1 (* i (1+ fh)))
                                 (if (zerop i) 255 200) (if (zerop i) 255 220)
                                 (if (zerop i) 255 255)))
-            ;; overview minimap, just below the status text
-            (draw-minimap painter state 1 (+ box-h 2)
-                          :fog fog :cam-x cam-x :cam-y cam-y :vw vw :vh vh))))
+            ;; overview minimap, just below the status text (same edge)
+            (multiple-value-bind (mx my) (minimap-origin painter state hud-right (* vw *tile*))
+              (draw-minimap painter state mx my
+                            :fog fog :cam-x cam-x :cam-y cam-y :vw vw :vh vh)))))
       ;; victory / defeat banner
       (when (and (civm:gs-winner state) (painter-font painter))
         (draw-banner painter state (* vw *tile*)))

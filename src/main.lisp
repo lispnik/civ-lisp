@@ -306,6 +306,7 @@ or an error message."
                   (diplo-menu nil)    ; T while the diplomacy menu is open
                   (trade-menu nil)    ; T while the trade menu is open
                   (research-menu nil) ; T while the "choose next advance" chooser is open
+                  (hud-right nil)     ; T to dock the status pane + minimap on the right
                   (spy-menu nil)      ; T while the diplomat action menu is open
                   (help nil)          ; T while the help overlay is shown
                   (console nil)       ; T while the `~` Lisp console is open
@@ -370,6 +371,7 @@ or an error message."
                                        (render-game painter state selected :fog t
                                                     :cam-x cam-x :cam-y cam-y
                                                     :vw *view-cols* :vh *view-rows*
+                                                    :hud-right hud-right
                                                     :overlay (lambda (p)
                                                                (draw-explosion-frame
                                                                 p f (* sx *tile*) (* sy *tile*)))))
@@ -668,6 +670,8 @@ or an error message."
                                          (terra :build-railroad)
                                          (terra :build-road))))
                                   ((= sc +sc-i+) (terra :irrigate))
+                                  ((and ctrl (= sc +sc-m+))   ; Ctrl+M: flip HUD side
+                                   (setf hud-right (not hud-right)))
                                   ((= sc +sc-m+) (terra :mine))
                                   ((= sc +sc-t+) (terra :build-fort))
                                   ((= sc +sc-a+) (terra :build-airbase))
@@ -798,7 +802,8 @@ or an error message."
                                   ((multiple-value-bind (wx wy)
                                        (minimap-hit painter state
                                                     (floor (ev-mouse-x ev) scale)
-                                                    (floor (ev-mouse-y ev) scale))
+                                                    (floor (ev-mouse-y ev) scale)
+                                                    hud-right (* *view-cols* *tile*))
                                      (when wx
                                        (setf selected nil
                                              cam-x (civm:wrap-x (civm:gs-map state)
@@ -841,7 +846,7 @@ or an error message."
                        (render-game painter state selected
                                     :build-city build-city :gov-menu gov-menu
                                     :diplo-menu diplo-menu :trade-menu trade-menu
-                                    :research-menu research-menu
+                                    :research-menu research-menu :hud-right hud-right
                                     :spy-menu spy-menu :help help
                                     :console (and console (cons con-input con-output))
                                     :cam-x cam-x :cam-y cam-y
