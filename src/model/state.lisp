@@ -55,7 +55,7 @@
     (and p (eq (player-kind p) :barbarian))))
 
 (defun relation (state a b)
-  "Diplomatic relation between players A and B (:war or :peace)."
+  "Diplomatic relation between players A and B (:war, :peace, or :alliance)."
   (cond ((= a b) :peace)
         ((or (barbarian-id-p state a) (barbarian-id-p state b)) :war) ; barbarians: always
         (t (gethash (rel-key a b) (gs-relations state) :peace))))
@@ -65,6 +65,10 @@
 
 (defun at-war-p (state a b)
   (and (/= a b) (eq (relation state a b) :war)))
+
+(defun allied-p (state a b)
+  "T if A and B are bound by an alliance (a peace they have both committed to)."
+  (and (/= a b) (eq (relation state a b) :alliance)))
 (defun unit-by-id (state id) (gethash id (gs-units state)))
 (defun city-by-id (state id) (gethash id (gs-cities state)))
 

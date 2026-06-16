@@ -777,31 +777,86 @@ with a blinking caret (the bitmap font has no underscore glyph)."
 ;;; --- diplomacy menu --------------------------------------------------------
 
 (defun diplo-menu-lines (state)
-  "(index other-id label) for each rival civilization the human can treat with."
+  "(index oid action label) rows -- the diplomatic moves the human can make with
+each rival: war, peace, an alliance (or breaking one), and a gold gift."
   (let ((me (civm:player-id (human-player state))))
     (loop for p across (civm:gs-players state)
           for oid = (civm:player-id p)
-          when (/= oid me)
-            collect (let ((war (civm:at-war-p state me oid)))
-                      (list nil oid
-                            (format nil "~A ~A -> ~A" (civm:player-name p)
-                                    (if war "[WAR]" "[peace]")
-                                    (if war "make peace" "declare war"))))
+          when (and (/= oid me) (not (civm:barbarian-id-p state oid)))
+            append (let ((name (civm:player-name p)))
+                     (cond
+                       ((civm:at-war-p state me oid)
+                        (list (list oid :make-peace
+                                    (format nil "~A [WAR] - make peace" name))))
+                       ((civm:allied-p state me oid)
+                        (list (list oid :break-alliance
+                                    (format nil "~A [ALLY] - break alliance" name))
+                              (list oid :declare-war
+                                    (format nil "~A [ALLY] - declare war" name))))
+                       (t
+                        (list (list oid :declare-war
+                                    (format nil "~A [peace] - declare war" name))
+                              (list oid :propose-alliance
+                                    (format nil "~A [peace] - propose alliance" name))
+                              (list oid :gift
+                                    (format nil "~A [peace] - gift 50 gold" name))))))
               into rows
-          finally (return (loop for r in rows for i from 1
-                                collect (list i (second r) (third r)))))))
+          finally (return (loop for (oid action label) in rows for i from 1
+                                collect (list i oid action label))))))
 
 (defun diplo-menu-pick (painter state ly)
+  "The (oid action) for the diplomacy row at logical y LY, or NIL."
   (let ((row (floor (- ly (+ *menu-y* 2)) (1+ (gfont-height (painter-font painter)))))
         (lines (diplo-menu-lines state)))
     (when (and (>= row 1) (<= row (length lines)))
-      (second (nth (1- row) lines)))))
+      (let ((entry (nth (1- row) lines)))     ; (i oid action label)
+        (list (second entry) (third entry))))))
 
 (defun draw-diplo-menu (painter state)
   (let* ((font (painter-font painter)) (ren (painter-ren painter))
          (h (gfont-height font))
          (lines (diplo-menu-lines state))
          (title "Diplomacy:")
+         (texts (cons title (mapcar #'fourth lines)))
+         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
+         (ph (+ 4 (* (length texts) (1+ h)))))
+    (sdl2:set-render-draw-color ren 0 0 0 230)
+    (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
+    (sdl2:render-fill-rect ren (painter-dst painter))
+    (sdl2:set-render-draw-color ren 220 220 220 255)
+    (sdl2:render-draw-rect ren (painter-dst painter))
+    (flet ((line (text row r g b)
+             (draw-text painter font text (+ *menu-x* 2)
+                        (+ *menu-y* 2 (* row (1+ h))) r g b)))
+      (line title 0 255 230 120)
+      (loop for (i oid action label) in lines
+            do (progn action)
+               (destructuring-bind (r g b) (owner-color state oid)
+                 (line label i r g b))))))
+
+;;; --- research chooser ------------------------------------------------------
+
+(defun research-menu-lines (state)
+  "(index tech label) for each advance the human may choose to research next."
+  (let ((p (human-player state)))
+    (when p
+      (loop for tech in (sort (copy-list (civm:researchable-techs p)) #'string<
+                              :key #'symbol-name)
+            for i from 1
+            collect (list i tech (format nil "~D ~A" i (civm:tech-def tech :name)))))))
+
+(defun research-menu-pick (painter state ly)
+  "The advance keyword for the research row at logical y LY, or NIL."
+  (let ((row (floor (- ly (+ *menu-y* 2)) (1+ (gfont-height (painter-font painter)))))
+        (lines (research-menu-lines state)))
+    (when (and (>= row 1) (<= row (length lines)))
+      (second (nth (1- row) lines)))))
+
+(defun draw-research-menu (painter state)
+  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+         (h (gfont-height font))
+         (lines (research-menu-lines state))
+         (title "Research next advance:")
          (texts (cons title (mapcar #'third lines)))
          (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
          (ph (+ 4 (* (length texts) (1+ h)))))
@@ -814,10 +869,8 @@ with a blinking caret (the bitmap font has no underscore glyph)."
              (draw-text painter font text (+ *menu-x* 2)
                         (+ *menu-y* 2 (* row (1+ h))) r g b)))
       (line title 0 255 230 120)
-      (loop for (i oid label) in lines
-            do (progn oid)
-               (destructuring-bind (r g b) (owner-color state oid)
-                 (line label i r g b))))))
+      (loop for (i tech label) in lines
+            do (progn tech) (line label i 210 230 210)))))
 
 ;;; --- trade menu ------------------------------------------------------------
 
@@ -1044,7 +1097,8 @@ points at as (values WX WY); otherwise NIL.  Mirrors DRAW-MINIMAP's layout."
         (values (floor (- lx mx) s) (floor (- ly my) s))))))
 
 (defun render-game (painter state selected-id
-                    &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu help console
+                    &key (fog t) build-city gov-menu diplo-menu trade-menu spy-menu
+                         research-menu help console
                          overlay (cam-x 0) (cam-y 0) (vw 20) (vh 15))
   "Draw STATE through a VW x VH-tile viewport whose top-left world tile is
 (CAM-X, CAM-Y); the map wraps east-west.  With FOG, unexplored tiles are black,
@@ -1106,6 +1160,8 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
              (draw-diplo-menu painter state))
             ((and trade-menu (painter-font painter))
              (draw-trade-menu painter state))
+            ((and research-menu (painter-font painter))
+             (draw-research-menu painter state))
             ((and spy-menu selected-id (painter-font painter))
              (let ((u (civm:unit-by-id state selected-id)))
                (when u (draw-spy-menu painter state u))))

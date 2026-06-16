@@ -34,7 +34,7 @@
    #:enter-hut #:barbarian-player
    #:*spaceship-parts* #:*spaceship-flight* #:*spaceship-part-cost*
    ;; diplomacy
-   #:gs-relations #:relation #:at-war-p #:barbarian-id-p
+   #:gs-relations #:relation #:at-war-p #:allied-p #:barbarian-id-p
    #:best-trade-with #:*tech-trade-value*
    ;; espionage
    #:gs-embassies #:has-embassy-p #:adjacent-enemy-city #:adjacent-enemy-unit
@@ -48,7 +48,7 @@
    #:tile-yield #:city-yields #:end-turn #:resolve-combat #:heal-units
    #:enemy-adjacent-p #:city-defended-p #:wonder-built-p #:city-upkeep
    #:city-happiness #:city-disorder-p #:city-celebrating-p #:count-city-military
-   #:research-cost #:city-population #:civ-population
+   #:research-cost #:researchable-techs #:city-population #:civ-population
    ;; persistence
    #:save-game #:load-game #:dump-game #:load-game-form
    ;; pathfinding / goto

@@ -38,7 +38,10 @@ on an illegal move."
     (:set-government (cmd-set-government state command))
     (:declare-war    (cmd-declare-war state command))
     (:make-peace     (cmd-make-peace state command))
+    (:propose-alliance (cmd-propose-alliance state command))
+    (:break-alliance (cmd-break-alliance state command))
     (:propose-trade  (cmd-propose-trade state command))
+    (:set-research   (cmd-set-research state command))
     (:steal-tech     (cmd-steal-tech state command))
     (:sabotage       (cmd-sabotage state command))
     (:establish-embassy (cmd-establish-embassy state command))
@@ -698,6 +701,40 @@ in the blast is now at war with the attacker."
     (setf (relation state a b) :peace)
     state))
 
+(defun ai-accepts-alliance-p (state proposer ai)
+  "Whether AI accepts an alliance proposed by PROPOSER: a civ welcomes an ally at
+least as strong as itself (protection); a dominant civ is choosier."
+  (let ((mine   (length (player-city-list state (player-id ai))))
+        (theirs (length (player-city-list state (player-id proposer)))))
+    (or (>= theirs mine)                       ; an equal-or-stronger friend: yes
+        (< (gs-rand state 100) 35))))          ; otherwise sometimes
+
+(defun cmd-propose-alliance (state command)
+  "Player :PLAYER proposes an alliance to :AGAINST.  The two must be at peace
+(make peace first if at war).  A human ally accepts at once; an AI weighs it."
+  (let* ((args (rest command))
+         (a (getf args :player 1)) (b (getf args :against))
+         (pa (player-by-id state a)) (pb (player-by-id state b)))
+    (unless (and pa pb) (fail "no such player"))
+    (when (= a b) (fail "can't ally with yourself"))
+    (when (or (eq (player-kind pa) :barbarian) (eq (player-kind pb) :barbarian))
+      (fail "barbarians have no allies"))
+    (when (at-war-p state a b) (fail "make peace before proposing an alliance"))
+    (when (allied-p state a b) (fail "already allied"))
+    (when (and (eq (player-kind pb) :ai) (not (ai-accepts-alliance-p state pa pb)))
+      (fail "~A declines the alliance" (player-name pb)))
+    (setf (relation state a b) :alliance)
+    state))
+
+(defun cmd-break-alliance (state command)
+  "Player :PLAYER renounces its alliance with :AGAINST, reverting to plain peace."
+  (let* ((args (rest command))
+         (a (getf args :player 1)) (b (getf args :against)))
+    (unless (and (player-by-id state a) (player-by-id state b)) (fail "no such player"))
+    (unless (allied-p state a b) (fail "no alliance to break"))
+    (setf (relation state a b) :peace)
+    state))
+
 ;;; --- trade (gold + tech) ---------------------------------------------------
 
 (defparameter *tech-trade-value* 250
@@ -781,6 +818,19 @@ is worth at least what it gives up; on acceptance the exchange executes."
     (transfer-bundle a b give)
     (transfer-bundle b a want)
     state))
+
+(defun cmd-set-research (state command)
+  "Set player :PLAYER's current research target to advance :TECH, which must be
+one the player can research now (prerequisites met, not already known)."
+  (let* ((args (rest command))
+         (p (or (player-by-id state (getf args :player 1)) (fail "no such player")))
+         (tech (getf args :tech)))
+    (unless (gethash tech *techs*) (fail "no such advance ~(~A~)" tech))
+    (when (player-has-tech-p p tech) (fail "~A already has ~(~A~)" (player-name p) tech))
+    (unless (member tech (researchable-techs p))
+      (fail "prerequisites for ~(~A~) are not met" tech))
+    (setf (player-researching p) tech)
+    p))
 
 (defun cmd-set-rates (state command)
   "Set a player's tax/luxury/science split (percent of trade).  They must sum to

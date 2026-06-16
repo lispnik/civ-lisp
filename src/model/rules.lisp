@@ -732,15 +732,19 @@ size N holds 10,000 x N(N+1)/2 citizens (10k, 30k, 60k, 100k, 150k, ...)."
         when (= (city-owner c) pid) sum (city-population c)))
 
 (defun process-research (state)
-  (loop for p across (gs-players state) do
-    (unless (player-researching p)
+  (loop for p across (gs-players state)
+        for human = (eq (player-kind p) :human) do
+    ;; AIs auto-pick a target; a human is left to choose (the view prompts them)
+    (unless (or (player-researching p) human)
       (setf (player-researching p) (first (researchable-techs p))))
     (let ((tech (player-researching p))
           (cost (research-cost p)))            ; snapshot before the tech lands --
       (when (and tech (>= (player-beakers p) cost))   ; learning it raises the cost,
         (setf (gethash tech (player-techs p)) t)      ; so RESEARCH-COST must be read
         (decf (player-beakers p) cost)                ; once, not again after the incf
-        (setf (player-researching p) (first (researchable-techs p)))))))
+        ;; the human is re-prompted for the next advance; the AI rolls straight on
+        (setf (player-researching p)
+              (if human nil (first (researchable-techs p))))))))
 
 (declaim (ftype (function (t) t) clamp-rates))   ; defined in commands.lisp
 

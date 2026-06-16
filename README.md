@@ -123,7 +123,8 @@ moment it completes.
 | H / J | caravan: **help build a wonder** / **establish a trade route** |
 | G, then left-click | send the selected unit to a tile (auto-paths each turn); the cursor becomes the **Go** arrow |
 | V | start a **revolution** — pick a new government from the menu |
-| Y / E | open the **diplomacy** (war/peace) / **trade** (tech & gold) menu |
+| Y / E | open the **diplomacy** (war / peace / alliance / gift) / **trade** (tech & gold) menu |
+| research chooser | opens automatically when your research is idle — pick the next advance (1–9 / click; Esc takes the default) |
 | , / . | shift the **luxury** rate down / up (trades against science) |
 | Enter | end turn |
 | S / L | **save** / **load** the game (single quicksave slot) |
@@ -182,6 +183,16 @@ bans martial law and suffers **war weariness** — every military unit out in th
 field makes a citizen back home unhappy (one under a republic, two under a
 democracy). Corruption, rate caps and martial-law limits all vary by government,
 and the advance tree unlocks Monarchy, Communism, The Republic and Democracy.
+
+**Research.** You **choose what to research**: at the start of the game and each
+time you complete an advance, a chooser lists every advance whose prerequisites
+you now meet, and you pick the next one to pursue (Esc takes the first as a
+default, so research never stalls). The status pane tracks the percent progress
+toward it. The AI civilizations beeline their own priorities automatically.
+
+![the research chooser](docs/research-menu.png)
+
+*Choosing the next advance — only those whose prerequisites are met are offered.*
 
 **City improvements** build up the economy, each with a live effect: a
 **marketplace** then a **bank** and **stock exchange** each add +50% gold (the
@@ -283,9 +294,20 @@ your own units too — and dropping it on a civ you were at peace with is an act
 **war**. Detonation plays a 40-frame **mushroom-cloud animation**
 (`assets/nuke.png`) over the blast.
 
-**Diplomacy & trade.** Relations are war or peace per pair (`Y` to declare war /
-sue for peace); `E` opens a **trade** menu to swap advances or buy/sell them for
-gold, and the AIs trade among themselves too. **Diplomats** (`Z`/`X`/`D`) run
+**Diplomacy & trade.** Relations are **war**, **peace**, or **alliance** per
+pair. The `Y` **diplomacy menu** lists, for each rival, the moves open to you:
+make peace with an enemy, declare war on a neighbour, **propose an alliance**
+(an AI weighs it — a civ welcomes an ally at least as strong as itself), **break**
+one, or **gift 50 gold** as a goodwill gesture. Allies can't attack each other,
+and the AI won't pounce on an ally (you can still betray one by declaring war).
+`E` opens a **trade** menu to swap advances or buy/sell them for gold, and the
+AIs trade among themselves too.
+
+![the diplomacy menu](docs/diplo-menu.png)
+
+*Per-rival diplomacy: at war with Egypt, allied with Zulu, at peace with Greece.*
+
+**Diplomats** (`Z`/`X`/`D`) run
 the full espionage suite — steal tech, sabotage, establish an embassy,
 investigate, incite a city to revolt, or bribe a unit — where a defended city
 may catch the spy (lost, plus war). **Caravans** (`H`/`J`) help build a wonder

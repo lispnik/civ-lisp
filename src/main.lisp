@@ -303,6 +303,7 @@ or an error message."
                   (gov-menu nil)      ; T while the revolution menu is open
                   (diplo-menu nil)    ; T while the diplomacy menu is open
                   (trade-menu nil)    ; T while the trade menu is open
+                  (research-menu nil) ; T while the "choose next advance" chooser is open
                   (spy-menu nil)      ; T while the diplomat action menu is open
                   (help nil)          ; T while the help overlay is shown
                   (console nil)       ; T while the `~` Lisp console is open
@@ -427,8 +428,37 @@ or an error message."
                                                (:establish-embassy "embassy established")
                                                (:incite-revolt "city incited!")
                                                (:bribe-unit "unit bribed!")
-                                               (t "done"))))))
+                                               (t "done")))))
+                       (do-diplo (pick)
+                         ;; run a diplomacy-menu action; PICK is (oid action)
+                         (when pick
+                           (let* ((me (first (human-player-ids state)))
+                                  (oid (first pick)) (action (second pick))
+                                  (name (civm:player-name (civm:player-by-id state oid))))
+                             (ecase action
+                               (:declare-war (try (list :declare-war :player me :against oid)))
+                               (:make-peace  (try (list :make-peace  :player me :against oid)))
+                               (:break-alliance
+                                (try (list :break-alliance :player me :against oid)))
+                               (:propose-alliance
+                                (sdl2:set-window-title
+                                 win (if (try (list :propose-alliance :player me :against oid))
+                                         (format nil "civ-lisp — ~A accepts your alliance" name)
+                                         (format nil "civ-lisp — ~A declines the alliance" name))))
+                               (:gift
+                                (sdl2:set-window-title
+                                 win (if (try (list :propose-trade :player me :to oid
+                                                    :give '((:gold 50)) :want '()))
+                                         (format nil "civ-lisp — gave ~A 50 gold" name)
+                                         "civ-lisp — not enough gold to gift")))))))
+                       (prompt-research! ()
+                         ;; pop the research chooser when the human has no target
+                         (let ((p (human-player state)))
+                           (when (and p (null (civm:player-researching p))
+                                      (civm:researchable-techs p))
+                             (setf research-menu t)))))
                 (retitle)
+                (prompt-research!)   ; ask which advance to pursue first
                 (unwind-protect
                      ;; manual poll loop, reading event fields at raw SDL offsets
                      (loop while running do
@@ -495,15 +525,29 @@ or an error message."
                                   (diplo-menu
                                    (cond
                                      ((and (>= sc +sc-1+) (<= sc (+ +sc-1+ 8)))
-                                      (let* ((me (first (human-player-ids state)))
-                                             (pick (nth (- sc +sc-1+) (diplo-menu-lines state)))
-                                             (oid (and pick (second pick))))
-                                        (when oid
-                                          (try (list (if (civm:at-war-p state me oid)
-                                                         :make-peace :declare-war)
-                                                     :player me :against oid))))
+                                      (let ((row (nth (- sc +sc-1+) (diplo-menu-lines state))))
+                                        (when row     ; row = (i oid action label)
+                                          (do-diplo (list (second row) (third row)))))
                                       (setf diplo-menu nil))
                                      ((= sc +sc-escape+) (setf diplo-menu nil))))
+                                  (research-menu
+                                   (cond
+                                     ((and (>= sc +sc-1+) (<= sc (+ +sc-1+ 8)))
+                                      (let ((row (nth (- sc +sc-1+) (research-menu-lines state))))
+                                        (when row     ; row = (i tech label)
+                                          (try (list :set-research
+                                                     :player (first (human-player-ids state))
+                                                     :tech (second row)))))
+                                      (setf research-menu nil))
+                                     ((= sc +sc-escape+)
+                                      ;; dismiss = take the first listed advance, so
+                                      ;; research never stalls with no target
+                                      (let ((rows (research-menu-lines state)))
+                                        (when rows
+                                          (try (list :set-research
+                                                     :player (first (human-player-ids state))
+                                                     :tech (second (first rows))))))
+                                      (setf research-menu nil))))
                                   ;; spy menu open: number runs a diplomat action
                                   (spy-menu
                                    (cond
@@ -555,6 +599,7 @@ or an error message."
                                    (try '(:end-turn))
                                    (clrhash *waited*) (setf *wait-seq* 0)
                                    (setf selected (first-human-unit state))
+                                   (prompt-research!)   ; choose the next advance
                                    (retitle))
                                   ((= sc +sc-w+)
                                    ;; wait: send this unit to the end of the cycle
@@ -658,16 +703,20 @@ or an error message."
                                                   :player (first (human-player-ids state))
                                                   :to g))))
                                    (setf gov-menu nil) (retitle))
-                                  ;; diplomacy menu open: click a civ to toggle war/peace
+                                  ;; diplomacy menu open: click a row to run that move
                                   (diplo-menu
-                                   (let* ((me (first (human-player-ids state)))
-                                          (oid (diplo-menu-pick painter state
-                                                                (floor (ev-mouse-y ev) scale))))
-                                     (when oid
-                                       (try (list (if (civm:at-war-p state me oid)
-                                                      :make-peace :declare-war)
-                                                  :player me :against oid))))
+                                   (do-diplo (diplo-menu-pick painter state
+                                                              (floor (ev-mouse-y ev) scale)))
                                    (setf diplo-menu nil))
+                                  ;; research chooser open: click an advance to research it
+                                  (research-menu
+                                   (let ((tech (research-menu-pick painter state
+                                                                   (floor (ev-mouse-y ev) scale))))
+                                     (when tech
+                                       (try (list :set-research
+                                                  :player (first (human-player-ids state))
+                                                  :tech tech))))
+                                   (setf research-menu nil))
                                   ;; spy menu open: click an action to run it
                                   (spy-menu
                                    (let* ((u (and selected (civm:unit-by-id state selected)))
@@ -747,6 +796,7 @@ or an error message."
                        (render-game painter state selected
                                     :build-city build-city :gov-menu gov-menu
                                     :diplo-menu diplo-menu :trade-menu trade-menu
+                                    :research-menu research-menu
                                     :spy-menu spy-menu :help help
                                     :console (and console (cons con-input con-output))
                                     :cam-x cam-x :cam-y cam-y

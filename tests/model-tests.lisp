@@ -602,6 +602,7 @@
 (test research-progresses
   (let ((s (make-new-game :seed 11)))
     (apply-command s (list :found-city :unit (unit-id (a-unit s 1 :settlers)) :name "Rome"))
+    (apply-command s (list :set-research :player 1 :tech :pottery))  ; the human chooses
     (dotimes (i 40) (end-turn s))
     (is (>= (hash-table-count (player-techs (player-by-id s 1))) 1))))
 
@@ -1847,6 +1848,65 @@ shield special) so the city keeps producing instead of starving."
     (apply-command s (list :declare-war :player 1 :against 2))
     (apply-command s (list :move-unit :unit (unit-id a) :dx 1 :dy 0))
     (is (null (unit-by-id s (unit-id d))))))
+
+(test alliances
+  (let ((s (bare-state 6 6)))                       ; both city-less: the AI accepts
+    (is-false (allied-p s 1 2))
+    (apply-command s (list :propose-alliance :player 1 :against 2))
+    (is (eq :alliance (relation s 1 2)))
+    (is-true (allied-p s 1 2))
+    (is-true (allied-p s 2 1))                       ; symmetric
+    (is-false (at-war-p s 1 2))                       ; an alliance is not war
+    ;; can't re-propose an existing alliance
+    (signals command-error (apply-command s (list :propose-alliance :player 1 :against 2)))
+    ;; breaking it reverts to plain peace
+    (apply-command s (list :break-alliance :player 1 :against 2))
+    (is-false (allied-p s 1 2))
+    (is (eq :peace (relation s 1 2)))
+    (signals command-error (apply-command s (list :break-alliance :player 1 :against 2)))
+    ;; you must make peace before you can ally from a state of war
+    (apply-command s (list :declare-war :player 1 :against 2))
+    (signals command-error (apply-command s (list :propose-alliance :player 1 :against 2)))))
+
+(test allies-cannot-attack-each-other
+  (let* ((s (bare-state 6 6 :seed 1))
+         (a (add-unit s :legion 1 2 2))
+         (d (add-unit s :warriors 2 3 2)))
+    (apply-command s (list :propose-alliance :player 1 :against 2))
+    ;; like peace, an alliance forbids moving into the ally's tile
+    (signals command-error (apply-command s (list :move-unit :unit (unit-id a) :dx 1 :dy 0)))
+    (is-true (unit-by-id s (unit-id d)))))
+
+(test choose-research-target
+  (let* ((s (bare-state 6 6)) (p (player-by-id s 1)))
+    ;; pick a reachable advance
+    (apply-command s (list :set-research :player 1 :tech :pottery))
+    (is (eq :pottery (player-researching p)))
+    ;; an advance whose prerequisites aren't met is refused
+    (signals command-error (apply-command s (list :set-research :player 1 :tech :the-republic)))
+    ;; an already-known advance is refused
+    (setf (gethash :alphabet (player-techs p)) t)
+    (signals command-error (apply-command s (list :set-research :player 1 :tech :alphabet)))
+    ;; ...but its now-reachable successor is allowed
+    (apply-command s (list :set-research :player 1 :tech :writing))
+    (is (eq :writing (player-researching p)))))
+
+(test human-is-reprompted-after-each-advance
+  ;; a human's research target clears when an advance completes (the view then
+  ;; prompts for the next), while an AI rolls straight on to a new target
+  (let* ((s (bare-state 6 6)) (p (player-by-id s 1)))
+    (setf (player-kind p) :human
+          (player-researching p) :pottery
+          (player-beakers p) (civ-model::research-cost p))
+    (civ-model::process-research s)
+    (is-true (player-has-tech-p p :pottery))
+    (is (null (player-researching p))))             ; cleared -> the view will prompt
+  (let* ((s (bare-state 6 6)) (p (player-by-id s 2)))  ; player 2 is an AI
+    (setf (player-researching p) :pottery
+          (player-beakers p) (civ-model::research-cost p))
+    (civ-model::process-research s)
+    (is-true (player-has-tech-p p :pottery))
+    (is-true (player-researching p))))              ; AI auto-picked the next
 
 (test more-than-two-civilizations
   (let ((s (make-new-game :seed 3 :players '("A" "B" "C" "D"))))
