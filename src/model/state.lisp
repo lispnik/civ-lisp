@@ -274,7 +274,10 @@ DIFFICULTY (a key from *DIFFICULTIES*) sets how hard the AI civilizations play."
                (setf (player-city-names p)
                      (or (nation-names-for name)
                          (cdr (nth (mod i (length *nation-city-names*))
-                                   *nation-city-names*)))))
+                                   *nation-city-names*))))
+               ;; grant the nation's free starting advance(s)
+               (dolist (tech (nation-starting-techs name))
+                 (setf (gethash tech (player-techs p)) t)))
              (unless barb           ; barbarians have no capital and no start units
                ;; spread starts across the map, snapped to the nearest land tile
                (multiple-value-bind (px py)

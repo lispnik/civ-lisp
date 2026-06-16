@@ -33,9 +33,16 @@ sight, bright = currently visible. A scout's trail is dimmed behind it.*
 ### Starting a game
 
 Each game opens on a **setup screen**: pick your **civilization** (which sets
-your city-name roster), the **difficulty** (Chieftain … Emperor — higher levels
-let the AI research faster and turn warlike), the **number of rivals**, and the
-**map size**. ↑/↓ choose a row, ←/→ change its value, Enter starts, Esc quits.
+your city-name roster and a **free starting advance**), the **difficulty**
+(Chieftain … Emperor — higher levels let the AI research faster and turn
+warlike), the **number of rivals**, and the **map size**. ↑/↓ choose a row, ←/→
+change its value, Enter starts, Esc quits.
+
+Unlike Civilization (1991), where every civ begins knowing nothing, here each
+nation starts with one thematic **root advance** — Rome and Germany with Bronze
+Working, the Mongols with Horseback Riding, China and Egypt with Masonry,
+Greece and France with the Alphabet, and so on. (A deliberate deviation; all are
+prerequisite-free advances, so the tech tree stays consistent.)
 
 ![the new-game setup screen](docs/setup-screen.png)
 

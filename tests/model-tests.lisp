@@ -455,6 +455,18 @@
     (civ-model::register-city s :name "Rome" :owner 1 :x 2 :y 2)
     (is-false (civ-model::can-found-here-p s settler))))
 
+(test nations-start-with-a-free-advance
+  ;; a deviation from Civ1: each nation begins knowing one root advance
+  (let ((s (make-new-game :seed 1 :players '("Roman" "Mongol" "Chinese"))))
+    (is-true (player-has-tech-p (player-by-id s 1) :bronze-working))    ; Roman
+    (is-true (player-has-tech-p (player-by-id s 2) :horseback-riding))  ; Mongol
+    (is-true (player-has-tech-p (player-by-id s 3) :masonry)))          ; Chinese
+  ;; every starting advance is a real root advance, so no prerequisite dangles
+  (dolist (entry civ-model::*nation-techs*)
+    (dolist (tch (cdr entry))
+      (is-true (gethash tch *techs*))
+      (is (null (tech-def tch :prereqs))))))
+
 (test next-city-name-skips-used
   (let ((s (bare-state 8 8)))
     (setf (player-city-names (player-by-id s 1)) '("Rome" "Caesarea" "Carthage"))

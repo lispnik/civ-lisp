@@ -283,10 +283,14 @@ NIL if the player quits.  Choose civilization, difficulty, rivals, and map size.
          (result :pending))
     (labels ((nat (k) (string-capitalize (symbol-name k)))
              (rows ()
-               (list (list "Civilization" (nat (nth civ nations)))
-                     (list "Difficulty"   (string-capitalize (symbol-name (nth diff diffs))))
-                     (list "Rivals"       (format nil "~D" rivals))
-                     (list "Map"          (first (nth size *setup-map-sizes*)))))
+               (let* ((k (nth civ nations))
+                      (techs (civm:nation-starting-techs (nat k))))
+                 (list (list "Civilization"
+                             (format nil "~A~@[ (~A)~]" (nat k)
+                                     (and techs (civm:tech-def (first techs) :name))))
+                       (list "Difficulty" (string-capitalize (symbol-name (nth diff diffs))))
+                       (list "Rivals"     (format nil "~D" rivals))
+                       (list "Map"        (first (nth size *setup-map-sizes*))))))
              (change (d)
                (case sel
                  (0 (setf civ (mod (+ civ d) (length nations))))

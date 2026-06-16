@@ -315,6 +315,30 @@ the nation whose alias prefixes the name (e.g. \"Rome\" -> :ROMAN), else NIL."
   (let ((key (nation-key-for name)))
     (and key (cdr (assoc key *nation-city-names*)))))
 
+(defparameter *nation-techs*
+  '((:american    :pottery)            ; settlers & expansion
+    (:aztec       :ceremonial-burial)  ; temples
+    (:babylonian  :pottery)            ; cradle of agriculture
+    (:chinese     :masonry)            ; the Great Wall
+    (:egyptian    :masonry)            ; the pyramids
+    (:english     :pottery)
+    (:french      :alphabet)           ; letters & learning
+    (:german      :bronze-working)     ; arms
+    (:greek       :alphabet)           ; philosophy
+    (:indian      :ceremonial-burial)
+    (:mongol      :horseback-riding)   ; cavalry
+    (:roman       :bronze-working)     ; legions
+    (:russian     :bronze-working)
+    (:zulu        :the-wheel))
+  "A free starting advance per nation -- a deliberate deviation from Civ1, where
+every civilization begins the game knowing none.  All are root advances (no
+prerequisites), so the tech tree is left consistent.")
+
+(defun nation-starting-techs (name)
+  "The advances player NAME's nation begins the game already knowing."
+  (let ((key (nation-key-for name)))
+    (and key (cdr (assoc key *nation-techs*)))))
+
 (declaim (inline def-get))
 (defun def-get (table key prop &optional default)
   "Look up PROP for KEY in a definition TABLE."
