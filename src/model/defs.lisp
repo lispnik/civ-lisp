@@ -301,10 +301,18 @@ improvement (:needs) they depend on.")
     ("russ" . :russian) ("aztec" . :aztec))
   "Maps a player-name prefix (lower-case) to its nation key.")
 
-(defun nation-names-for (name)
-  "The city roster for the nation whose alias prefixes player NAME, or NIL."
+(defun nation-key-for (name)
+  "The nation key for player NAME: an exact nation keyword (e.g. \"Roman\"), else
+the nation whose alias prefixes the name (e.g. \"Rome\" -> :ROMAN), else NIL."
   (let* ((low (string-downcase name))
-         (key (cdr (find-if (lambda (a) (eql 0 (search (car a) low))) *nation-aliases*))))
+         (exact (find-symbol (string-upcase low) :keyword)))
+    (if (and exact (assoc exact *nation-city-names*))
+        exact
+        (cdr (find-if (lambda (a) (eql 0 (search (car a) low))) *nation-aliases*)))))
+
+(defun nation-names-for (name)
+  "The city roster for player NAME's nation, or NIL."
+  (let ((key (nation-key-for name)))
     (and key (cdr (assoc key *nation-city-names*)))))
 
 (declaim (inline def-get))

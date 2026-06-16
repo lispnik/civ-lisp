@@ -23,7 +23,7 @@
    #:player-gov-target #:player-anarchy-left #:player-spaceship #:player-landing
    #:player-score #:player-peace-turns #:compute-score #:score-breakdown
    #:player-personality #:player-city-names #:next-city-name
-   #:gs-difficulty #:difficulty-level #:*difficulties*
+   #:gs-difficulty #:difficulty-level #:*difficulties* #:*nation-city-names*
    #:unit #:unit-id #:unit-type #:unit-owner #:unit-x #:unit-y
    #:unit-hp #:unit-moves-left #:unit-orders #:unit-veteran #:unit-fuel
    #:unit-goto-x #:unit-goto-y #:unit-work #:unit-work-left

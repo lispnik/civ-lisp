@@ -30,6 +30,15 @@ defended; text uses a font extracted from the game's `FONTS.CV`.*
 *Fog of war from the human's view: black = unexplored, dim = explored but out of
 sight, bright = currently visible. A scout's trail is dimmed behind it.*
 
+### Starting a game
+
+Each game opens on a **setup screen**: pick your **civilization** (which sets
+your city-name roster), the **difficulty** (Chieftain … Emperor — higher levels
+let the AI research faster and turn warlike), the **number of rivals**, and the
+**map size**. ↑/↓ choose a row, ←/→ change its value, Enter starts, Esc quits.
+
+![the new-game setup screen](docs/setup-screen.png)
+
 ### The status pane
 
 A Civ1-style status pane sits in the top-left, reading out the state of your

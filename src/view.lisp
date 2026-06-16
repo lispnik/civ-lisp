@@ -709,6 +709,38 @@ celebration banner."
                         (if (zerop i) 255 220) (if (zerop i) 230 220)
                         (if (zerop i) 120 220)))))
 
+;;; --- new-game setup screen -------------------------------------------------
+
+(defun draw-setup (painter view-w view-h rows sel)
+  "The new-game setup screen.  ROWS is a list of (label value) string pairs; the
+SEL-th row is highlighted as the one being edited."
+  (let ((font (painter-font painter)))
+    (when font
+      (let* ((ren (painter-ren painter)) (h (gfont-height font))
+             (title "NEW GAME")
+             (foot "Up/Down: choose    Left/Right: change    Enter: start    Esc: quit")
+             (labelw (reduce #'max rows :key (lambda (r) (text-width font (first r)))))
+             (lines (mapcar (lambda (r) (format nil "~A   ~A" (first r) (second r))) rows))
+             (pw (+ 24 (max (text-width font foot) (text-width font title)
+                            (reduce #'max lines :key (lambda (s) (text-width font s))))))
+             (ph (+ 12 (* (+ 3 (length rows)) (1+ h))))
+             (px (max 0 (floor (- view-w pw) 2))) (py (max 0 (floor (- view-h ph) 2))))
+        (declare (ignore labelw))
+        (sdl2:set-render-draw-color ren 0 0 0 240)
+        (set-rect (painter-dst painter) px py pw ph)
+        (sdl2:render-fill-rect ren (painter-dst painter))
+        (sdl2:set-render-draw-color ren 200 200 120 255)
+        (sdl2:render-draw-rect ren (painter-dst painter))
+        (draw-text painter font title (+ px 10) (+ py 5) 255 230 120)
+        (loop for s in lines for i from 0
+              for y = (+ py 5 (* (+ 2 i) (1+ h)))
+              for active = (= i sel)
+              do (when active (draw-text painter font ">" (+ px 4) y 255 255 120))
+                 (draw-text painter font s (+ px 14) y
+                            (if active 255 200) (if active 255 220) (if active 120 230)))
+        (draw-text painter font foot (+ px 10) (+ py 5 (* (+ 2 (length rows)) (1+ h)))
+                   160 160 170)))))
+
 ;;; --- Civilopedia -----------------------------------------------------------
 
 (defparameter *pedia-categories* #(:advances :units :buildings :wonders)

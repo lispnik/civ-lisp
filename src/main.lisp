@@ -267,18 +267,76 @@ or an error message."
   "Clamp a camera row so the viewport stays within the (non-wrapping) poles."
   (max 0 (min cy (max 0 (- (civm:map-height (civm:gs-map state)) *view-rows*)))))
 
+(defparameter *setup-map-sizes*
+  '(("Small" 40 26) ("Standard" 60 40) ("Large" 80 50))
+  "Map-size presets for the setup screen: (label width height).")
+
+(defun setup-screen (painter win ren)
+  "Run the new-game setup screen and return a MAKE-NEW-GAME argument plist, or
+NIL if the player quits.  Choose civilization, difficulty, rivals, and map size."
+  (declare (ignore win))
+  (let* ((nations (mapcar #'car civm:*nation-city-names*))
+         (diffs (mapcar #'car civm:*difficulties*))
+         (civ 0) (diff 2) (rivals 3) (size 1)   ; defaults: Prince, 3 rivals, Standard
+         (sel 0)
+         (ev (autowrap:alloc 'sdl2-ffi:sdl-event))
+         (result :pending))
+    (labels ((nat (k) (string-capitalize (symbol-name k)))
+             (rows ()
+               (list (list "Civilization" (nat (nth civ nations)))
+                     (list "Difficulty"   (string-capitalize (symbol-name (nth diff diffs))))
+                     (list "Rivals"       (format nil "~D" rivals))
+                     (list "Map"          (first (nth size *setup-map-sizes*)))))
+             (change (d)
+               (case sel
+                 (0 (setf civ (mod (+ civ d) (length nations))))
+                 (1 (setf diff (mod (+ diff d) (length diffs))))
+                 (2 (setf rivals (max 1 (min 6 (+ rivals d)))))
+                 (3 (setf size (mod (+ size d) (length *setup-map-sizes*))))))
+             (build ()
+               (let* ((human (nat (nth civ nations)))
+                      (others (remove (nth civ nations) nations))
+                      (rivnames (mapcar #'nat (subseq others 0 (min rivals (length others)))))
+                      (sz (nth size *setup-map-sizes*)))
+                 (list :seed (logand (sdl2-ffi.functions:sdl-get-ticks) #xffff)
+                       :players (cons human rivnames) :barbarians t
+                       :difficulty (nth diff diffs)
+                       :width (second sz) :height (third sz)))))
+      (unwind-protect
+          (progn
+            (sdl2-ffi.functions:sdl-stop-text-input)   ; arrows/Enter only here
+            (loop while (eq result :pending) do
+              (loop while (/= 0 (sdl2-ffi.functions:sdl-poll-event ev)) do
+                (let ((type (ev-type ev)))
+                  (cond
+                    ((= type +ev-quit+) (setf result nil))
+                    ((= type +ev-keydown+)
+                     (let ((sc (ev-scancode ev)))
+                       (cond
+                         ((= sc +sc-escape+) (setf result nil))
+                         ((or (= sc +sc-return+) (= sc +sc-kp-enter+)) (setf result (build)))
+                         ((= sc +sc-up+)    (setf sel (mod (1- sel) 4)))
+                         ((= sc +sc-down+)  (setf sel (mod (1+ sel) 4)))
+                         ((= sc +sc-left+)  (change -1))
+                         ((= sc +sc-right+) (change 1))))))))
+              (sdl2:set-render-draw-color ren 16 24 48 255)
+              (sdl2:render-clear ren)
+              (draw-setup painter (* *view-cols* *tile*) (* *view-rows* *tile*) (rows) sel)
+              (sdl2:render-present ren)
+              (sdl2:delay 16))
+            (and (not (eq result :pending)) result))
+        (autowrap:free ev)))))
+
 (defun run (&key (scale *scale*) (seed 0)
                  (players *civilizations*) (width 80) (height 50))
-  "Open a window, start a new game, and render/drive it until quit."
+  "Open a window, show the setup screen, then play the chosen game until quit.
+SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
+  (declare (ignore seed players width height))
   (sdl2:with-init (:video)
     (sdl2-image:init '(:png))
-    (let* ((state (civm:make-new-game :seed seed :players players :barbarians t
-                                      :width width :height height))
-           (lw (* *view-cols* *tile*))      ; the window is a fixed viewport,
+    (let* ((lw (* *view-cols* *tile*))      ; the window is a fixed viewport,
            (lh (* *view-rows* *tile*))       ; not the whole (scrolling) map
-           (selected (first-human-unit state))
            (cam-x 0) (cam-y 0))
-      (setf *state* state)          ; publish the live game for the console / SLY
       (sdl2:with-window (win :title "civ-lisp" :w (* lw scale) :h (* lh scale)
                              :flags '(:shown))
         (sdl2:with-renderer (ren win :flags '(:accelerated :presentvsync))
@@ -300,7 +358,13 @@ or an error message."
             (sdl2-ffi.functions:sdl-set-cursor torch-cursor)
             (sdl2:show-cursor)
             (sdl2:raise-window win)        ; bring the window to the front / focus it
-            (let ((ev (autowrap:alloc 'sdl2-ffi:sdl-event))
+            (let ((cfg (setup-screen painter win ren)))   ; choose civ/difficulty/map
+             (when cfg                                    ; NIL = quit at the setup screen
+              (let* ((state (apply #'civm:make-new-game cfg))
+                     (selected (first-human-unit state)))
+               (setf *state* state)          ; publish the live game for the console / SLY
+               (sdl2-ffi.functions:sdl-set-cursor torch-cursor)
+               (let ((ev (autowrap:alloc 'sdl2-ffi:sdl-event))
                   (running t)
                   (build-city nil)    ; city id whose build menu is open
                   (gov-menu nil)      ; T while the revolution menu is open
@@ -916,7 +980,7 @@ or an error message."
                   (when (painter-nuke painter) (sdl2:destroy-texture (painter-nuke painter)))
                   (sdl2-ffi.functions:sdl-free-cursor torch-cursor)
                   (sdl2-ffi.functions:sdl-free-cursor go-cursor)
-                  (sdl2-image:quit))))))))))
+                  (sdl2-image:quit)))))))))))))
 
 (defun main ()
   "Entry point.  On macOS the SDL event loop must run on the main thread."
