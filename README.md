@@ -308,8 +308,12 @@ missiles** it flies at your cities and detonates. The AI also runs an
 (Monarchy, Trade, the Republic, the wonder techs), leads a **revolution** toward
 the best government it can adopt (Monarchy while at war, Republic or Democracy in
 peace), and invests its **largest city** in **world wonders** — whose effects are
-all live (see below). [`examples/economy-demo.lisp`](examples/economy-demo.lisp)
-plays a full six-AI game and reports the governments adopted and wonders raised.
+all live (see below). For **growth** it raises the food/happiness buildings
+(granary, aqueduct, colosseum) on its cities, sends surplus settlers out as
+**engineers to irrigate** the land once it has expanded, and **raises the luxury
+rate** when a city riots — so its cities actually climb past the early size
+ceiling. [`examples/economy-demo.lisp`](examples/economy-demo.lisp) plays a full
+six-AI game and reports the governments adopted and wonders raised.
 
 **Combat** is **war-gated**: you can't enter a tile held by a civ you're at
 peace with, so you **declare war** first (the diplomacy menu, `Y`). Moving into
