@@ -1631,6 +1631,20 @@
     (is-true (tile-mine tile))
     (is (= (1+ s0) (nth-value 1 (tile-yield tile))))))
 
+(test irrigation-adds-food
+  ;; irrigating grassland is a 4-turn job that adds +1 food via TILE-YIELD
+  (let* ((s (bare-state 6 6 :terrain :grassland))
+         (u (add-unit s :settlers 1 2 2))
+         (tile (tile-at (gs-map s) 2 2))
+         (f0 (nth-value 0 (tile-yield tile))))
+    (apply-command s (list :irrigate :unit (unit-id u)))
+    (is (eq :irrigate (unit-work u)))
+    (dotimes (i 3) (end-turn s))
+    (is-false (tile-irrigation tile))         ; still working after 3 turns
+    (end-turn s)
+    (is-true (tile-irrigation tile))          ; done on the 4th
+    (is (= (1+ f0) (nth-value 0 (tile-yield tile))))))
+
 (test terraform-restrictions
   (let* ((s (bare-state 6 6 :terrain :grassland))
          (settler (add-unit s :settlers 1 2 2))
