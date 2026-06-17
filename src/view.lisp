@@ -14,6 +14,13 @@
 
 (defparameter *tile* 16 "Native sprite/tile size in pixels.")
 
+;; The scrolling viewport, in tiles.  64x15... no -- 64x40 tiles = 1024x640 px,
+;; a golden-ratio 8:5 shape rendered 1:1 (see *SCALE* in main.lisp).
+(defparameter *view-cols* 64 "Viewport width in tiles (64x40 = 1024x640, golden 8:5).")
+(defparameter *view-rows* 40 "Viewport height in tiles.")
+(defun view-w () (* *view-cols* *tile*))
+(defun view-h () (* *view-rows* *tile*))
+
 (defparameter *sprites-image*
   (merge-pathnames "assets/sprites.png" (asdf:system-source-directory :civ-lisp))
   "The SP257 sheet (units, cities, land base).")
@@ -652,9 +659,10 @@ the workforce (tile workers vs. specialists), and the garrison."
                 (format nil "Workers ~D  (+/- specialists)" (civm:city-worker-count city)))
             (if garrison (format nil "Garrison ~{~A~^ ~}" garrison) "Garrison: none")))))
 
-(defparameter +city-map-x+ 2 "Work-radius map origin (bottom-left of the screen).")
-(defparameter +city-map-y+ 158)
+(defparameter +city-map-x+ 2 "Work-radius map origin x (bottom-left of the screen).")
 (defparameter +city-map-cell+ 16 "The work map uses full 16px terrain tiles.")
+(defun city-map-y () "Bottom-anchored: the 5x5 work map sits at the screen bottom-left."
+  (- (view-h) (* 5 +city-map-cell+) 3))
 
 (defun draw-tile-yield (painter food shields trade px py)
   "Cluster the food/shield/trade icons (at native 8px, two per row, capped at a
@@ -706,11 +714,11 @@ tiles framed in yellow and annotated with their yield icons, idle tiles dimmed."
 (hand control back to the governor), the (x y) world tile for a workable cell, or
 NIL if the click missed the map."
   (declare (ignore painter))
-  (let ((span (* 5 +city-map-cell+)))
+  (let ((span (* 5 +city-map-cell+)) (mapy (city-map-y)))
     (when (and (<= +city-map-x+ lx (+ +city-map-x+ span))
-               (<= +city-map-y+ ly (+ +city-map-y+ span)))
+               (<= mapy ly (+ mapy span)))
       (let ((dx (- (floor (- lx +city-map-x+) +city-map-cell+) 2))
-            (dy (- (floor (- ly +city-map-y+) +city-map-cell+) 2)))
+            (dy (- (floor (- ly mapy) +city-map-cell+) 2)))
         (unless (and (= 2 (abs dx)) (= 2 (abs dy)))      ; the dropped corners
           (if (and (zerop dx) (zerop dy)) :auto
               (list (civm:wrap-x (civm:gs-map state) (+ (civm:city-x city) dx))
@@ -857,7 +865,7 @@ citizen icons (specialists clickable), and a work-radius map at bottom-left."
                        (set-rect (painter-dst painter) dx (+ y +people-ch+ -1) +people-cw+ 1)
                        (sdl2:render-fill-rect ren (painter-dst painter))))))))
     ;; the clickable work-radius map sits bottom-left, clear of the build panel
-    (draw-city-map painter state city +city-map-x+ +city-map-y+)))
+    (draw-city-map painter state city +city-map-x+ (city-map-y))))
 
 ;;; --- the City Resources pane -----------------------------------------------
 ;; A graphical readout, one row of icons per resource, with a small separator
@@ -865,8 +873,9 @@ citizen icons (specialists clickable), and a work-radius map at bottom-left."
 
 (defparameter +res-pane-x+ 82 "City Resources pane: clears the status pane on the left.")
 (defparameter +res-pane-y+ 1)
-(defparameter +res-pane-w+ 300 "Spans to the right edge of the 384px viewport.")
 (defparameter +res-row-h+ 8)
+(defun res-pane-w () "Spans from the pane's left edge to the viewport's right edge."
+  (- (view-w) +res-pane-x+ 2))
 
 (defun draw-icon-run (painter icon n x y)
   "Draw N copies of resource ICON (sx . sy in the icon texture), 8px apart from
@@ -889,7 +898,7 @@ then SURPLUS icons.  NEEDED-FN / SURPLUS-FN each draw a run and return the new x
   (let* ((font (painter-font painter)) (ren (painter-ren painter))
          (x0 (+ +res-pane-x+ 2))
          (ix (+ x0 26))                              ; icons start after the label
-         (cap (floor (- +res-pane-w+ 30) +icon-size+))
+         (cap (floor (- (res-pane-w) 30) +icon-size+))
          (nn (min needed cap)) (ns (min surplus (max 0 (- cap nn 1)))))
     (draw-text painter font label x0 (+ y 1) 210 210 220)
     (let ((xn (funcall needed-fn painter ix y nn)))
@@ -914,7 +923,7 @@ each a row of icons split by a separator into needed (consumed) and surplus."
                  (beakers (floor (or (civm:city-research-output state city trade) 0) 100))
                  (ph (+ 3 (* 7 +res-row-h+))))
             (sdl2:set-render-draw-color ren 0 0 0 220)
-            (set-rect (painter-dst painter) +res-pane-x+ +res-pane-y+ +res-pane-w+ ph)
+            (set-rect (painter-dst painter) +res-pane-x+ +res-pane-y+ (res-pane-w) ph)
             (sdl2:render-fill-rect ren (painter-dst painter))
             (sdl2:set-render-draw-color ren 220 220 220 255)
             (sdl2:render-draw-rect ren (painter-dst painter))
@@ -991,11 +1000,12 @@ half level a granary keeps after the city grows."
 ;; A Civ1-style list of the units this city supports (its home units), each with
 ;; its sprite and per-turn shield maintenance, down the right edge of the screen.
 
-(defparameter +units-pane-x+ 328 "Right-anchored in the 384px viewport.")
 (defparameter +units-pane-w+ 54)
 (defparameter +units-pane-y+ 64)
 (defparameter +units-row-h+ 17)
 (defparameter +units-pane-max-rows+ 9 "Cap supported-unit rows to fit the column.")
+(defun units-pane-x () "Right-anchored at the viewport's right edge."
+  (- (view-w) +units-pane-w+ 2))
 
 (defun draw-units-pane (painter state city)
   "A pane of the units CITY supports: each unit's sprite and its per-turn shield
@@ -1004,7 +1014,7 @@ maintenance (a shield icon and the cost; free units show 0)."
     (when font
       (let* ((ren (painter-ren painter)) (h (gfont-height font))
              (support (civm:city-unit-support-list state city))   ; ((unit . cost) ...)
-             (x +units-pane-x+) (y +units-pane-y+)
+             (x (units-pane-x)) (y +units-pane-y+)
              (rows (min +units-pane-max-rows+ (length support)))
              (ph (+ 3 h (* (max 1 rows) +units-row-h+))))
         (when support

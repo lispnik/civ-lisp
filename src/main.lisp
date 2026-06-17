@@ -30,8 +30,8 @@
   (merge-pathnames "assets/fonts.cv" (asdf:system-source-directory :civ-lisp))
   "Civilization's bitmap font file (FONTS.CV); used for in-window text.")
 
-(defparameter *scale* 3
-  "Global integer scale factor applied to the whole app.")
+(defparameter *scale* 1
+  "Global integer scale factor applied to the whole app (1 = native, unscaled).")
 
 ;;; --- raw SDL_Event field access --------------------------------------------
 ;;; cl-sdl2's high-level accessors (scancode-value, the :x/:y event
@@ -297,8 +297,7 @@ or an error message."
 (defparameter *civilizations* '("You" "Rome" "Egypt" "Zulu")
   "The civilizations in a new game; the first is the human player.")
 
-(defparameter *view-cols* 24 "Viewport width in tiles (24x15 = 384x240, ~golden 8:5).")
-(defparameter *view-rows* 15 "Viewport height in tiles.")
+;; *view-cols* / *view-rows* now live in view.lisp (the HUD panes anchor to them)
 
 (defun clamp-cam-y (state cy)
   "Clamp a camera row so the viewport stays within the (non-wrapping) poles."

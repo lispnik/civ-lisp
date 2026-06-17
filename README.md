@@ -338,9 +338,9 @@ the continents, ice hugs the poles, fish dot the seas):
 
 It is an 80×50 **horizontal
 cylinder** (it wraps
-east–west, with poles top and bottom); the window is a **scrolling 24×15-tile
-viewport** — a golden-rectangle 8:5 shape (16 px tiles → 384×240, scaled 3× →
-1152×720) — whose camera follows the selected
+east–west, with poles top and bottom); the window is a **scrolling 64×40-tile
+viewport** — a golden-rectangle 8:5 shape (16 px tiles → 1024×640, drawn 1:1)
+— whose camera follows the selected
 unit, and tiles are stitched seamlessly across the seam. Keyboard input is turned
 into `civ-model` commands — the view never mutates the model directly. Several
 rival **civilizations** (the default game has four) plus roving **barbarians**
@@ -531,7 +531,7 @@ ocicl install            # fetch sdl2 / sdl2-image (first time)
 sbcl --dynamic-space-size 4096 --non-interactive --load run.lisp
 ```
 
-A 1152×720 window opens with the torch image as the cursor (drawn centred so you
+A 1024×640 window opens with the torch image as the cursor (drawn centred so you
 can see it). Close the window or press **Escape** to quit.
 
 ### Live coding (Emacs / SLY)
@@ -545,14 +545,14 @@ inspect and reshape the running game while it plays.
 
 ## Global scaling
 
-The original Civilization assets are tiny on a modern display, so the whole app
-is scaled by `*scale*` (default `3`). Two separate things are scaled:
+`*scale*` is a global integer zoom for the whole app (default `1` = native, the
+1024×640 window drawn 1:1).  Raising it multiplies two separate things:
 
 * **Renderer drawing** — `SDL_RenderSetScale` multiplies every render coordinate,
-  so the app draws in logical (384×240) space and SDL triples it.
+  so the app draws in logical space and SDL scales it up.
 * **The mouse cursor** — OS cursors are *not* touched by the renderer, so the
   cursor surface is upscaled (nearest-neighbour via `SDL_UpperBlitScaled`)
-  before the colour cursor is created. The 13×14 torch becomes a 39×42 cursor.
+  before the colour cursor is created, to match.
 
 Change the factor at runtime:
 
