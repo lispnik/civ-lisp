@@ -1043,6 +1043,24 @@ maintenance (a shield icon and the cost; free units show 0)."
 
 ;;; --- government menu (revolution) ------------------------------------------
 
+(defun centered-box (painter texts)
+  "(values PX PY PW PH) for a panel sized to hold TEXTS, centred in the viewport.
+Shared by the pop-up menus so each draws centred and its click-pick matches."
+  (let* ((font (painter-font painter)) (h (gfont-height font))
+         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
+         (ph (+ 4 (* (length texts) (1+ h)))))
+    (values (max 0 (floor (- (view-w) pw) 2))
+            (max 0 (floor (- (view-h) ph) 2)) pw ph)))
+
+(defparameter +gov-title+ "Revolution! New government:")
+(defparameter +gov-foot+ "Esc cancels — 1 turn of anarchy")
+
+(defun gov-menu-texts (state)
+  (append (list +gov-title+) (mapcar #'third (gov-menu-lines state)) (list +gov-foot+)))
+
+(defun gov-menu-geometry (painter state)
+  (centered-box painter (gov-menu-texts state)))
+
 (defparameter *gov-order* '(:despotism :monarchy :communism :republic :democracy))
 
 (defun gov-menu-lines (state)
@@ -1059,36 +1077,31 @@ maintenance (a shield icon and the cost; free units show 0)."
 
 (defun gov-menu-pick (painter state ly)
   "Government at logical y LY in the menu, or NIL (locked/out of range)."
-  (let ((row (floor (- ly (+ *menu-y* 2)) (1+ (gfont-height (painter-font painter)))))
-        (lines (gov-menu-lines state)))
-    (when (and (>= row 1) (<= row (length lines)))
-      (let ((entry (nth (1- row) lines)))
-        (when (fourth entry) (second entry))))))
+  (multiple-value-bind (px py pw ph) (gov-menu-geometry painter state)
+    (declare (ignore px pw ph))
+    (let ((row (floor (- ly (+ py 2)) (1+ (gfont-height (painter-font painter)))))
+          (lines (gov-menu-lines state)))
+      (when (and (>= row 1) (<= row (length lines)))
+        (let ((entry (nth (1- row) lines)))
+          (when (fourth entry) (second entry)))))))
 
 (defun draw-gov-menu (painter state)
-  (let* ((font (painter-font painter)) (ren (painter-ren painter))
-         (h (gfont-height font))
-         (p (human-player state))
-         (lines (gov-menu-lines state))
-         (title "Revolution! New government:")
-         (foot "Esc cancels — 1 turn of anarchy")
-         (texts (append (list title) (mapcar #'third lines) (list foot)))
-         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
-         (ph (+ 4 (* (length texts) (1+ h)))))
-    (declare (ignore p))
-    (sdl2:set-render-draw-color ren 0 0 0 230)
-    (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
-    (sdl2:render-fill-rect ren (painter-dst painter))
-    (sdl2:set-render-draw-color ren 220 220 220 255)
-    (sdl2:render-draw-rect ren (painter-dst painter))
-    (flet ((line (text row r g b)
-             (draw-text painter font text (+ *menu-x* 2)
-                        (+ *menu-y* 2 (* row (1+ h))) r g b)))
-      (line title 0 255 230 120)
-      (loop for (i g label ok) in lines
-            do (progn g)
-               (line label i (if ok 255 120) (if ok 255 120) 120))
-      (line foot (1+ (length lines)) 160 160 160))))
+  (let ((font (painter-font painter)) (ren (painter-ren painter))
+        (h (gfont-height (painter-font painter)))
+        (lines (gov-menu-lines state)))
+    (multiple-value-bind (px py pw ph) (gov-menu-geometry painter state)
+      (sdl2:set-render-draw-color ren 0 0 0 230)
+      (set-rect (painter-dst painter) px py pw ph)
+      (sdl2:render-fill-rect ren (painter-dst painter))
+      (sdl2:set-render-draw-color ren 220 220 220 255)
+      (sdl2:render-draw-rect ren (painter-dst painter))
+      (flet ((line (text row r g b)
+               (draw-text painter font text (+ px 2) (+ py 2 (* row (1+ h))) r g b)))
+        (line +gov-title+ 0 255 230 120)
+        (loop for (i g label ok) in lines
+              do (progn g)
+                 (line label i (if ok 255 120) (if ok 255 120) 120))
+        (line +gov-foot+ (1+ (length lines)) 160 160 160)))))
 
 (defparameter *help-lines*
   '("CONTROLS"
@@ -1280,7 +1293,8 @@ unresearched, or its prerequisite is) are dimmed.  VW x VH is the viewport."
              (category (aref *pedia-categories* cat))
              (all (pedia-lines category (human-player state)))   ; (text . have-p)
              (n (length all))
-             (rows (max 1 (- (floor (* vh *tile*) (1+ h)) 2)))   ; visible lines
+             ;; show ~3/4 of the height so the panel sits as a centred box
+             (rows (max 1 (- (floor (* 3 vh *tile*) (* 4 (1+ h))) 2)))   ; visible lines
              (top (max 0 (min scroll (max 0 (- n rows)))))
              (shown (subseq all top (min n (+ top rows))))
              (head (format nil "CIVILOPEDIA - ~:(~A~)   <- -> section   up/down scroll   Esc"
@@ -1414,35 +1428,38 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
           finally (return (loop for (oid action label) in rows for i from 1
                                 collect (list i oid action label))))))
 
+(defparameter +diplo-title+ "Diplomacy:")
+
+(defun diplo-menu-geometry (painter state)
+  (centered-box painter (cons +diplo-title+ (mapcar #'fourth (diplo-menu-lines state)))))
+
 (defun diplo-menu-pick (painter state ly)
   "The (oid action) for the diplomacy row at logical y LY, or NIL."
-  (let ((row (floor (- ly (+ *menu-y* 2)) (1+ (gfont-height (painter-font painter)))))
-        (lines (diplo-menu-lines state)))
-    (when (and (>= row 1) (<= row (length lines)))
-      (let ((entry (nth (1- row) lines)))     ; (i oid action label)
-        (list (second entry) (third entry))))))
+  (multiple-value-bind (px py pw ph) (diplo-menu-geometry painter state)
+    (declare (ignore px pw ph))
+    (let ((row (floor (- ly (+ py 2)) (1+ (gfont-height (painter-font painter)))))
+          (lines (diplo-menu-lines state)))
+      (when (and (>= row 1) (<= row (length lines)))
+        (let ((entry (nth (1- row) lines)))     ; (i oid action label)
+          (list (second entry) (third entry)))))))
 
 (defun draw-diplo-menu (painter state)
-  (let* ((font (painter-font painter)) (ren (painter-ren painter))
-         (h (gfont-height font))
-         (lines (diplo-menu-lines state))
-         (title "Diplomacy:")
-         (texts (cons title (mapcar #'fourth lines)))
-         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
-         (ph (+ 4 (* (length texts) (1+ h)))))
-    (sdl2:set-render-draw-color ren 0 0 0 230)
-    (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
-    (sdl2:render-fill-rect ren (painter-dst painter))
-    (sdl2:set-render-draw-color ren 220 220 220 255)
-    (sdl2:render-draw-rect ren (painter-dst painter))
-    (flet ((line (text row r g b)
-             (draw-text painter font text (+ *menu-x* 2)
-                        (+ *menu-y* 2 (* row (1+ h))) r g b)))
-      (line title 0 255 230 120)
-      (loop for (i oid action label) in lines
-            do (progn action)
-               (destructuring-bind (r g b) (owner-color state oid)
-                 (line label i r g b))))))
+  (let ((font (painter-font painter)) (ren (painter-ren painter))
+        (h (gfont-height (painter-font painter)))
+        (lines (diplo-menu-lines state)))
+    (multiple-value-bind (px py pw ph) (diplo-menu-geometry painter state)
+      (sdl2:set-render-draw-color ren 0 0 0 230)
+      (set-rect (painter-dst painter) px py pw ph)
+      (sdl2:render-fill-rect ren (painter-dst painter))
+      (sdl2:set-render-draw-color ren 220 220 220 255)
+      (sdl2:render-draw-rect ren (painter-dst painter))
+      (flet ((line (text row r g b)
+               (draw-text painter font text (+ px 2) (+ py 2 (* row (1+ h))) r g b)))
+        (line +diplo-title+ 0 255 230 120)
+        (loop for (i oid action label) in lines
+              do (progn action)
+                 (destructuring-bind (r g b) (owner-color state oid)
+                   (line label i r g b)))))))
 
 ;;; --- research chooser ------------------------------------------------------
 
@@ -1459,13 +1476,8 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
 
 (defun research-menu-geometry (painter state)
   "(values PX PY PW PH) for the research panel, centred in the viewport."
-  (let* ((font (painter-font painter)) (h (gfont-height font))
-         (texts (cons +research-title+ (mapcar #'third (research-menu-lines state))))
-         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
-         (ph (+ 4 (* (length texts) (1+ h)))))
-    (values (max 0 (floor (- (view-w) pw) 2))
-            (max 0 (floor (- (view-h) ph) 2))
-            pw ph)))
+  (centered-box painter (cons +research-title+
+                              (mapcar #'third (research-menu-lines state)))))
 
 (defun research-menu-pick (painter state ly)
   "The advance keyword for the research row at logical y LY, or NIL."
@@ -1508,33 +1520,36 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
           finally (return (loop for r in rows for i from 1
                                 collect (list* i r))))))
 
+(defparameter +trade-title+ "Trade (gold & tech):")
+
+(defun trade-menu-geometry (painter state)
+  (centered-box painter (cons +trade-title+ (mapcar #'fourth (trade-menu-lines state)))))
+
 (defun trade-menu-pick (painter state ly)
-  (let ((row (floor (- ly (+ *menu-y* 2)) (1+ (gfont-height (painter-font painter)))))
-        (lines (trade-menu-lines state)))
-    (when (and (>= row 1) (<= row (length lines)))
-      (let ((entry (nth (1- row) lines)))   ; (i oid deal label)
-        (and (third entry) entry)))))
+  (multiple-value-bind (px py pw ph) (trade-menu-geometry painter state)
+    (declare (ignore px pw ph))
+    (let ((row (floor (- ly (+ py 2)) (1+ (gfont-height (painter-font painter)))))
+          (lines (trade-menu-lines state)))
+      (when (and (>= row 1) (<= row (length lines)))
+        (let ((entry (nth (1- row) lines)))   ; (i oid deal label)
+          (and (third entry) entry))))))
 
 (defun draw-trade-menu (painter state)
-  (let* ((font (painter-font painter)) (ren (painter-ren painter))
-         (h (gfont-height font))
-         (lines (trade-menu-lines state))
-         (title "Trade (gold & tech):")
-         (texts (cons title (mapcar #'fourth lines)))
-         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
-         (ph (+ 4 (* (length texts) (1+ h)))))
-    (sdl2:set-render-draw-color ren 0 0 0 230)
-    (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
-    (sdl2:render-fill-rect ren (painter-dst painter))
-    (sdl2:set-render-draw-color ren 220 220 220 255)
-    (sdl2:render-draw-rect ren (painter-dst painter))
-    (flet ((line (text row r g b)
-             (draw-text painter font text (+ *menu-x* 2)
-                        (+ *menu-y* 2 (* row (1+ h))) r g b)))
-      (line title 0 255 230 120)
-      (loop for (i oid deal label) in lines
-            do (progn oid)
-               (line label i (if deal 230 130) (if deal 230 130) (if deal 150 130))))))
+  (let ((font (painter-font painter)) (ren (painter-ren painter))
+        (h (gfont-height (painter-font painter)))
+        (lines (trade-menu-lines state)))
+    (multiple-value-bind (px py pw ph) (trade-menu-geometry painter state)
+      (sdl2:set-render-draw-color ren 0 0 0 230)
+      (set-rect (painter-dst painter) px py pw ph)
+      (sdl2:render-fill-rect ren (painter-dst painter))
+      (sdl2:set-render-draw-color ren 220 220 220 255)
+      (sdl2:render-draw-rect ren (painter-dst painter))
+      (flet ((line (text row r g b)
+               (draw-text painter font text (+ px 2) (+ py 2 (* row (1+ h))) r g b)))
+        (line +trade-title+ 0 255 230 120)
+        (loop for (i oid deal label) in lines
+              do (progn oid)
+                 (line label i (if deal 230 130) (if deal 230 130) (if deal 150 130)))))))
 
 ;;; --- diplomat (spy) action menu --------------------------------------------
 
@@ -1557,32 +1572,35 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
                                     (t "")))
                       (and target t))))
 
+(defparameter +spy-title+ "Diplomat:")
+
+(defun spy-menu-geometry (painter state unit)
+  (centered-box painter (cons +spy-title+ (mapcar #'third (spy-menu-lines state unit)))))
+
 (defun spy-menu-pick (painter state unit ly)
-  (let ((row (floor (- ly (+ *menu-y* 2)) (1+ (gfont-height (painter-font painter)))))
-        (lines (spy-menu-lines state unit)))
-    (when (and (>= row 1) (<= row (length lines)))
-      (let ((e (nth (1- row) lines)))
-        (when (fourth e) (second e))))))      ; the command, if enabled
+  (multiple-value-bind (px py pw ph) (spy-menu-geometry painter state unit)
+    (declare (ignore px pw ph))
+    (let ((row (floor (- ly (+ py 2)) (1+ (gfont-height (painter-font painter)))))
+          (lines (spy-menu-lines state unit)))
+      (when (and (>= row 1) (<= row (length lines)))
+        (let ((e (nth (1- row) lines)))
+          (when (fourth e) (second e)))))))     ; the command, if enabled
 
 (defun draw-spy-menu (painter state unit)
-  (let* ((font (painter-font painter)) (ren (painter-ren painter))
-         (h (gfont-height font))
-         (lines (spy-menu-lines state unit))
-         (title "Diplomat:")
-         (texts (cons title (mapcar #'third lines)))
-         (pw (+ 4 (reduce #'max texts :key (lambda (s) (text-width font s)))))
-         (ph (+ 4 (* (length texts) (1+ h)))))
-    (sdl2:set-render-draw-color ren 0 0 0 230)
-    (set-rect (painter-dst painter) *menu-x* *menu-y* pw ph)
-    (sdl2:render-fill-rect ren (painter-dst painter))
-    (sdl2:set-render-draw-color ren 220 220 220 255)
-    (sdl2:render-draw-rect ren (painter-dst painter))
-    (flet ((line (text row r g b)
-             (draw-text painter font text (+ *menu-x* 2)
-                        (+ *menu-y* 2 (* row (1+ h))) r g b)))
-      (line title 0 255 230 120)
-      (loop for (i cmd label ok) in lines
-            do (progn cmd) (line label i (if ok 235 130) (if ok 235 130) (if ok 150 130))))))
+  (let ((font (painter-font painter)) (ren (painter-ren painter))
+        (h (gfont-height (painter-font painter)))
+        (lines (spy-menu-lines state unit)))
+    (multiple-value-bind (px py pw ph) (spy-menu-geometry painter state unit)
+      (sdl2:set-render-draw-color ren 0 0 0 230)
+      (set-rect (painter-dst painter) px py pw ph)
+      (sdl2:render-fill-rect ren (painter-dst painter))
+      (sdl2:set-render-draw-color ren 220 220 220 255)
+      (sdl2:render-draw-rect ren (painter-dst painter))
+      (flet ((line (text row r g b)
+               (draw-text painter font text (+ px 2) (+ py 2 (* row (1+ h))) r g b)))
+        (line +spy-title+ 0 255 230 120)
+        (loop for (i cmd label ok) in lines
+              do (progn cmd) (line label i (if ok 235 130) (if ok 235 130) (if ok 150 130)))))))
 
 (defun spaceship-hud-text (state)
   "Spaceship progress for the human, or NIL."
