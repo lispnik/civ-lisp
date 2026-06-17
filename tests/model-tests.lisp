@@ -1462,6 +1462,36 @@
     (civ-model::ai-diplomacy s (player-by-id s 1))   ; the weak side reconsiders
     (is (not (at-war-p s 1 2)))))                     ; made peace
 
+(test war-or-alliance-implies-contact
+  ;; civs are strangers by default, but an established relation presupposes contact
+  (let ((s (bare-state 8 8)))
+    (is-false (met-p s 1 2))
+    (setf (relation s 1 2) :war)
+    (is-true (met-p s 1 2))))
+
+(test units-make-contact-on-sight
+  (let* ((s (bare-state 12 8))
+         (far (add-unit s :warriors 2 9 5)))
+    (add-unit s :warriors 1 2 2)
+    (civ-model::detect-contacts s)
+    (is-false (met-p s 1 2))                          ; out of sight: strangers
+    ;; move player 2's unit adjacent to player 1's
+    (setf (tile-units (tile-at (gs-map s) 9 5))
+          (remove (unit-id far) (tile-units (tile-at (gs-map s) 9 5))))
+    (setf (unit-x far) 3 (unit-y far) 2)
+    (push (unit-id far) (tile-units (tile-at (gs-map s) 3 2)))
+    (civ-model::detect-contacts s)
+    (is-true (met-p s 1 2))))                          ; within sight: met
+
+(test ai-leaves-unmet-civs-alone
+  ;; the AI must not pounce on (or otherwise contact) a civ it has never met
+  (let ((s (bare-state 8 8)))
+    (dotimes (i 3) (civ-model::register-city s :name "M" :owner 1 :x (+ 1 i) :y 1)) ; strong
+    (civ-model::register-city s :name "T" :owner 2 :x 6 :y 5)
+    (dotimes (i 50) (civ-model::ai-diplomacy s (player-by-id s 1)))
+    (is-false (met-p s 1 2))
+    (is (not (at-war-p s 1 2)))))                      ; left alone until contact
+
 (test ai-wont-start-a-war-it-would-lose
   (let ((s (bare-state 8 8)))                         ; relation defaults to peace
     (civ-model::register-city s :name "Mine" :owner 1 :x 1 :y 1)          ; player 1: 1 city

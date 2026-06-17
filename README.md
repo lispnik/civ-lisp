@@ -352,6 +352,11 @@ spends its **whole movement** each turn; cities always keep a **garrison**
 war** on a rival it is at least as strong as, **suing for peace** once it is down
 to half a rival's cities.
 
+All of this requires **first contact**: two civilizations are strangers — no
+diplomacy, no war, not even listed in each other's diplomacy menu — until one's
+unit or city comes within sight of the other's. Only then can they trade, ally,
+or fight.
+
 Each AI is dealt a **personality** at the start — **aggressive**, **expansionist**,
 **builder**, or **scientific** — that biases how readily it goes to war, how far
 it expands, how eagerly it raises wonders and infrastructure, how willing it is

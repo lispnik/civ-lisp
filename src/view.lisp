@@ -1398,7 +1398,8 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
          (senate (civm:senate-p state me)))   ; a senate forbids declaring war
     (loop for p across (civm:gs-players state)
           for oid = (civm:player-id p)
-          when (and (/= oid me) (not (civm:barbarian-id-p state oid)))
+          when (and (/= oid me) (not (civm:barbarian-id-p state oid))
+                    (civm:met-p state me oid))   ; only civilizations we have met
             append (let ((name (civm:player-name p)))
                      (cond
                        ((civm:at-war-p state me oid)
@@ -1511,7 +1512,8 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
   (let ((me (civm:player-id (human-player state))))
     (loop for p across (civm:gs-players state)
           for oid = (civm:player-id p)
-          when (and (/= oid me) (not (civm:barbarian-id-p state oid)))
+          when (and (/= oid me) (not (civm:barbarian-id-p state oid))
+                    (civm:met-p state me oid))   ; only civilizations we have met
             collect (let ((best (civm:best-trade-with state me oid)))
                       (list oid (and best (cdr best))
                             (format nil "~A: ~A" (civm:player-name p)

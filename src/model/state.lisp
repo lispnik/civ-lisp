@@ -18,6 +18,7 @@
   (random (make-random-state nil))         ; seeded per game
   (warming 0 :type fixnum)                 ; number of global-warming events so far
   (relations (make-hash-table :test 'eql)) ; player-pair key -> :war/:alliance (absent = :peace)
+  (contacts (make-hash-table :test 'eql))  ; player-pair key -> t once the civs have met
   (truces (make-hash-table :test 'eql))    ; player-pair key -> turn a cease-fire expires
   (stolen (make-hash-table :test 'eql))    ; (thief*256+victim) -> t: a tech has been stolen
   (embassies (make-hash-table :test 'eql)) ; (observer*256+observed) -> t: an embassy exists
@@ -75,6 +76,26 @@ use, or a numbered fallback once the roster is exhausted."
 (defun barbarian-id-p (state id)
   (let ((p (player-by-id state id)))
     (and p (eq (player-kind p) :barbarian))))
+
+(defun met-p (state a b)
+  "T if civilizations A and B have made contact (so diplomacy is possible).
+Distinct civs are strangers until one's unit/city sees the other's -- but an
+established war/alliance or a truce presupposes prior contact (and keeps old
+saves, which predate the contacts table, working)."
+  (or (= a b)
+      (gethash (rel-key a b) (gs-contacts state))
+      (and (not (barbarian-id-p state a)) (not (barbarian-id-p state b))
+           (or (not (eq (relation state a b) :peace))
+               (truce-active-p state a b)))))
+
+(defun make-contact (state a b)
+  "Record that A and B have met (no-op for barbarians or self).  Returns T if
+this is the first contact between them."
+  (when (and (/= a b)
+             (not (barbarian-id-p state a)) (not (barbarian-id-p state b)))
+    (let ((key (rel-key a b)))
+      (unless (gethash key (gs-contacts state))
+        (setf (gethash key (gs-contacts state)) t)))))
 
 (defun relation (state a b)
   "Diplomatic relation between players A and B (:war, :peace, or :alliance)."

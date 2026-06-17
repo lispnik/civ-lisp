@@ -30,10 +30,39 @@
              (gs-cities state))
     table))
 
+(defun %contacts-around (state pid cx cy)
+  "Record contact between PID and any other civ whose unit/city lies within
+*SIGHT* of (CX,CY)."
+  (let ((map (gs-map state)))
+    (loop for dy from (- *sight*) to *sight* do
+      (loop for dx from (- *sight*) to *sight*
+            for tile = (tile-at map (+ cx dx) (+ cy dy))
+            when tile do
+              (dolist (id (tile-units tile))           ; an enemy/neutral unit seen
+                (let ((u (unit-by-id state id)))
+                  (when (and u (/= (unit-owner u) pid)) (make-contact state pid (unit-owner u)))))
+              (let ((cid (tile-city tile)))            ; or a city
+                (when cid
+                  (let ((c (city-by-id state cid)))
+                    (when (and c (/= (city-owner c) pid))
+                      (make-contact state pid (city-owner c))))))))))
+
+(defun detect-contacts (state)
+  "Two civilizations make first contact when one's unit or city sees the other's."
+  (maphash (lambda (id u) (declare (ignore id))
+             (unless (barbarian-id-p state (unit-owner u))
+               (%contacts-around state (unit-owner u) (unit-x u) (unit-y u))))
+           (gs-units state))
+  (maphash (lambda (id c) (declare (ignore id))
+             (%contacts-around state (city-owner c) (city-x c) (city-y c)))
+           (gs-cities state)))
+
 (defun update-visibility (state)
-  "Accumulate each player's explored (seen) set from current unit/city sight."
+  "Accumulate each player's explored (seen) set from current unit/city sight,
+and record any new first contacts between civilizations."
   (loop for p across (gs-players state)
-        do (%collect-sight state p (player-seen p))))
+        do (%collect-sight state p (player-seen p)))
+  (detect-contacts state))
 
 (defun visible-set (state player)
   "A fresh hash-table of the tiles PLAYER can currently see."

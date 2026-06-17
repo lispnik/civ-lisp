@@ -76,7 +76,9 @@ by temperament + difficulty), and -- by temperament -- offer alliances to peers.
         (mine (length (player-city-list state (player-id player)))))
     (loop for other across (gs-players state)
           for oid = (player-id other)
-          when (and (/= oid pid) (not (eq (player-kind other) :barbarian)))
+          ;; only deal with civilizations we have actually met
+          when (and (/= oid pid) (not (eq (player-kind other) :barbarian))
+                    (met-p state pid oid))
             do (let ((theirs (length (player-city-list state oid))))
                  (cond
                    ;; at war and clearly losing -> sue for a cease-fire (a truce,
@@ -645,6 +647,7 @@ spreads among the civilizations."
       (loop for o across (gs-players state)
             for oid = (player-id o)
             when (and (/= oid pid) (eq (player-kind o) :ai)
+                      (met-p state pid oid)
                       (eq (relation state pid oid) :peace))
               do (let ((give (a-tech-other-lacks state player o))
                        (want (a-tech-other-lacks state o player)))
