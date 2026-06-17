@@ -865,7 +865,7 @@ citizen icons (specialists clickable), and a work-radius map at bottom-left."
 
 (defparameter +res-pane-x+ 82 "City Resources pane: clears the status pane on the left.")
 (defparameter +res-pane-y+ 1)
-(defparameter +res-pane-w+ 236)
+(defparameter +res-pane-w+ 300 "Spans to the right edge of the 384px viewport.")
 (defparameter +res-row-h+ 8)
 
 (defun draw-icon-run (painter icon n x y)
@@ -991,7 +991,7 @@ half level a granary keeps after the city grows."
 ;; A Civ1-style list of the units this city supports (its home units), each with
 ;; its sprite and per-turn shield maintenance, down the right edge of the screen.
 
-(defparameter +units-pane-x+ 264)
+(defparameter +units-pane-x+ 328 "Right-anchored in the 384px viewport.")
 (defparameter +units-pane-w+ 54)
 (defparameter +units-pane-y+ 64)
 (defparameter +units-row-h+ 17)

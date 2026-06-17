@@ -30,7 +30,7 @@
   (merge-pathnames "assets/fonts.cv" (asdf:system-source-directory :civ-lisp))
   "Civilization's bitmap font file (FONTS.CV); used for in-window text.")
 
-(defparameter *scale* 2
+(defparameter *scale* 3
   "Global integer scale factor applied to the whole app.")
 
 ;;; --- raw SDL_Event field access --------------------------------------------
@@ -297,7 +297,7 @@ or an error message."
 (defparameter *civilizations* '("You" "Rome" "Egypt" "Zulu")
   "The civilizations in a new game; the first is the human player.")
 
-(defparameter *view-cols* 20 "Viewport width in tiles.")
+(defparameter *view-cols* 24 "Viewport width in tiles (24x15 = 384x240, ~golden 8:5).")
 (defparameter *view-rows* 15 "Viewport height in tiles.")
 
 (defun clamp-cam-y (state cy)
