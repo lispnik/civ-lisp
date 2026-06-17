@@ -399,7 +399,10 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
             (setf (painter-font painter) font
                   (painter-nuke painter) (load-atlas ren *nuke-image* +nuke-bg-key+)
                   ;; resource icons sit on a teal grid; key it out for clean blits
-                  (painter-icons painter) (load-atlas ren *sprites-image* +icon-bg-key+))
+                  (painter-icons painter) (load-atlas ren *sprites-image* +icon-bg-key+)
+                  ;; font 4: the big ornate serif title font (with laurel-wreath
+                  ;; glyphs) used to dress up the Hall of Fame
+                  (painter-bigfont painter) (load-gfont (namestring *font-file*) 4))
             (sdl2-ffi.functions:sdl-set-cursor torch-cursor)
             (sdl2:show-cursor)
             (sdl2:raise-window win)        ; bring the window to the front / focus it

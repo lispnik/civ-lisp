@@ -148,7 +148,7 @@ on naval sprites -- is real art and is left alone).")
 ;;; --- painter (reuses two rects to avoid per-draw allocation) ---------------
 
 (defstruct (painter (:constructor make-painter (ren sprites terrain src dst)))
-  ren sprites terrain src dst (font nil) (nuke nil) (icons nil))
+  ren sprites terrain src dst (font nil) (nuke nil) (icons nil) (bigfont nil))
 
 ;; defined in font.lisp (loaded after this file)
 (declaim (ftype (function (t t t t t t t t) t) draw-text))
@@ -1613,17 +1613,23 @@ each rival: war, peace, an alliance (or breaking one), and a gold gift."
             ((plusp (civm:player-spaceship p))
              (format nil "SHIP ~D/~D parts" (civm:player-spaceship p) civm:*spaceship-parts*))))))
 
+(defparameter +hof-title+ "-  Hall of Fame  -"
+  "In the big serif font (4), the dashes are laurel-wreath glyphs framing the title.")
+
 (defun draw-banner (painter state view-w &optional hof)
   "End-of-game panel: the VICTORY / DEFEAT verdict, the final Civilization-score
-standings (ranked, each civ in its colour), and the Hall of Fame's best games."
-  (let* ((font (painter-font painter)) (ren (painter-ren painter))
+standings (ranked, each civ in its colour), and -- under a big serif, laurel-
+framed heading -- the Hall of Fame's best games."
+  (let* ((font (painter-font painter))
+         (bigf (or (painter-bigfont painter) font))   ; font 4, or fall back
+         (ren (painter-ren painter))
          (human (human-player state))
          (win (and human (eql (civm:gs-winner state) (civm:player-id human))))
          (who (civm:player-name (civm:player-by-id state (civm:gs-winner state))))
          (kind (string-downcase (symbol-name (civm:gs-victory state))))
          (verdict (if win (format nil "VICTORY by ~A!" kind)
                       (format nil "DEFEAT -- ~A wins by ~A" who kind)))
-         (h (gfont-height font))
+         (h (gfont-height font)) (bh (gfont-height bigf))
          (standings (sort (loop for p across (civm:gs-players state)
                                 unless (eq (civm:player-kind p) :barbarian) collect p)
                           #'> :key #'civm:player-score))
@@ -1638,11 +1644,15 @@ standings (ranked, each civ in its colour), and the Hall of Fame's best games."
                                            (max 1 (- 14 (length (getf r :civ))))
                                            (getf r :score 0)
                                            (symbol-name (getf r :difficulty :prince))))))
-         (lines (append (list* verdict "Final score:" (mapcar #'second rows))
-                        (when hof-rows (cons "Hall of Fame:" hof-rows))))
-         (tw (reduce #'max lines :key (lambda (s) (text-width font s))))
-         (pw (+ 8 tw)) (ph (+ 6 (* (length lines) (1+ h))))
-         (px (max 0 (floor (- view-w pw) 2))) (py 30))
+         (score-lines (list* verdict "Final score:" (mapcar #'second rows)))
+         (tw (max (reduce #'max score-lines :key (lambda (s) (text-width font s)))
+                  (if hof-rows (text-width bigf +hof-title+) 0)
+                  (if hof-rows (reduce #'max hof-rows :key (lambda (s) (text-width font s))) 0)))
+         (pw (+ 8 tw))
+         (nscore (length score-lines))
+         (hof-h (if hof-rows (+ bh 6 (* (length hof-rows) (1+ h))) 0))
+         (ph (+ 6 (* nscore (1+ h)) hof-h))
+         (px (max 0 (floor (- view-w pw) 2))) (py 26))
     (sdl2:set-render-draw-color ren 0 0 0 238)
     (set-rect (painter-dst painter) px py pw ph)
     (sdl2:render-fill-rect ren (painter-dst painter))
@@ -1654,11 +1664,15 @@ standings (ranked, each civ in its colour), and the Hall of Fame's best games."
       (line "Final score:" 1 220 220 160)
       (loop for (p label) in rows for i from 2
             do (destructuring-bind (r g b) (owner-color state (civm:player-id p))
-                 (line label i r g b)))
-      (when hof-rows
-        (let ((base (+ 2 (length rows))))
-          (line "Hall of Fame:" base 220 200 140)
-          (loop for s in hof-rows for k from 1 do (line s (+ base k) 200 200 210)))))))
+                 (line label i r g b))))
+    (when hof-rows
+      (let* ((hy (+ py 3 (* nscore (1+ h)) 2))
+             (tx (+ px (max 4 (floor (- pw (text-width bigf +hof-title+)) 2)))))
+        ;; the big serif title, its `-` glyphs drawn by font 4 as laurel wreaths
+        (draw-text painter bigf +hof-title+ tx hy 235 215 130)
+        (loop for s in hof-rows for k from 0
+              do (draw-text painter font s (+ px 6) (+ hy bh 4 (* k (1+ h)))
+                            205 205 215))))))
 
 (defun offer-prompt-text (state offer)
   "The headline for an AI diplomatic OFFER awaiting the human's reply."

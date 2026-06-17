@@ -482,12 +482,13 @@ civilization ranked by score in its own colour.
 
 Each finished game is also recorded to a **Hall of Fame** (`civ-halloffame.lisp`),
 which keeps the **ten best games by score** — civ, score, difficulty, and year —
-and lists the top five right under the final standings, so a hard-won Emperor
-game earns a lasting place on the board.
+and lists the top five right under the final standings, beneath a heading set in
+Civilization's big serif title font (FONTS.CV font 4) and framed by its
+laurel-wreath glyphs, so a hard-won Emperor game earns a lasting place on the board.
 
 ![the final standings with the Hall of Fame](docs/hall-of-fame.png)
 
-*Below this game's standings, the Hall of Fame ranks the best games played so far.*
+*Below this game's standings, the laurel-framed Hall of Fame ranks the best games played so far.*
 
 **Replay.** Press `Q` any time for a Civ1-style **replay graph**: each
 civilization's Civilization-score plotted over the turns as a coloured line, with
