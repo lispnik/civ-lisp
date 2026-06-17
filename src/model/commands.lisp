@@ -33,6 +33,7 @@ on an illegal move."
     (:upgrade-unit   (cmd-upgrade-unit state command))
     (:nuke           (cmd-nuke state command))
     (:goto           (cmd-goto state command))
+    (:explore        (cmd-explore state command))
     ((:build-road :build-railroad :irrigate :mine :build-fort :build-airbase :clear-forest)
      (cmd-terraform state command))
     (:clean-pollution (cmd-clean-pollution state command))
@@ -63,7 +64,19 @@ on an illegal move."
   (setf (unit-work u) nil (unit-work-left u) 0))
 
 ;; defined in pathfind.lisp (loaded later)
-(declaim (ftype (function (t t) t) advance-goto))
+(declaim (ftype (function (t t) t) advance-goto advance-explore))
+
+(defun cmd-explore (state command)
+  "Set a unit to auto-explore: each turn it heads for the nearest unexplored tile
+(PROCESS-EXPLORE), stopping when nothing's left, it's blocked, or it sights
+another civilization.  Land and sea units only."
+  (let ((u (or (unit-by-id state (getf (rest command) :unit)) (fail "no such unit"))))
+    (when (eq (unit-def (unit-type u) :domain) :air)
+      (fail "air units can't auto-explore"))
+    (clear-work u)
+    (setf (unit-orders u) :explore (unit-goto-x u) nil (unit-goto-y u) nil)
+    (advance-explore state u)         ; set off now, don't wait for end-of-turn
+    u))
 
 (defun cmd-goto (state command)
   "Set a unit's destination and start moving it there immediately (and on each

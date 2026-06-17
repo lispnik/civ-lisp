@@ -210,7 +210,7 @@ render scale (without activating it)."
 waited units sorted last."
   (sort (remove-if (lambda (id)
                      (let ((u (civm:unit-by-id state id)))
-                       (or (eq (civm:unit-orders u) :fortified)
+                       (or (member (civm:unit-orders u) '(:fortified :explore))
                            (<= (civm:unit-moves-left u) 0))))
                    (human-unit-ids state))
         #'< :key #'cycle-key))
@@ -859,7 +859,15 @@ SEED/PLAYERS/WIDTH/HEIGHT are legacy args; the setup screen now sets these."
                                   ((= sc +sc-y+) (setf diplo-menu t))  ; diplomacy menu
                                   ((= sc +sc-e+) (setf trade-menu t))  ; trade menu
                                   ((= sc +sc-z+) (espionage! :steal-tech "advance stolen!"))
-                                  ((= sc +sc-x+) (espionage! :sabotage "sabotage!"))
+                                  ((= sc +sc-x+)
+                                   ;; X sabotages with a diplomat, else auto-explores
+                                   (let ((u (and selected (civm:unit-by-id state selected))))
+                                     (if (and u (member :espionage
+                                                        (civm:unit-def (civm:unit-type u) :abilities)))
+                                         (espionage! :sabotage "sabotage!")
+                                         (when selected
+                                           (try (list :explore :unit selected))
+                                           (setf selected (next-human-unit state selected))))))
                                   ((= sc +sc-h+) (espionage! :help-wonder "wonder boosted!"))
                                   ((= sc +sc-j+) (espionage! :trade-route "trade route opened!"))
                                   ((and shift (= sc +sc-d+)) (disband!)) ; Shift+D: disband unit

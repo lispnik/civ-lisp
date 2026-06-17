@@ -1274,6 +1274,7 @@ combat phases here.)"
   (refresh-units state)
   (process-terraform state)     ; advance settler road/irrigation/mine jobs
   (process-goto state)          ; units on :goto walk toward their target
+  (process-explore state)       ; units on :explore seek out unmapped land/sea
   (process-fuel state)          ; air units refuel, or crash when out of fuel
   (update-visibility state)     ; reveal newly-scouted tiles (fog of war)
 

@@ -812,6 +812,38 @@
     (is (= 7 (unit-x u))) (is (= 1 (unit-y u)))      ; detoured around and arrived
     (is (not (eq :ocean (tile-terrain (tile-at (gs-map s) (unit-x u) (unit-y u))))))))
 
+(test explore-reveals-new-ground
+  (let* ((s (bare-state 16 8))
+         (u (add-unit s :warriors 1 1 4))
+         (p (player-by-id s 1)))
+    (update-visibility s)
+    (let ((seen0 (hash-table-count (player-seen p))))
+      (apply-command s (list :explore :unit (unit-id u)))
+      (is (eq :explore (unit-orders u)))               ; set off exploring
+      (dotimes (i 6) (update-visibility s) (civ-model::process-explore s))
+      (update-visibility s)
+      (is (> (hash-table-count (player-seen p)) seen0)))))  ; mapped more ground
+
+(test explore-stops-on-contact
+  (let* ((s (bare-state 12 8))
+         (u (add-unit s :warriors 1 5 4)))
+    (add-unit s :warriors 2 6 4)                          ; a foreign unit right beside us
+    (update-visibility s)
+    (apply-command s (list :explore :unit (unit-id u)))
+    (is (eq :idle (unit-orders u)))))                     ; sighting halts exploration
+
+(test explore-wakes-when-nothing-left
+  (let* ((s (bare-state 8 8))
+         (u (add-unit s :warriors 1 3 3)))
+    (civ-model::reveal-map s)                             ; whole map already explored
+    (apply-command s (list :explore :unit (unit-id u)))
+    (is (eq :idle (unit-orders u)))))                     ; nothing to find -> idle
+
+(test air-units-cannot-explore
+  (let* ((s (bare-state 8 8))
+         (u (add-unit s :fighter 1 3 3)))
+    (signals command-error (apply-command s (list :explore :unit (unit-id u))))))
+
 (test city-defended
   (let* ((s (bare-state 6 6)) (st (add-unit s :settlers 1 2 2)))
     (apply-command s (list :found-city :unit (unit-id st) :name "C"))

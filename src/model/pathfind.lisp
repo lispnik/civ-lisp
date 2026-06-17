@@ -14,14 +14,21 @@
          (not (eq (tile-terrain tile) :ocean))
          (not (tile-enemies state tile owner)))))
 
+(defun sea-passable-p (state x y owner)
+  "Can OWNER's sea unit stand on (X,Y)?  Ocean, not enemy-occupied."
+  (let ((tile (tile-at (gs-map state) x y)))
+    (and tile
+         (eq (tile-terrain tile) :ocean)
+         (not (tile-enemies state tile owner)))))
+
 (declaim (inline %key))
 (defun %key (x y w) (+ x (* y w)))
 
-(defun find-path (state sx sy gx gy owner)
-  "A* shortest path from (SX,SY) to (GX,GY) for OWNER over passable tiles,
-weighted by terrain move cost (8-directional).  Returns a list of (x y) steps
-from the first move through the goal, or NIL if unreachable / already there."
-  (when (and (passable-p state gx gy owner) (not (and (= sx gx) (= sy gy))))
+(defun find-path (state sx sy gx gy owner &optional (passablep #'passable-p))
+  "A* shortest path from (SX,SY) to (GX,GY) for OWNER over tiles PASSABLEP admits
+(default land), weighted by terrain move cost (8-directional).  Returns a list of
+(x y) steps from the first move through the goal, or NIL if unreachable."
+  (when (and (funcall passablep state gx gy owner) (not (and (= sx gx) (= sy gy))))
     (let* ((map (gs-map state))
            (w (map-width map))
            (start (%key sx sy w))
@@ -55,7 +62,7 @@ from the first move through the goal, or NIL if unreachable / already there."
             (loop for (nx ny tile) in (neighbors map bx by) do
               (when (and tile
                          (or (= (%key nx ny w) goal)        ; goal may be reached
-                             (passable-p state nx ny owner)))
+                             (funcall passablep state nx ny owner)))
                 (let* ((nk (%key nx ny w))
                        (step-cost (max 1 (terrain-def (tile-terrain tile) :move 1)))
                        (tentative (+ (gethash best g) step-cost)))
@@ -100,3 +107,76 @@ Stops (keeping the order) if a step is blocked; clears the order on arrival."
                (when (eq (unit-orders u) :goto) (push u units)))
              (gs-units state))
     (dolist (u units) (advance-goto state u))))
+
+;;; --- auto-explore (a Civ2-style convenience) -------------------------------
+
+(defun explore-passable (unit)
+  "The passability predicate for UNIT's domain, used when auto-exploring."
+  (if (eq (unit-def (unit-type unit) :domain) :sea) #'sea-passable-p #'passable-p))
+
+(defun nearest-unseen-target (state unit)
+  "The nearest tile UNIT's owner has never explored that UNIT could stand on, or
+NIL when everything reachable has been mapped."
+  (let* ((map (gs-map state)) (w (map-width map)) (h (map-height map))
+         (owner (player-by-id state (unit-owner unit)))
+         (pp (explore-passable unit))
+         (ux (unit-x unit)) (uy (unit-y unit))
+         (best nil) (bestd nil))
+    (declare (ignore w))
+    (dotimes (y h)
+      (dotimes (x (map-width map))
+        (when (and (not (seen-p state owner x y))
+                   (funcall pp state x y (unit-owner unit)))
+          (let ((d (max (map-dx map x ux) (abs (- y uy)))))
+            (when (or (null bestd) (< d bestd)) (setf best (list x y) bestd d))))))
+    best))
+
+(defun foreign-unit-adjacent-p (state unit)
+  "T if a unit of another civ sits on or beside UNIT -- a sighting that should
+halt auto-exploration so the player can react."
+  (let ((map (gs-map state)) (pid (unit-owner unit)))
+    (loop for (x y tile) in (cons (list (unit-x unit) (unit-y unit) nil)
+                                  (neighbors map (unit-x unit) (unit-y unit)))
+          for tl = (or tile (tile-at map x y))
+          thereis (some (lambda (id) (let ((o (unit-by-id state id)))
+                                       (and o (/= (unit-owner o) pid))))
+                        (tile-units tl)))))
+
+(defun advance-explore (state unit)
+  "Step UNIT toward the nearest unexplored tile this turn.  Wakes the unit (back
+to :idle) when there's nothing left to explore, the route is blocked, or another
+civ's unit is sighted nearby."
+  (let* ((pp (explore-passable unit))
+         (target (nearest-unseen-target state unit)))
+    (if (null target)
+        (setf (unit-orders unit) :idle)            ; the world (we can reach) is mapped
+        (let ((path (find-path state (unit-x unit) (unit-y unit)
+                               (first target) (second target) (unit-owner unit) pp))
+              (moved nil))
+          (if (null path)
+              (setf (unit-orders unit) :idle)       ; can't get there -> stop
+              (progn
+                (dolist (step path)
+                  (when (or (<= (unit-moves-left unit) 0)
+                            (foreign-unit-adjacent-p state unit))   ; contact / danger
+                    (return))
+                  (destructuring-bind (nx ny) step
+                    (handler-case
+                        (progn (cmd-move-unit state
+                                              (list :move-unit :unit (unit-id unit)
+                                                    :dx (signed-dx (gs-map state) (unit-x unit) nx)
+                                                    :dy (- ny (unit-y unit))))
+                               (setf moved t))
+                      (command-error () (return)))   ; blocked -> stop for this turn
+                    (setf (unit-orders unit) :explore)))   ; cmd-move reset :idle; resume
+                ;; stuck (couldn't move) or face-to-face with someone -> wake
+                (when (or (not moved) (foreign-unit-adjacent-p state unit))
+                  (setf (unit-orders unit) :idle))))))))
+
+(defun process-explore (state)
+  "Advance every unit currently on an :explore order."
+  (let ((units '()))
+    (maphash (lambda (id u) (declare (ignore id))
+               (when (eq (unit-orders u) :explore) (push u units)))
+             (gs-units state))
+    (dolist (u units) (advance-explore state u))))

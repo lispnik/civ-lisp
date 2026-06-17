@@ -1111,7 +1111,7 @@ Shared by the pop-up menus so each draws centred and its click-pick matches."
     "Shift+D disband  U upgrade  N detonate nuke"
     "R / I / M  road (then rail) / irrigate / mine"
     "T fort  A airbase  C clear forest/jungle/swamp  P de-pollute"
-    "G then click  go to a tile"
+    "G then click  go to a tile     X  auto-explore"
     "V  revolution   Y  diplomacy   E  trade"
     "Z / X  diplomat steal / sabotage   D  spy menu"
     "H / J  caravan: help wonder / trade route"
@@ -1870,7 +1870,7 @@ explored-but-unseen tiles are dimmed, and units/cities show only while visible."
       ;; the selected unit blinks on top of everything on its square -- but a
       ;; unit auto-travelling under a goto order is drawn solid (no blink)
       (let* ((sel (and selected-id (civm:unit-by-id state selected-id)))
-             (traveling (and sel (eq (civm:unit-orders sel) :goto)))
+             (traveling (and sel (member (civm:unit-orders sel) '(:goto :explore))))
              (sx (and sel (scol (civm:unit-x sel))))
              (sy (and sel (srow (civm:unit-y sel)))))
         (when (and sel sx sy (visible (civm:unit-x sel) (civm:unit-y sel))

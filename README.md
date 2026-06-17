@@ -206,6 +206,7 @@ moment it completes.
 | Z / X / D | diplomat: **steal tech** / **sabotage** / open the full **spy menu** (embassy, investigate, incite revolt, bribe…) |
 | H / J | caravan: **help build a wonder** / **establish a trade route** |
 | G, then left-click | send the selected unit to a tile (auto-paths each turn); the cursor becomes the **Go** arrow |
+| X | **auto-explore**: the unit heads for the nearest unmapped tile each turn, stopping when there's nothing left, it's blocked, or it sights another civ (a diplomat sabotages instead) |
 | V | start a **revolution** — pick a new government from the menu |
 | Y / E | open the **diplomacy** (war / peace / alliance / gift) / **trade** (tech & gold) menu |
 | research chooser | opens automatically when your research is idle — pick the next advance (1–9 / click; Esc takes the default) |
