@@ -305,7 +305,7 @@ or an error message."
   (max 0 (min cy (max 0 (- (civm:map-height (civm:gs-map state)) *view-rows*)))))
 
 (defparameter *setup-map-sizes*
-  '(("Small" 40 26) ("Standard" 60 40) ("Large" 80 50))
+  '(("Tiny" 30 20) ("Small" 40 26) ("Standard" 60 40) ("Large" 80 50) ("Huge" 100 60))
   "Map-size presets for the setup screen: (label width height).")
 
 (defun setup-screen (painter win ren)
@@ -314,7 +314,7 @@ NIL if the player quits.  Choose civilization, difficulty, rivals, and map size.
   (declare (ignore win))
   (let* ((nations (mapcar #'car civm:*nation-city-names*))
          (diffs (mapcar #'car civm:*difficulties*))
-         (civ 0) (diff 2) (rivals 3) (size 1)   ; defaults: Prince, 3 rivals, Standard
+         (civ 0) (diff 2) (rivals 3) (size 2)   ; defaults: Prince, 3 rivals, Standard
          (sel 0)
          (can-resume (probe-file *autosave-path*))   ; an autosaved game to continue
          (ev (autowrap:alloc 'sdl2-ffi:sdl-event))
