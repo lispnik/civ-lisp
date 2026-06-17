@@ -14,10 +14,10 @@
 
 (defparameter *tile* 16 "Native sprite/tile size in pixels.")
 
-;; The scrolling viewport, in tiles.  64x15... no -- 64x40 tiles = 1024x640 px,
-;; a golden-ratio 8:5 shape rendered 1:1 (see *SCALE* in main.lisp).
-(defparameter *view-cols* 64 "Viewport width in tiles (64x40 = 1024x640, golden 8:5).")
-(defparameter *view-rows* 40 "Viewport height in tiles.")
+;; The scrolling viewport, in tiles.  32x20 tiles at *scale* 2 = a 1024x640 px
+;; window (golden 8:5), with each tile drawn 32px so the grid reads clearly.
+(defparameter *view-cols* 32 "Viewport width in tiles (32x20, golden 8:5).")
+(defparameter *view-rows* 20 "Viewport height in tiles.")
 (defun view-w () (* *view-cols* *tile*))
 (defun view-h () (* *view-rows* *tile*))
 

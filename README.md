@@ -338,9 +338,9 @@ the continents, ice hugs the poles, fish dot the seas):
 
 It is an 80×50 **horizontal
 cylinder** (it wraps
-east–west, with poles top and bottom); the window is a **scrolling 64×40-tile
-viewport** — a golden-rectangle 8:5 shape (16 px tiles → 1024×640, drawn 1:1)
-— whose camera follows the selected
+east–west, with poles top and bottom); the window is a **scrolling 32×20-tile
+viewport** — a golden-rectangle 8:5 shape (16 px tiles drawn at 2× → a 1024×640
+window) — whose camera follows the selected
 unit, and tiles are stitched seamlessly across the seam. Keyboard input is turned
 into `civ-model` commands — the view never mutates the model directly. Several
 rival **civilizations** (the default game has four) plus roving **barbarians**
@@ -545,8 +545,9 @@ inspect and reshape the running game while it plays.
 
 ## Global scaling
 
-`*scale*` is a global integer zoom for the whole app (default `1` = native, the
-1024×640 window drawn 1:1).  Raising it multiplies two separate things:
+`*scale*` is a global integer zoom for the whole app (default `2`, so the 32×20
+tile viewport fills a 1024×640 window with 32 px tiles).  It multiplies two
+separate things:
 
 * **Renderer drawing** — `SDL_RenderSetScale` multiplies every render coordinate,
   so the app draws in logical space and SDL scales it up.

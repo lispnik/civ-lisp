@@ -30,8 +30,8 @@
   (merge-pathnames "assets/fonts.cv" (asdf:system-source-directory :civ-lisp))
   "Civilization's bitmap font file (FONTS.CV); used for in-window text.")
 
-(defparameter *scale* 1
-  "Global integer scale factor applied to the whole app (1 = native, unscaled).")
+(defparameter *scale* 2
+  "Global integer scale factor applied to the whole app (tiles render at *tile* x this).")
 
 ;;; --- raw SDL_Event field access --------------------------------------------
 ;;; cl-sdl2's high-level accessors (scancode-value, the :x/:y event
